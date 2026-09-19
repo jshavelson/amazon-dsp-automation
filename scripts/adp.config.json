@@ -1,0 +1,16 @@
+{
+  "accountsHost": "accounts.adp.com",
+  "apiHost": "api.adp.com",
+  "tokenPath": "/auth/oauth/v2/token",
+  "workerProbePath": "/hr/v2/workers?$top=100",
+  "payrollOutputProbePath": "/payroll/v2/payroll-output?$top=1",
+  "timeCardProbeStartDate": "2026-08-30",
+  "timeCardProbeEndDate": "2026-09-05",
+  "certificatePath": "/Users/claw/.openclaw/credentials/adp/client-certificate.pem",
+  "privateKeyPath": "/Users/claw/.openclaw/credentials/adp/client-private-key.pem",
+  "keychainClientIdService": "com.openclaw.amazon-dsp.adp-client-id",
+  "keychainClientSecretService": "com.openclaw.amazon-dsp.adp-client-secret",
+  "keychainAccount": "amazon-dsp",
+  "healthPath": "data/adp/adp-api-health.json",
+  "requestTimeoutMs": 45000
+}

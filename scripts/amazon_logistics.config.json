@@ -1,0 +1,48 @@
+{
+  "baseUrl": "https://logistics.amazon.com/",
+  "performancePortalUrl": "https://logistics.amazon.com/performance",
+  "performanceApiBaseUrl": "https://logistics.amazon.com/performance/api/v1",
+  "stationCode": "DFH7",
+  "dspCode": "JECS",
+  "companyId": "974c69d9-256b-47cf-a444-0c4935ba84fb",
+  "providerId": "amzn1.flex.provider.v1.2d08118d-89a2-4a8d-86ae-be6651ab10c7",
+  "program": "AMZL",
+  "executionServiceAreaId": "a9db613c-e583-4e6e-aacd-e05a253e5d2e",
+  "downloadRoot": "data/scorecard_data",
+  "storageStatePath": "./.openclaw/amazon-logistics-storage-state.json",
+  "paymentsStorageStatePath": "./.openclaw/amazon-payments-storage-state.json",
+  "headedLogin": true,
+  "requestTimeoutMs": 45000,
+  "navigationTimeoutMs": 45000,
+  "overallTimeoutMs": 720000,
+  "requiredReportPatterns": [
+    "DSP_Overview_Dashboard",
+    "Safety_Dashboard",
+    "Quality_DCR",
+    "Quality_DSB_DNR",
+    "Quality_POD",
+    "Quality_PSB",
+    "Quality_CDF",
+    "Quality_RTS",
+    "DSP_Customer_Delivery_Feedback_negative",
+    "DSP_Delivery_Concessions",
+    "Capacity-Reliability",
+    "Compliance-Supplementary-Report",
+    "Sentiment_Report",
+    "tenure_workforce_das_Report",
+    "_en_DSPScorecard"
+  ],
+  "optionalReportPatterns": [
+    "DA-Daily-Report-",
+    "DABreakUtilization",
+    "NA-DA-POD-Details",
+    "_en_DSPScorecard",
+    "DSPScorecardPreview",
+    "Escalations_(Infractions)_Report",
+    "DVIC_",
+    "tenure_workforce_calculation_Report"
+  ],
+  "minFileCounts": {
+    "DVIC_": 7
+  }
+}

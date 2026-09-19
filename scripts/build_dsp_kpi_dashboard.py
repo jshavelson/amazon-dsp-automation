@@ -1,0 +1,868 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import csv
+import html
+import json
+import re
+import sqlite3
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from openpyxl import load_workbook
+
+ROOT = Path(__file__).resolve().parents[1]
+DB_PATH = ROOT / "data/dsp_operations.db"
+
+
+def metric(text: str, name: str) -> str | None:
+    match = re.search(rf"^\| {re.escape(name)} \| ([^|]+)", text, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+def numeric(value: str | None) -> float | None:
+    if not value or value.lower() in {"n/a", "unavailable"}:
+        return None
+    match = re.search(r"-?[\d,]+(?:\.\d+)?", value)
+    return float(match.group().replace(",", "")) if match else None
+
+
+def markdown_section(text: str, heading: str) -> str:
+    match = re.search(
+        rf"^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        return "Unavailable"
+    value = re.sub(r"^###\s+", "• ", match.group(1), flags=re.MULTILINE)
+    value = value.replace("**", "").replace("`", "")
+    value = re.sub(r"^\s*-\s+", "", value, flags=re.MULTILINE).strip()
+    return re.sub(r"\s+", " ", value)
+
+
+def overview_driver_rows(week_folder: Path) -> list[dict[str, str]]:
+    overview_paths = list(week_folder.glob("DSP_Overview_Dashboard_*_*.csv"))
+    if not overview_paths:
+        return []
+    with overview_paths[0].open(newline="", encoding="utf-8-sig") as handle:
+        return [
+            {
+                "name": row.get("Delivery Associate ", "").strip(),
+                "standing": row.get("Overall Standing", "").strip() or "Unrated",
+                "score": row.get("Overall Score", "").strip(),
+                "packages": row.get("Packages Delivered", "0").strip() or "0",
+                "pod": row.get("POD", "").strip(),
+                "cdf": row.get("CDF DPMO", "").strip(),
+                "dsb": row.get("DSB", "").strip(),
+            }
+            for row in csv.DictReader(handle)
+            if row.get("Delivery Associate ", "").strip() and numeric(row.get("Overall Score")) is not None
+        ]
+
+
+def parse_iso_duration(duration: str) -> float:
+    """Parse ISO 8601 duration (e.g., PT10H30M) to total hours."""
+    if not duration or duration == "PT0H":
+        return 0.0
+    hours = 0.0
+    minutes = 0.0
+    if "H" in duration:
+        hours = float(duration.split("H")[0].replace("PT", ""))
+    if "M" in duration:
+        minutes_part = duration.split("H")[1].split("M")[0] if "H" in duration else duration.split("M")[0].replace("PT", "")
+        minutes = float(minutes_part)
+    return hours + (minutes / 60)
+
+
+def time_attendance_issues(adp_path: Path) -> list[dict[str, str]]:
+    """Extract missed punches and shifts >10 hours from ADP timecard JSON."""
+    issues = []
+    if not adp_path.exists():
+        return issues
+    with open(adp_path, encoding="utf-8") as f:
+        timecards = json.load(f)
+    for associate in timecards:
+        name = associate.get("personLegalName", {}).get("formattedName", "Unknown")
+        for timecard in associate.get("timeCards", []):
+            for day in timecard.get("dayEntries", []):
+                duration = day.get("totalPeriodTimeDuration", "PT0H")
+                date_str = day.get("entryDate", "Unknown")
+                total_hours = parse_iso_duration(duration)
+                if total_hours == 0.0:
+                    issues.append({
+                        "employee": name,
+                        "date": date_str,
+                        "issue_type": "Missed punch",
+                        "details": f"No time recorded for {date_str}"
+                    })
+                elif total_hours > 10.0:
+                    issues.append({
+                        "employee": name,
+                        "date": date_str,
+                        "issue_type": "Long shift",
+                        "details": f"{total_hours:.2f} hours"
+                    })
+    return sorted(issues, key=lambda x: (x["employee"], x["date"]))
+
+
+def get_all_disputes(scorecard_root: Path) -> list[dict[str, str]]:
+    """Scan all dispute folders and extract filed dispute records."""
+    disputes = []
+    if not scorecard_root.exists():
+        return disputes
+    for week_folder in sorted(scorecard_root.iterdir(), reverse=True):
+        if not week_folder.is_dir():
+            continue
+        dispute_folder = week_folder / "dispute"
+        if not dispute_folder.exists():
+            continue
+        for review_file in dispute_folder.glob("week*-amazon-submission-review.json"):
+            try:
+                with open(review_file, encoding="utf-8") as f:
+                    review = json.load(f)
+                # Handle both list and dict structures
+                candidates = review if isinstance(review, list) else review.get("candidates", [])
+                for candidate in candidates:
+                    for submission in candidate.get("submissions", []):
+                        disputes.append({
+                            "week": week_folder.name,
+                            "driver": candidate.get("driverName", "Unknown"),
+                            "metric": candidate.get("metric", "Unknown"),
+                            "status": submission.get("status", "Pending"),
+                            "submitted": submission.get("submittedAt", "Unknown"),
+                            "confirmation": submission.get("confirmationNumber", "N/A"),
+                            "outcome": submission.get("outcome", "Pending")
+                        })
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+    return sorted(disputes, key=lambda x: (x["week"], x["driver"]), reverse=True)
+
+
+def signed_money(value: float) -> str:
+    return f'{"+" if value >= 0 else "-"}${abs(value):,.2f}'
+
+
+def line_chart(title: str, labels: list[str], values: list[float | None], suffix: str = "", color: str = "#38bdf8", view: str | None = None) -> str:
+    width, height, left, top, bottom = 620, 210, 44, 22, 35
+    present = [value for value in values if value is not None]
+    lo, hi = min(present), max(present)
+    pad = max((hi - lo) * .2, .05 if suffix == "%" else 1)
+    lo, hi = lo - pad, hi + pad
+    segments: list[list[str]] = [[]]
+    dots = []
+    for i, value in enumerate(values):
+        x = left + i * (width - left - 18) / max(1, len(values) - 1)
+        if value is None:
+            segments.append([])
+            dots.append(f'<text x="{x:.1f}" y="{height/2:.1f}" text-anchor="middle" class="missing">N/A</text><text x="{x:.1f}" y="{height-9}" text-anchor="middle" class="axis">{html.escape(labels[i])}</text>')
+            continue
+        y = top + (hi - value) / (hi - lo) * (height - top - bottom)
+        segments[-1].append(f"{x:.1f},{y:.1f}")
+        dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{color}"/><text x="{x:.1f}" y="{y-11:.1f}" text-anchor="middle">{value:,.2f}{suffix}</text><text x="{x:.1f}" y="{height-9}" text-anchor="middle" class="axis">{html.escape(labels[i])}</text>')
+    lines = ''.join(f'<polyline points="{" ".join(segment)}" fill="none" stroke="{color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>' for segment in segments if len(segment) > 1)
+    view_attr = f' data-period-view="{view}"' if view else ''
+    return f'''<article class="card chart"{view_attr}><h3>{html.escape(title)}</h3><svg viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(title)}"><line x1="{left}" y1="{height-bottom}" x2="{width-18}" y2="{height-bottom}" class="gridline"/>{lines}{''.join(dots)}</svg></article>'''
+
+
+def comparison_line_chart(
+    title: str,
+    labels: list[str],
+    series: list[tuple[str, list[float | None], str]],
+) -> str:
+    width, height, left, top, bottom = 620, 210, 44, 22, 35
+    present = [value for _, values, _ in series for value in values if value is not None]
+    lo, hi = min(present), max(present)
+    pad = max((hi - lo) * .2, 1)
+    lo, hi = lo - pad, hi + pad
+    x_positions = [left + i * (width - left - 18) / max(1, len(labels) - 1) for i in range(len(labels))]
+    labels_svg = ''.join(
+        f'<text x="{x:.1f}" y="{height-9}" text-anchor="middle" class="axis">{html.escape(label)}</text>'
+        for x, label in zip(x_positions, labels)
+    )
+    series_svg = []
+    legend = []
+    for series_index, (name, values, color) in enumerate(series):
+        segments: list[list[str]] = [[]]
+        marks = []
+        for x, value in zip(x_positions, values):
+            if value is None:
+                segments.append([])
+                continue
+            y = top + (hi - value) / (hi - lo) * (height - top - bottom)
+            segments[-1].append(f"{x:.1f},{y:.1f}")
+            label_y = y - 11 if series_index == 0 else y + 19
+            marks.append(
+                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{color}"/>'
+                f'<text x="{x:.1f}" y="{label_y:.1f}" text-anchor="middle" style="fill:{color}">{value:,.0f}</text>'
+            )
+        lines = ''.join(
+            f'<polyline points="{" ".join(segment)}" fill="none" stroke="{color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+            for segment in segments if len(segment) > 1
+        )
+        series_svg.append(lines + ''.join(marks))
+        legend.append(
+            f'<span class="chart-legend-item"><i style="background:{color}"></i>{html.escape(name)}</span>'
+        )
+    aria = f'{title}: ' + '; '.join(name for name, _, _ in series)
+    return (
+        f'<article class="card chart"><h3>{html.escape(title)}</h3>'
+        f'<div class="chart-legend">{"".join(legend)}</div>'
+        f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(aria)}">'
+        f'<line x1="{left}" y1="{height-bottom}" x2="{width-18}" y2="{height-bottom}" class="gridline"/>'
+        f'{"".join(series_svg)}{labels_svg}</svg></article>'
+    )
+
+
+def bars(title: str, labels: list[str], values: list[float], suffix: str = "", colors: list[str] | None = None, display_values: list[str] | None = None, financial: bool = False) -> str:
+    maximum = max(values) or 1
+    rows = []
+    colors = colors or ["#38bdf8"] * len(values)
+    for index, (label, value, color) in enumerate(zip(labels, values, colors)):
+        displayed = display_values[index] if display_values else f"{value:,.1f}{suffix}"
+        rows.append(f'<div class="barrow"><span>{html.escape(label)}</span><i><b style="width:{value/maximum*100:.3f}%;background:{color}"></b></i><strong>{html.escape(displayed)}</strong></div>')
+    financial_class = " financial-panel" if financial else ""
+    return f'<article class="card chart{financial_class}"><h3>{html.escape(title)}</h3><div class="bars">{"".join(rows)}</div></article>'
+
+
+def paired_bars(title: str, labels: list[str], first: list[float], second: list[float], first_name: str, second_name: str, currency: bool = True, financial: bool = False) -> str:
+    maximum = max(first + second) or 1
+    rows = []
+    for label, value_a, value_b in zip(labels, first, second):
+        display_a = f"${value_a:,.0f}" if currency else f"{value_a:,.0f}"
+        display_b = f"${value_b:,.0f}" if currency else f"{value_b:,.0f}"
+        rows.append(
+            f'<div class="pair-label">{html.escape(label)}</div>'
+            f'<div class="barrow"><span>{html.escape(first_name)}</span><i><b style="width:{value_a/maximum*100:.3f}%;background:#f59e0b"></b></i><strong>{display_a}</strong></div>'
+            f'<div class="barrow"><span>{html.escape(second_name)}</span><i><b style="width:{value_b/maximum*100:.3f}%;background:#22c55e"></b></i><strong>{display_b}</strong></div>'
+        )
+    financial_class = " financial-panel" if financial else ""
+    return f'<article class="card chart tall{financial_class}"><h3>{html.escape(title)}</h3><div class="bars">{"".join(rows)}</div></article>'
+
+
+def driver_ranking_table(title: str, drivers: list[dict[str, str]], tone: str) -> str:
+    rows = []
+    for rank, driver in enumerate(drivers, 1):
+        rows.append(
+            '<tr>'
+            f'<td><span class="rank rank-{tone}">{rank}</span></td>'
+            f'<td><strong>{html.escape(driver["name"])}</strong><small>{html.escape(driver["standing"])}</small></td>'
+            f'<td><strong>{float(driver["score"]):.2f}</strong></td>'
+            f'<td>{int(float(driver["packages"])):,}</td>'
+            f'<td>{html.escape(driver["pod"] or "N/A")}</td>'
+            f'<td>{html.escape(driver["cdf"] or "N/A")}</td>'
+            f'<td>{html.escape(driver["dsb"] or "N/A")}</td>'
+            '</tr>'
+        )
+    return (
+        f'<article class="card driver-ranking"><h3>{html.escape(title)}</h3>'
+        '<div class="driver-table-wrap"><table class="driver-table">'
+        '<thead><tr><th>Rank</th><th>Driver</th><th>Overall</th><th>Packages</th><th>POD</th><th>CDF DPMO</th><th>DSB</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table></div></article>'
+    )
+
+
+def parse_date(value: str | None) -> date | None:
+    try:
+        return date.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
+def driver_workforce(workers: list[dict], as_of: date) -> dict[str, object]:
+    rows = []
+    current_active = 0
+    active_driver_oids = []
+    for worker in workers:
+        assignments = worker.get("workAssignments") or []
+        assignment = next((item for item in assignments if item.get("primaryIndicator")), assignments[0] if assignments else {})
+        title = (assignment.get("jobTitle") or "").lower()
+        code = ((assignment.get("jobCode") or {}).get("codeValue") or "").lower()
+        home_units = assignment.get("homeOrganizationalUnits") or []
+        home_department_is_driver = any(
+            ((unit.get("typeCode") or {}).get("codeValue") or "").lower() == "department"
+            and ((unit.get("nameCode") or {}).get("codeValue") or "") == "000004"
+            and ((unit.get("nameCode") or {}).get("shortName") or "").lower() == "driver"
+            for unit in home_units
+        )
+        if (title != "driver" and code != "drvr") or not home_department_is_driver:
+            continue
+        worker_dates = worker.get("workerDates") or {}
+        hire = parse_date(assignment.get("hireDate") or worker_dates.get("rehireDate") or worker_dates.get("originalHireDate"))
+        termination = parse_date(assignment.get("terminationDate") or worker_dates.get("terminationDate"))
+        rows.append((hire, termination))
+        worker_status = (((worker.get("workerStatus") or {}).get("statusCode") or {}).get("codeValue") or "").lower()
+        assignment_status = (((assignment.get("assignmentStatus") or {}).get("statusCode") or {}).get("codeValue") or "").lower()
+        if worker_status == "active" and assignment_status in {"a", "active"}:
+            current_active += 1
+            if worker.get("associateOID"):
+                active_driver_oids.append(worker["associateOID"])
+
+    def period_stats(start: date, end: date) -> dict[str, float]:
+        hires = sum(bool(hire and start <= hire <= end) for hire, _ in rows)
+        terms = sum(bool(term and start <= term <= end) for _, term in rows)
+        start_headcount = sum(bool(hire and hire <= start and (not term or term >= start)) for hire, term in rows)
+        end_headcount = sum(bool(hire and hire <= end and (not term or term > end)) for hire, term in rows)
+        average_headcount = (start_headcount + end_headcount) / 2
+        return {
+            "hires": hires, "terms": terms, "net": hires - terms,
+            "start_headcount": start_headcount, "end_headcount": end_headcount,
+            "attrition_pct": terms / average_headcount * 100 if average_headcount else 0,
+        }
+
+    trailing_start = as_of - timedelta(days=29)
+    months = []
+    for month in (6, 7, 8):
+        start = date(2026, month, 1)
+        end = date(2026, month + 1, 1) - timedelta(days=1)
+        months.append({"label": start.strftime("%b"), **period_stats(start, end)})
+    return {
+        "current_active": current_active,
+        "active_driver_oids": active_driver_oids,
+        "trailing_30": period_stats(trailing_start, as_of),
+        "months": months,
+        "as_of": as_of,
+    }
+
+
+def adp_active_employee_history(workers: list[dict], weeks: list[int]) -> list[int]:
+    employment_dates = []
+    for worker in workers:
+        assignments = worker.get("workAssignments") or []
+        assignment = next((item for item in assignments if item.get("primaryIndicator")), assignments[0] if assignments else {})
+        worker_dates = worker.get("workerDates") or {}
+        hire = parse_date(assignment.get("hireDate") or worker_dates.get("rehireDate") or worker_dates.get("originalHireDate"))
+        termination = parse_date(assignment.get("terminationDate") or worker_dates.get("terminationDate"))
+        employment_dates.append((hire, termination))
+    headcounts = []
+    for week in weeks:
+        # Amazon's operating week ends Saturday; align ADP headcount to that endpoint.
+        week_end = date.fromisocalendar(2026, week, 1) + timedelta(days=5)
+        headcounts.append(sum(bool(hire and hire <= week_end and (not termination or termination > week_end)) for hire, termination in employment_dates))
+    return headcounts
+
+
+def main() -> None:
+    dashboard_today = datetime.now().astimezone().date()
+    summary_paths = sorted(
+        ROOT.glob("data/scorecard_data/2026-wk*/week*-summary.md"),
+        key=lambda path: int(re.search(r"wk(\d+)", str(path)).group(1)),
+    )
+    latest_week = max(int(re.search(r"wk(\d+)", str(path)).group(1)) for path in summary_paths)
+    expected_latest_completed_week = (
+        dashboard_today - timedelta(days=dashboard_today.weekday() + 1)
+    ).isocalendar().week
+    if latest_week < expected_latest_completed_week:
+        raise ValueError(
+            f"Scorecard source is stale: latest local week is W{latest_week}; "
+            f"latest completed week is W{expected_latest_completed_week}"
+        )
+    weeks = list(range(latest_week - 12, latest_week + 1))
+    metric_names = {"das": "Active DAs", "packages": "Packages delivered", "dcr": "DCR", "pod": "POD", "cdf": "CDF negative feedback", "dsb": "DSB defects", "safety": "Safety events", "failed_pickups": "Failed pickup stops"}
+    weekly = []
+    for week in weeks:
+        summary_path = ROOT / f"data/scorecard_data/2026-wk{week}/week{week}-summary.md"
+        text = summary_path.read_text() if summary_path.exists() else ""
+        row = {"week": f"W{week}", "available": summary_path.exists(), "source": "weekly summary" if summary_path.exists() else "unavailable"}
+        for key, name in metric_names.items():
+            row[key] = numeric(metric(text, name))
+        # W31 lacks a generated summary, but W32's verified summary contains W31
+        # comparison values. Use that explicit prior-week baseline without filling W33.
+        if week == 31 and not summary_path.exists():
+            next_text = (ROOT / "data/scorecard_data/2026-wk32/week32-summary.md").read_text()
+            for key, name in metric_names.items():
+                match = re.search(rf"^\| {re.escape(name)} \| [^|]+ \| ([^|]+)", next_text, re.MULTILINE)
+                row[key] = numeric(match.group(1).strip()) if match else None
+            row["available"] = any(row[key] is not None for key in metric_names)
+            row["source"] = "W32 verified prior-week baseline"
+        weekly.append(row)
+
+    payroll_path = max(ROOT.glob("data/adp/payroll_registers/*/summary.json"), key=lambda path: path.parent.name)
+    adp_summary_path = max(ROOT.glob("data/adp/????-??-??_to_????-??-??/summary.json"), key=lambda path: path.parent.name)
+    payroll = json.loads(payroll_path.read_text())
+    adp_snapshot = json.loads(adp_summary_path.read_text())
+    workers_path = adp_summary_path.with_name("workers.json")
+    workers = json.loads(workers_path.read_text())
+    workforce_as_of = datetime.fromisoformat(adp_snapshot["capturedAt"].replace("Z", "+00:00")).date()
+    workforce_age_days = (dashboard_today - workforce_as_of).days
+    workforce = driver_workforce(workers, workforce_as_of)
+    workforce_adjustments_path = ROOT / "data/workforce/workforce-availability-adjustments.json"
+    workforce_adjustments = json.loads(workforce_adjustments_path.read_text())
+    active_driver_oids = set(workforce["active_driver_oids"])
+    workers_comp_oids = set(workforce_adjustments["workersCompActiveDriverAssociateOIDs"])
+    recent_or_future_hire_oids = set(workforce_adjustments["recentOrFutureHireActiveDriverAssociateOIDs"])
+    amazon_inactive_driver_oids = set(workforce_adjustments["amazonInactiveAdpActiveDriverAssociateOIDs"])
+    if workers_comp_oids & recent_or_future_hire_oids:
+        raise ValueError("Workforce adjustment overlap: workers' comp and recent/future hires must be mutually exclusive")
+    for label, oids in (
+        ("workers' comp", workers_comp_oids),
+        ("recent/future hires", recent_or_future_hire_oids),
+        ("Amazon-inactive drivers", amazon_inactive_driver_oids),
+    ):
+        missing = oids - active_driver_oids
+        if missing:
+            raise ValueError(f"Workforce adjustment mismatch: {label} contains non-active ADP Driver OIDs: {sorted(missing)}")
+    workers_comp_driver_count = len(workers_comp_oids)
+    recent_or_future_hire_count = len(recent_or_future_hire_oids)
+    actual_driver_count = workforce["current_active"] - workers_comp_driver_count - recent_or_future_hire_count
+    if actual_driver_count < 0:
+        raise ValueError("Actual driver count cannot be negative")
+    adp_active_employees = adp_active_employee_history(workers, weeks)
+    timecard_period = f'{adp_snapshot["period"]["startDate"]} to {adp_snapshot["period"]["endDate"]}'
+    paid_period = f'{payroll["pay_period"]["start_date"]} to {payroll["pay_period"]["end_date"]}'
+    timecards_posted = bool(adp_snapshot.get("employeesWithTime") or adp_snapshot.get("workedDayEntries"))
+    timecard_value = f'{adp_snapshot["totalHours"]:,.2f} hrs' if timecards_posted else "Pending"
+    timecard_detail = f'{adp_snapshot["employeesWithTime"]} employees with time' if timecards_posted else "No time entries posted in ADP yet"
+    invoice_paths = sorted(
+        ROOT.glob("data/payment_reconciliation/2026-wk*/week*-invoice-reconciliation.json"),
+        key=lambda path: int(re.search(r"wk(\d+)", str(path)).group(1)),
+    )
+    invoice_path = invoice_paths[-1]
+    invoice = json.loads(invoice_path.read_text())
+    payment_week = int(invoice["week"])
+    payment_path_week = int(re.search(r"wk(\d+)", str(invoice_path)).group(1))
+    if payment_week != payment_path_week:
+        raise ValueError(
+            f"Payment source mismatch: JSON says W{payment_week}, path says W{payment_path_week}"
+        )
+    payment_lag_weeks = latest_week - payment_week
+    if payment_lag_weeks < 0:
+        raise ValueError(
+            f"Payment source is ahead of scorecard: payment W{payment_week}, scorecard W{latest_week}"
+        )
+    if payment_lag_weeks > 1:
+        raise ValueError(
+            f"Payment source is stale: payment W{payment_week}, scorecard W{latest_week}"
+        )
+    payment_status = (
+        "Same-week reconciled payment evidence"
+        if payment_lag_weeks == 0
+        else f"Latest payment evidence; one week behind scorecard W{latest_week}"
+    )
+    weekly_case_path = max(
+        ROOT.glob("data/payment_reconciliation/2026-wk*/week*-module-case.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    weekly_case = json.loads(weekly_case_path.read_text())
+    capacity_case_path = max(
+        ROOT.glob("data/payment_reconciliation/2026-wk*/week*-capacity-reliability-case.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    capacity_case = json.loads(capacity_case_path.read_text())
+    fixed_approval_path = max(
+        ROOT.glob("data/fleet_reviews/fixed-monthly/approval-queue/*/approval.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    fixed_approval = json.loads(fixed_approval_path.read_text())
+    fleet_snapshot_path = max(
+        ROOT.glob("data/fleet_reviews/????-??-??/dashboard-fleet-snapshot.json"),
+        key=lambda path: path.parent.name,
+    )
+    fleet_snapshot = json.loads(fleet_snapshot_path.read_text())
+    fleet_as_of = date.fromisoformat(fleet_snapshot["asOf"])
+    ownership_as_of = date.fromisoformat(fleet_snapshot.get("ownershipAsOf", fleet_snapshot["asOf"]))
+    fleet_period = fleet_as_of.strftime("%B %-d, %Y")
+    ownership_period = ownership_as_of.strftime("%B %-d, %Y")
+    fleet_age_days = (dashboard_today - fleet_as_of).days
+    if fleet_age_days > 2:
+        raise ValueError(
+            f"Fleet source is stale: newest fleet snapshot is {fleet_as_of} ({fleet_age_days} days old)"
+        )
+    fleet_total = int(fleet_snapshot["registeredFleet"])
+    operational = int(fleet_snapshot["operational"])
+    grounded = int(fleet_snapshot["grounded"])
+    ownership = {key: int(value) for key, value in fleet_snapshot["ownership"].items()}
+    if operational + grounded != fleet_total:
+        raise ValueError("Fleet snapshot mismatch: operational + grounded must equal registered fleet")
+    if sum(ownership.values()) != fleet_total:
+        raise ValueError("Fleet snapshot mismatch: ownership categories must equal registered fleet")
+    efr = json.loads((ROOT / "data/fleet_reviews/2026-09-07/afs-summary-2.json").read_text())["CARGO_VAN"]
+    with (ROOT / "data/fleet_reviews/2026-09-07/route-forecast.csv").open() as handle:
+        forecast = list(csv.DictReader(handle))
+    route_targets = [float(row["Max Route Target - Sep 3 publication"]) for row in forecast]
+    current_forecast = forecast[0]
+    current_route_target = float(current_forecast["Max Route Target - Sep 3 publication"])
+    peak_forecast = max(forecast, key=lambda row: float(row["Max Route Target - Sep 3 publication"]))
+    peak_route_target = float(peak_forecast["Max Route Target - Sep 3 publication"])
+    rental_book = load_workbook(
+        ROOT / "data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx",
+        read_only=True, data_only=True,
+    )
+    rental_rows = {
+        row[0]: [float(value or 0) for value in row[1:4]]
+        for row in rental_book["Monthly reconciliation"].iter_rows(min_row=2, values_only=True)
+        if row[0] and all(isinstance(value, (int, float)) for value in row[1:4])
+    }
+    rental_book.close()
+
+    latest = weekly[-1]
+    latest_summary_text = (
+        ROOT / f"data/scorecard_data/2026-wk{latest_week}/week{latest_week}-summary.md"
+    ).read_text()
+    driver_rows = overview_driver_rows(ROOT / f"data/scorecard_data/2026-wk{latest_week}")
+    ranked_drivers = sorted(driver_rows, key=lambda row: (-float(row["score"]), row["name"]))
+    top_drivers = ranked_drivers[:10]
+    bottom_drivers = sorted(driver_rows, key=lambda row: (float(row["score"]), row["name"]))[:10]
+    average_driver_score = sum(float(row["score"]) for row in driver_rows) / len(driver_rows)
+    capacity_reliability = metric(latest_summary_text, "Capacity reliability") or "Unavailable"
+    cas_compliance = metric(latest_summary_text, "CAS compliance") or "Unavailable"
+    tenured_workforce = metric(latest_summary_text, "Tenured workforce") or "Unavailable"
+    prior_available = next(row for row in reversed(weekly[:-1]) if row["available"])
+    trailing_six = weekly[-6:]
+    trailing_three_months = weekly[-13:]
+    total_route_blocks = sum(invoice["variable"]["route_hours"].values())
+    route_blocks_detail = " · ".join(
+        f"{count:,.0f}×{hours}h"
+        for hours, count in sorted(
+            invoice["variable"]["route_hours"].items(),
+            key=lambda item: int(item[0]),
+            reverse=True,
+        )
+    )
+    fleet_ready = operational / fleet_total * 100 if fleet_total else 0
+    payroll_hours = float(payroll["hours"]["regular"]) + float(payroll["hours"]["overtime"])
+    payroll_pay = float(payroll["earnings"]["regular"]) + float(payroll["earnings"]["overtime"])
+    standings_match = re.search(r"Standings mix: \*\*([^*]+)\*\*", latest_summary_text)
+    standings = {
+        name.strip(): int(count)
+        for name, count in re.findall(r"([A-Za-z]+):\s*(\d+)", standings_match.group(1) if standings_match else "")
+    }
+    platinum = standings.get("Platinum", 0)
+    sentiment_match = re.search(
+        r"Driver sentiment .*? favorable response rate was \*\*([\d.]+)%\*\* on \*\*([\d.]+)%\*\* response rate",
+        latest_summary_text,
+    )
+    sentiment_favorable = float(sentiment_match.group(1)) if sentiment_match else None
+    sentiment_response = float(sentiment_match.group(2)) if sentiment_match else None
+    dvic_count_match = re.search(r"DVIC files captured \*\*(\d+)\*\* inspections", latest_summary_text)
+    dvic_avg_match = re.search(r"Average DVIC duration was \*\*([\d.]+) seconds\*\*", latest_summary_text)
+    dvic_short_match = re.search(r"\*\*(\d+)\*\* inspections were \*\*30 seconds or less\*\*", latest_summary_text)
+    dvic_count = int(dvic_count_match.group(1)) if dvic_count_match else None
+    dvic_avg = float(dvic_avg_match.group(1)) if dvic_avg_match else None
+    dvic_short = int(dvic_short_match.group(1)) if dvic_short_match else None
+    pickup_scope_match = re.search(
+        r"Pickup execution posted \*\*(\d+)\*\* failed stops across \*\*(\d+)\*\* driver\(s\) on \*\*(\d+)\*\* pickup stops",
+        latest_summary_text,
+    )
+    failed_pickup_stops = int(latest["failed_pickups"] or 0)
+    pickup_stop_count = int(pickup_scope_match.group(3)) if pickup_scope_match else None
+    total_das = int(latest["das"] or 0)
+    operational_driver_count = actual_driver_count
+    current_driver_route_ratio = operational_driver_count / current_route_target if current_route_target else 0
+    peak_driver_route_ratio = operational_driver_count / peak_route_target if peak_route_target else 0
+    driver_route_forecast = [operational_driver_count / target if target else 0 for target in route_targets]
+    missing_weeks = [week for week, row in zip(weeks, weekly) if not row["available"]]
+    six_missing = [int(row["week"][1:]) for row in trailing_six if not row["available"]]
+    six_gap_note = (f'Missing W{", W".join(str(week) for week in six_missing)} is shown as a gap and is not interpolated.' if six_missing else 'All six scorecard weeks are available.')
+    three_month_missing = [int(row["week"][1:]) for row in trailing_three_months if not row["available"]]
+    three_month_gap_note = (f'Missing W{", W".join(str(week) for week in three_month_missing)} remains an explicit gap.' if three_month_missing else 'All 13 scorecard weeks are available.')
+    operations_range = ", ".join(f"W{week}" for week in weeks)
+    operations_gap = f"; W{', W'.join(str(week) for week in missing_weeks)} unavailable" if missing_weeks else ""
+    trailing = workforce["trailing_30"]
+    rental_cost = rental_rows["Included fleet expenses"]
+    rental_coverage = rental_rows["Total rental/LMR/lease coverage"]
+    rental_difference = rental_rows["Difference after included charges"]
+    third_party_rental_cost = [
+        enterprise + hertz
+        for enterprise, hertz in zip(rental_rows["Enterprise Rent-A-Car"], rental_rows["Hertz"])
+    ]
+    recomputed_cost = [
+        rental + lmr + element
+        for rental, lmr, element in zip(third_party_rental_cost, rental_rows["MerchAuto9150 Corp"], rental_rows["Element Fleet"])
+    ]
+    recomputed_coverage = [
+        rental + lmr
+        for rental, lmr in zip(rental_rows["Amazon rental + lease coverage"], rental_rows["Amazon LMR coverage"])
+    ]
+    recomputed_difference = [coverage - cost for coverage, cost in zip(recomputed_coverage, recomputed_cost)]
+    for label, actual, expected in (
+        ("included fleet expenses", rental_cost, recomputed_cost),
+        ("total Amazon fleet coverage", rental_coverage, recomputed_coverage),
+        ("coverage difference", rental_difference, recomputed_difference),
+    ):
+        if any(abs(a - e) > .005 for a, e in zip(actual, expected)):
+            raise ValueError(f"Rental reimbursement reconciliation mismatch: {label}")
+    rental_three_month_cost = sum(rental_cost)
+    rental_three_month_coverage = sum(rental_coverage)
+    rental_three_month_difference = sum(rental_difference)
+    rental_coverage_pct = rental_three_month_coverage / rental_three_month_cost * 100 if rental_three_month_cost else 0
+    
+    # Time & Attendance: Query database for issues
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Get Time & Attendance issues from the database view
+    cursor.execute("SELECT employee, date, issue_type, details FROM time_attendance_issues")
+    time_attendance_issues_list = cursor.fetchall()
+    time_attendance_table_rows = ""
+    for issue in time_attendance_issues_list:
+        time_attendance_table_rows += (
+            f'<tr><td>{html.escape(issue["employee"])}</td>'
+            f'<td>{html.escape(issue["date"])}</td>'
+            f'<td>{html.escape(issue["issue_type"])}</td>'
+            f'<td>{html.escape(issue["details"])}</td></tr>'
+        )
+    if not time_attendance_table_rows:
+        time_attendance_table_rows = '<tr><td colspan="4" class="empty-state">No time & attendance issues found in database.</td></tr>'
+    
+    # Get latest ADP timecard period for the notice
+    cursor.execute("SELECT MAX(date) FROM adp_timecards")
+    latest_adp_date = cursor.fetchone()[0]
+    time_attendance_as_of = f"through {latest_adp_date}" if latest_adp_date else "Unavailable"
+    
+    # Disputes: Query database for filed disputes
+    cursor.execute("SELECT week, driver, metric, status, submitted_at, confirmation_number, outcome FROM filed_disputes")
+    all_disputes = cursor.fetchall()
+    disputes_table_rows = ""
+    for dispute in all_disputes:
+        disputes_table_rows += (
+            f'<tr><td>{html.escape(dispute["week"])}</td>'
+            f'<td>{html.escape(dispute["driver"])}</td>'
+            f'<td>{html.escape(dispute["metric"])}</td>'
+            f'<td>{html.escape(dispute["status"])}</td>'
+            f'<td>{html.escape(dispute["submitted_at"] or "N/A")}</td>'
+            f'<td>{html.escape(dispute["confirmation_number"] or "N/A")}</td>'
+            f'<td>{html.escape(dispute["outcome"] or "Pending")}</td></tr>'
+        )
+    if not disputes_table_rows:
+        disputes_table_rows = '<tr><td colspan="7" class="empty-state">No filed disputes found in database.</td></tr>'
+    
+    conn.close()
+    
+    output = ROOT / "data/dashboards/amazon-dsp-kpi-dashboard.html"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    built_at = datetime.now().astimezone().strftime("%Y-%m-%d %I:%M %p %Z")
+    adp_freshness = (
+        f'<span class="good">ADP captured {workforce_as_of} ({workforce_age_days} days old)</span>'
+        if workforce_age_days <= 2
+        else f'<span class="bad">ADP STALE: captured {workforce_as_of} ({workforce_age_days} days old)</span>'
+    )
+    evaluation_payload: dict[str, dict[str, object]] = {}
+    for weekly_row in reversed(weekly):
+        week_number = int(weekly_row["week"][1:])
+        week_folder = ROOT / f"data/scorecard_data/2026-wk{week_number}"
+        summary_path = week_folder / f"week{week_number}-summary.md"
+        if not summary_path.exists():
+            continue
+        summary_text = summary_path.read_text(encoding="utf-8")
+        disputes_path = week_folder / f"week{week_number}-disputes.md"
+        disputes_text = disputes_path.read_text(encoding="utf-8") if disputes_path.exists() else ""
+        candidates_path = week_folder / "dispute" / f"week{week_number}-amazon-submission-review.json"
+        all_candidates = json.loads(candidates_path.read_text(encoding="utf-8")) if candidates_path.exists() else []
+        candidates = [
+            candidate for candidate in all_candidates
+            if candidate.get("status") == "ready_for_review" and not candidate.get("blockingIssue")
+        ]
+        week_driver_rows = overview_driver_rows(week_folder)
+        week_ranked = sorted(week_driver_rows, key=lambda row: (-float(row["score"]), row["name"]))
+        week_bottom = sorted(week_driver_rows, key=lambda row: (float(row["score"]), row["name"]))
+        avg_score = (
+            sum(float(row["score"]) for row in week_driver_rows) / len(week_driver_rows)
+            if week_driver_rows else numeric(metric(summary_text, "Avg overall score"))
+        )
+        week_dvic = re.search(r"Average DVIC duration was \*\*([\d.]+) seconds\*\*", summary_text)
+        week_sentiment = re.search(r"Driver sentiment .*? favorable response rate was \*\*([\d.]+)%\*\*", summary_text)
+        evaluation_payload[f"2026-W{week_number}"] = {
+            "week": f"2026-W{week_number}",
+            "summary": markdown_section(summary_text, "Executive Summary"),
+            "disputeRead": markdown_section(disputes_text, "Executive Dispute Read") if disputes_text else "Dispute report unavailable.",
+            "coachingLanes": markdown_section(disputes_text, "Do Not File / Coaching-First Lanes") if disputes_text else "Unavailable",
+            "metrics": {
+                "rating": invoice["incentive"]["rating"] if week_number == payment_week else "See weekly scorecard",
+                "averageScore": avg_score,
+                "activeDAs": weekly_row["das"],
+                "packages": weekly_row["packages"],
+                "dcr": weekly_row["dcr"],
+                "pod": weekly_row["pod"],
+                "cdf": weekly_row["cdf"],
+                "dsb": weekly_row["dsb"],
+                "failedPickups": weekly_row["failed_pickups"],
+                "safety": weekly_row["safety"],
+                "dvicAverage": float(week_dvic.group(1)) if week_dvic else None,
+                "sentiment": float(week_sentiment.group(1)) if week_sentiment else None,
+                "capacityReliability": metric(summary_text, "Capacity reliability") or "Unavailable",
+                "casCompliance": metric(summary_text, "CAS compliance") or "Unavailable",
+                "tenuredWorkforce": metric(summary_text, "Tenured workforce") or "Unavailable",
+            },
+            "topDrivers": week_ranked[:10],
+            "bottomDrivers": week_bottom[:10],
+            "candidates": candidates,
+        }
+    evaluation_payload_json = json.dumps(evaluation_payload, separators=(",", ":")).replace("</", "<\\/")
+
+    html_doc = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JECS Amazon DSP KPI Dashboard</title>
+<style>
+:root{{--bg:#07111f;--panel:#101e32;--panel2:#14263e;--text:#eaf1fb;--muted:#8fa4bf;--line:#263a54;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--blue:#38bdf8}}*{{box-sizing:border-box}}body{{margin:0;background:radial-gradient(circle at 85% 0,#16365e,#07111f 35%);color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif}}main{{max-width:1500px;margin:auto;padding:26px}}header{{display:flex;justify-content:space-between;gap:18px;align-items:end;margin-bottom:16px}}.header-tools{{display:flex;flex-direction:column;align-items:flex-end;gap:10px}}h1{{font-size:30px;letter-spacing:-.035em;margin:0}}h2{{font-size:19px;margin:26px 0 10px}}h3{{font-size:15px;margin:0 0 12px}}.muted,.period{{color:var(--muted)}}.period{{text-align:right;font-size:12px}}.mask-button{{appearance:none;border:1px solid #4b6382;background:#18304d;color:var(--text);border-radius:9px;padding:9px 13px;font:700 12px/1 system-ui;cursor:pointer}}.mask-button:hover{{background:#21405f}}.mask-button[aria-pressed="true"]{{background:#7c2d12;border-color:#fb923c;color:#fff}}.kpis{{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}}.card{{background:linear-gradient(180deg,rgba(20,38,62,.97),rgba(12,27,46,.97));border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px #0002}}.kpi{{padding:15px;min-height:105px}}.kpi small{{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-size:10px}}.kpi b{{display:block;font-size:24px;margin:7px 0 2px}}.kpi span{{color:var(--muted);font-size:11px}}.financial-panel{{position:relative}}body.mask-financial .financial-panel>*{{visibility:hidden}}body.mask-financial .financial-panel::after{{content:"Financial data masked";position:absolute;inset:0;display:grid;place-items:center;padding:16px;text-align:center;color:#ffbd5a;font-weight:800;letter-spacing:.02em;background:repeating-linear-gradient(135deg,rgba(124,45,18,.18),rgba(124,45,18,.18) 10px,rgba(15,30,50,.75) 10px,rgba(15,30,50,.75) 20px);border-radius:inherit}}.good{{color:#5ee08a!important}}.warn{{color:#ffbd5a!important}}.bad{{color:#ff7c7c!important}}.grid2{{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}}.chart{{padding:17px;min-height:260px}}.chart.tall{{min-height:390px}}.chart-legend{{display:flex;gap:16px;flex-wrap:wrap;margin:-4px 0 4px;color:var(--muted);font-size:11px}}.chart-legend-item{{display:inline-flex;align-items:center;gap:6px}}.chart-legend-item i{{width:18px;height:4px;border-radius:99px;display:inline-block}}svg{{width:100%;height:215px;overflow:visible}}svg text{{fill:var(--text);font-size:11px}}svg .axis{{fill:var(--muted)}}.gridline{{stroke:var(--line);stroke-width:1}}.bars{{padding-top:8px}}.pair-label{{margin:12px 0 2px;font-weight:700}}.barrow{{display:grid;grid-template-columns:145px 1fr 80px;align-items:center;gap:10px;margin:10px 0;color:var(--muted);font-size:12px}}.barrow i{{height:13px;background:#243851;border-radius:99px;overflow:hidden}}.barrow b{{display:block;height:100%;border-radius:99px}}.barrow strong{{text-align:right;color:var(--text)}}.score{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}.score .card{{padding:16px}}.score b{{font-size:21px}}.score small{{display:block;color:var(--muted)}}.notice{{padding:12px 15px;margin:10px 0;color:var(--muted);font-size:12px}}.actions{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}.action{{padding:15px}}.action strong{{display:block;margin-bottom:5px}}.action p{{margin:0;color:var(--muted);font-size:12px}}.source-table-wrap{{overflow-x:auto}}.source-table{{width:100%;border-collapse:collapse;min-width:860px}}.source-table th,.source-table td{{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}.source-table th{{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em}}.source-table td{{font-size:12px}}.source-table code{{color:#a7d8ff;font-size:10px;overflow-wrap:anywhere}}.source-table tr:last-child td{{border-bottom:0}}footer{{margin:18px 0;color:var(--muted);font-size:11px}}@media(max-width:1050px){{.kpis{{grid-template-columns:repeat(3,1fr)}}.score,.actions{{grid-template-columns:repeat(2,1fr)}}}}@media(max-width:700px){{main{{padding:15px}}header{{display:block}}.header-tools{{align-items:flex-start;margin-top:10px}}.period{{text-align:left;margin-top:8px}}.kpis{{grid-template-columns:repeat(2,1fr)}}.grid2,.score,.actions{{grid-template-columns:1fr}}.barrow{{grid-template-columns:105px 1fr 68px}}}}@media print{{body{{background:white;color:#111827}}.card{{background:white;box-shadow:none;border-color:#cbd5e1;break-inside:avoid}}.muted,.period,.kpi span,.kpi small,.barrow,.chart-legend,footer,.action p{{color:#475569}}.source-table code{{color:#1d4ed8}}.mask-button{{display:none}}}}
+</style><style>
+.toolbar{{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}}.period-button,.screen-button,.logout-button{{appearance:none;border:1px solid #4b6382;background:#18304d;color:var(--text);border-radius:9px;padding:9px 13px;font:700 12px/1 system-ui;cursor:pointer}}.period-button:hover,.screen-button:hover{{background:#21405f}}.period-button[aria-pressed="true"],.screen-button[aria-pressed="true"]{{background:#075985;border-color:#38bdf8;color:#fff}}.logout-button{{border-color:#7f1d1d;background:#3f171b;color:#fecaca}}.logout-button:hover{{background:#5f1d24}}.screen-nav{{display:flex;gap:8px;margin:0 0 18px;padding:8px;background:rgba(10,24,42,.72);border:1px solid var(--line);border-radius:12px;position:sticky;top:8px;z-index:10;backdrop-filter:blur(12px)}}.screen{{display:none}}.screen.active{{display:block}}.section-heading{{display:flex;align-items:center;gap:10px;margin:26px 0 10px}}.section-heading h2{{margin:0}}.section-heading span{{color:var(--muted);font-size:11px}}.evaluation-hero{{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px;margin-bottom:10px}}.evaluation-hero h2{{margin:0 0 5px}}.week-select{{min-width:190px;border:1px solid #4b6382;background:#0b1a2d;color:var(--text);border-radius:9px;padding:10px 12px;font-weight:700}}.executive-summary{{padding:18px;margin:10px 0}}.executive-summary p{{margin:6px 0 0;color:#c4d2e5}}.evaluation-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}.evaluation-grid .card{{padding:16px}}.evaluation-grid small{{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-size:10px}}.evaluation-grid b{{display:block;font-size:22px;margin-top:6px}}.driver-rankings{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}}.driver-ranking{{padding:17px;overflow:hidden}}.driver-table-wrap{{overflow-x:auto}}.driver-table{{width:100%;border-collapse:collapse;min-width:620px}}.driver-table th,.driver-table td{{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}}.driver-table th{{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}}.driver-table td small{{display:block;color:var(--muted);font-size:10px}}.rank{{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:8px;font-weight:800}}.rank-best{{background:#14532d;color:#86efac}}.rank-watch{{background:#7f1d1d;color:#fecaca}}.dispute-list{{display:grid;gap:10px}}.dispute-card{{padding:17px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}}.dispute-card h3{{margin:0 0 6px}}.dispute-meta{{color:var(--muted);font-size:11px;margin-bottom:8px}}.tba-list{{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#a7d8ff;overflow-wrap:anywhere}}.file-dispute{{appearance:none;border:1px solid #16a34a;background:#14532d;color:#dcfce7;border-radius:9px;padding:11px 15px;font-weight:800;cursor:pointer;min-width:126px}}.file-dispute:hover{{background:#166534}}.file-dispute:disabled{{cursor:not-allowed;opacity:.55}}.submission-status{{font-size:11px;margin-top:7px;text-align:center;color:var(--muted)}}.empty-state{{padding:22px;text-align:center;color:var(--muted)}}[data-period-view]{{display:none}}body.view-current [data-period-view="current"],body.view-six [data-period-view="six"],body.view-three-months [data-period-view="three-months"]{{display:grid}}body.view-current .notice[data-period-view="current"],body.view-six .notice[data-period-view="six"],body.view-three-months .notice[data-period-view="three-months"]{{display:block}}.missing{{fill:#ffbd5a;font-weight:800}}@media(max-width:1050px){{.evaluation-grid{{grid-template-columns:repeat(3,1fr)}}.driver-rankings{{grid-template-columns:1fr}}}}@media(max-width:700px){{.screen-nav{{position:static;overflow-x:auto}}.screen-button,.logout-button{{white-space:nowrap}}.evaluation-hero{{display:block}}.week-select{{width:100%;margin-top:14px}}.evaluation-grid{{grid-template-columns:repeat(2,1fr)}}.dispute-card{{grid-template-columns:1fr}}}}
+</style></head><body class="view-current"><main><header><div><h1>JECS Amazon DSP KPI Dashboard</h1><div class="muted">Executive operating view · DFH7 · scorecard through W{latest_week}</div></div><div class="header-tools"><div class="toolbar"><button type="button" class="mask-button" id="financial-mask" aria-pressed="false">Mask financial data</button></div><div class="period"><strong>Scorecard: W{latest_week}</strong> · <strong>Payment reconciliation: W{payment_week}</strong><br>Dashboard rebuilt: {built_at}<br>Latest local ADP snapshot: {timecard_period} · captured {workforce_as_of}<br>Latest finalized payroll: {paid_period} · Fleet operations: {fleet_period} · Fleet costs: Jun–Aug 2026</div></div></header>
+<nav class="screen-nav" aria-label="Dashboard sections"><button type="button" class="screen-button" data-screen-target="operations" aria-pressed="true">Operations dashboard</button><button type="button" class="screen-button" data-screen-target="evaluation" aria-pressed="false">Weekly evaluation</button><button type="button" class="screen-button" data-screen-target="time-attendance" aria-pressed="false">Time & Attendance</button><button type="button" class="screen-button" data-screen-target="disputes" aria-pressed="false">Disputes</button><button type="button" class="logout-button" id="logout-button">Log out</button></nav>
+<section class="screen active" data-screen="operations">
+<div class="card notice"><strong>Source freshness:</strong> Scorecard W{latest_week} is the latest completed week. Fleet operations are {fleet_age_days} day{'s' if fleet_age_days != 1 else ''} old. {adp_freshness}. Payment, finalized payroll, route forecast, and fleet-cost values retain their separately labeled reporting periods.</div>
+<div class="section-heading"><h2>Delivery performance &amp; quality</h2><span>Latest completed Amazon scorecard</span></div><section class="kpis">
+<div class="card kpi"><small>Paid W{payment_week} incentive rating</small><b class="good">{html.escape(invoice['incentive']['rating'])}</b><span>{payment_status}</span></div>
+<div class="card kpi"><small>W{latest_week} packages delivered</small><b>{latest['packages']:,.0f}</b><span>Change from {prior_available['week']}: {(latest['packages']-prior_available['packages']):+,.0f}</span></div>
+<div class="card kpi"><small>W{latest_week} DCR</small><b class="good">{latest['dcr']:.2f}%</b><span>Change from {prior_available['week']}: {latest['dcr']-prior_available['dcr']:+.2f} pts</span></div>
+<div class="card kpi"><small>W{latest_week} POD</small><b class="good">{latest['pod']:.2f}%</b><span>Change from {prior_available['week']}: {latest['pod']-prior_available['pod']:+.2f} pts</span></div>
+<div class="card kpi"><small>W{latest_week} CDF negatives</small><b class="warn">{latest['cdf']:.0f}</b><span>Change from {prior_available['week']}: {latest['cdf']-prior_available['cdf']:+.0f}</span></div>
+<div class="card kpi"><small>W{latest_week} DSB defects</small><b class="warn">{latest['dsb']:.0f}</b><span>Change from {prior_available['week']}: {latest['dsb']-prior_available['dsb']:+.0f}</span></div>
+<div class="card kpi"><small>W{latest_week} failed pickup stops</small><b class="good">{failed_pickup_stops}</b><span>{f'{failed_pickup_stops} of {pickup_stop_count} pickup stops' if pickup_stop_count is not None else 'Latest scorecard summary'}</span></div>
+</section>
+<div class="section-heading"><h2>Safety, fleet &amp; workforce</h2><span>Execution capacity and people coverage</span></div><section class="kpis">
+<div class="card kpi"><small>W{latest_week} safety events</small><b class="good">{latest['safety']:.0f}</b><span>Change from {prior_available['week']}: {latest['safety']-prior_available['safety']:+.0f}</span></div>
+<div class="card kpi"><small>Fleet readiness</small><b class="warn">{fleet_ready:.1f}%</b><span>{operational} operational · {grounded} grounded · {fleet_as_of}</span></div>
+<div class="card kpi"><small>Actual driver count</small><b class="good">{actual_driver_count}</b><span>{workforce['current_active']} ADP active − {workers_comp_driver_count} workers' comp − {recent_or_future_hire_count} recent/future · captured {workforce_as_of}</span></div>
+<div class="card kpi"><small>ADP active drivers</small><b>{workforce['current_active']}</b><span>Primary driver job · Home Dept 000004 · captured {workforce_as_of}</span></div>
+<div class="card kpi"><small>30-day driver hires</small><b class="good">{trailing['hires']:.0f}</b><span>{trailing['terms']:.0f} separations · net {trailing['net']:+.0f}</span></div>
+<div class="card kpi"><small>30-day attrition</small><b class="warn">{trailing['attrition_pct']:.2f}%</b><span>Separations ÷ average driver HC</span></div>
+</section>
+<div class="section-heading"><h2>Financial &amp; cost control</h2><span>Separately labeled payroll, incentive, and fleet periods</span></div><section class="kpis">
+<div class="card kpi"><small>OT hours / regular</small><b>{float(payroll['overtime_hours_pct_of_regular']):.2f}%</b><span>{float(payroll['hours']['overtime']):,.2f} overtime hours</span></div>
+<div class="card kpi financial-panel"><small>Paid W{payment_week} incentive earned</small><b>${invoice['incentive_total']:,.2f}</b><span>Reconciled delivery + pickup invoice</span></div>
+<div class="card kpi financial-panel"><small>3-mo fleet coverage</small><b class="warn">{rental_coverage_pct:.1f}%</b><span>${rental_three_month_coverage:,.0f} coverage / ${rental_three_month_cost:,.0f} cost</span></div>
+</section>
+<h2>Delivery, quality, safety, and payroll period view</h2>
+<div class="card notice" data-period-view="current"><strong>Current view:</strong> scorecard metrics are W{latest_week}; paid invoice metrics are W{payment_week}. ADP timecards cover {timecard_period}; {timecard_detail.lower()}. Finalized payroll covers {paid_period}. Prior-week labels appear only in explicit change comparisons and historical charts.</div>
+<section class="grid2" data-period-view="current">
+{bars('Latest scorecard quality',[f'W{latest_week} DCR',f'W{latest_week} POD'],[latest['dcr'],latest['pod']],suffix='%',colors=['#22c55e','#38bdf8'])}
+{bars('Latest scorecard exceptions',[f'W{latest_week} CDF',f'W{latest_week} DSB',f'W{latest_week} safety'],[latest['cdf'],latest['dsb'],latest['safety']],colors=['#f59e0b','#a78bfa','#ef4444'])}
+</section>
+<div class="card notice" data-period-view="six"><strong>Trailing 6 weeks:</strong> W{weeks[-6]}–W{weeks[-1]}. {six_gap_note}</div>
+<section class="grid2" data-period-view="six">
+{line_chart('DCR · trailing 6 weeks',[w['week'] for w in trailing_six],[w['dcr'] for w in trailing_six],'%','#22c55e')}
+{line_chart('POD · trailing 6 weeks',[w['week'] for w in trailing_six],[w['pod'] for w in trailing_six],'%','#38bdf8')}
+{line_chart('Delivered packages · trailing 6 weeks',[w['week'] for w in trailing_six],[w['packages'] for w in trailing_six],color='#a78bfa')}
+{comparison_line_chart('Scorecard active DAs vs ADP · trailing 6 weeks',[w['week'] for w in trailing_six],[('Weekly scorecard active DAs',[w['das'] for w in trailing_six],'#38bdf8'),('ADP active employees',adp_active_employees[-6:],'#f59e0b')])}
+{line_chart('CDF negatives · trailing 6 weeks',[w['week'] for w in trailing_six],[w['cdf'] for w in trailing_six],color='#f59e0b')}
+{line_chart('Safety events · trailing 6 weeks',[w['week'] for w in trailing_six],[w['safety'] for w in trailing_six],color='#ef4444')}
+</section>
+<div class="card notice" data-period-view="three-months"><strong>Trailing 3 months:</strong> latest 13 scorecard weeks, W{weeks[0]}–W{weeks[-1]}. {three_month_gap_note}</div>
+<section class="grid2" data-period-view="three-months">
+{line_chart('DCR · trailing 3 months',[w['week'] for w in trailing_three_months],[w['dcr'] for w in trailing_three_months],'%','#22c55e')}
+{line_chart('POD · trailing 3 months',[w['week'] for w in trailing_three_months],[w['pod'] for w in trailing_three_months],'%','#38bdf8')}
+{line_chart('Delivered packages · trailing 3 months',[w['week'] for w in trailing_three_months],[w['packages'] for w in trailing_three_months],color='#a78bfa')}
+{comparison_line_chart('Scorecard active DAs vs ADP · trailing 3 months',[w['week'] for w in trailing_three_months],[('Weekly scorecard active DAs',[w['das'] for w in trailing_three_months],'#38bdf8'),('ADP active employees',adp_active_employees,'#f59e0b')])}
+{line_chart('CDF negatives · trailing 3 months',[w['week'] for w in trailing_three_months],[w['cdf'] for w in trailing_three_months],color='#f59e0b')}
+{line_chart('Safety events · trailing 3 months',[w['week'] for w in trailing_three_months],[w['safety'] for w in trailing_three_months],color='#ef4444')}
+</section>
+<h2>Fleet and Peak capacity</h2><section class="grid2">
+{bars(f'Fleet status · {fleet_as_of}',['Operational','Grounded'],[operational,grounded],colors=['#22c55e','#ef4444'])}
+{bars(f'Fleet ownership mix · {ownership_as_of} portal classification',['Amazon owned','Amazon LMR','Third-party rental','DSP lease'],[ownership.get('AMAZON_OWNED',0),ownership.get('AMAZON_RENTAL',0),ownership.get('RENTAL',0),ownership.get('LEASE',0)],colors=['#38bdf8','#8b5cf6','#f59e0b','#64748b'])}
+{line_chart('Published route forecast',[f"W{row['Amazon Week']}" for row in forecast],route_targets,color='#f59e0b')}
+{line_chart('Actual drivers per max route',[f"W{row['Amazon Week']}" for row in forecast],driver_route_forecast,suffix=':1',color='#38bdf8')}
+{bars(f'Week {latest_week} capacity view',['Base route target','Planned EFR','Registered fleet','Operational fleet'],[efr['plannedAFSSummary']['plannedAFS'],efr['totalAFS'],fleet_total,operational],colors=['#38bdf8','#8b5cf6','#64748b','#22c55e'])}
+</section>
+<h2>Rental cost versus Amazon reimbursement</h2><section class="score">
+<div class="card financial-panel"><small>3-month included cost</small><b>${rental_three_month_cost:,.2f}</b><small>Acura excluded per owner direction</small></div>
+<div class="card financial-panel"><small>3-month Amazon coverage</small><b>${rental_three_month_coverage:,.2f}</b><small>June/July final + August advance</small></div>
+<div class="card financial-panel"><small>3-month difference</small><b class="{'good' if rental_three_month_difference >= 0 else 'bad'}">{signed_money(rental_three_month_difference)}</b><small>Posting-period comparison; not net profit</small></div>
+<div class="card financial-panel"><small>August difference</small><b class="bad">{signed_money(rental_difference[2])}</b><small>Provisional until final reconciliation</small></div>
+</section><section class="grid2">
+{paired_bars('Included fleet expense vs Amazon coverage',['June · final','July · final','August · advance'],rental_cost,rental_coverage,'Fleet expense','Amazon coverage',financial=True)}
+{paired_bars('Third-party rental cost vs rental/lease coverage',['June','July','August'],third_party_rental_cost,rental_rows['Amazon rental + lease coverage'],'Rental cost','Rental coverage',financial=True)}
+{paired_bars('LMR cost vs LMR coverage',['June','July','August'],rental_rows['MerchAuto9150 Corp'],rental_rows['Amazon LMR coverage'],'MerchAuto LMR cost','Amazon LMR coverage',financial=True)}
+{bars('Coverage difference after included charges',['June','July','August'],[abs(value) for value in rental_difference],colors=['#22c55e' if value >= 0 else '#ef4444' for value in rental_difference],display_values=[signed_money(value) for value in rental_difference],financial=True)}
+</section><div class="card notice">Coverage comparisons are class-level and posting-period based. June and July are final; August uses the advance because the final reconciliation was not locally available. Differences do not prove underpayment and exclude complete insurance, maintenance, fees, and VIN/service-period matching.</div>
+<h2>Hiring and attrition</h2><section class="score">
+<div class="card"><small>W{latest_week} scorecard active DAs</small><b>{total_das}</b><small>Weekly scorecard population; not live portal count</small></div>
+<div class="card"><small>Latest ADP active drivers</small><b>{workforce['current_active']}</b><small>Primary driver job + Home Dept 000004 · captured {workforce_as_of}</small></div>
+<div class="card"><small>Recent / future hires</small><b>{recent_or_future_hire_count}</b><small>ADP-active; not yet on Amazon roster</small></div>
+<div class="card"><small>Workers' comp drivers</small><b class="warn">{workers_comp_driver_count}</b><small>Excluded from available driver count</small></div>
+<div class="card"><small>Actual driver count</small><b class="good">{actual_driver_count}</b><small>{workforce['current_active']} ADP active − {workers_comp_driver_count} workers' comp − {recent_or_future_hire_count} recent/future · captured {workforce_as_of}</small></div>
+<div class="card"><small>Trailing 30-day hires</small><b class="good">{trailing['hires']:.0f}</b><small>{trailing['terms']:.0f} separations</small></div>
+<div class="card"><small>Trailing 30-day net</small><b class="good">{trailing['net']:+.0f}</b><small>Hires minus separations</small></div>
+<div class="card"><small>Trailing 30-day attrition</small><b class="warn">{trailing['attrition_pct']:.2f}%</b><small>Terms ÷ average driver headcount</small></div>
+<div class="card"><small>Current driver-to-route ratio</small><b>{current_driver_route_ratio:.2f}:1</b><small>{operational_driver_count} actual drivers ÷ {current_route_target:.0f} max routes · W{current_forecast['Amazon Week']}</small></div>
+<div class="card"><small>Peak driver-to-route ratio</small><b class="warn">{peak_driver_route_ratio:.2f}:1</b><small>{operational_driver_count} actual drivers ÷ {peak_route_target:.0f} max routes · W{peak_forecast['Amazon Week']}</small></div>
+</section><section class="grid2">
+{paired_bars('Driver hiring versus separations',[row['label'] for row in workforce['months']],[row['hires'] for row in workforce['months']],[row['terms'] for row in workforce['months']],'Hires','Separations',currency=False)}
+{line_chart('Monthly driver attrition rate',[row['label'] for row in workforce['months']],[row['attrition_pct'] for row in workforce['months']],'%','#f59e0b')}
+</section><div class="card notice">Driver-to-route ratios and the route-forecast coverage graph use the actual available-driver population: ADP-active Drivers less workers' comp and recent/future hires. Raw Amazon and ADP populations remain separately labeled for source reconciliation. This is a staffing coverage ratio, not scheduled drivers per day.</div>
+<h2>Workforce, payroll, and route economics</h2><section class="score">
+<div class="card"><small>Paid payroll employees</small><b>{payroll['employee_count']}</b><small>{payroll['employees_with_overtime']} with OT</small></div>
+<div class="card"><small>Regular + OT hours</small><b>{payroll_hours:,.2f}</b><small>{float(payroll['hours']['regular']):,.2f} regular</small></div>
+<div class="card financial-panel"><small>Regular + OT pay</small><b>${payroll_pay:,.2f}</b><small>OT pay {float(payroll['overtime_pay_pct_of_regular']):.2f}% of regular</small></div>
+<div class="card"><small>Route blocks</small><b>{total_route_blocks:,.0f}</b><small>{route_blocks_detail}</small></div>
+<div class="card"><small>Eligible packages</small><b>{invoice['variable']['delivered_packages']:,.0f}</b><small>{invoice['variable']['pickup_packages']:,.0f} pickup packages</small></div>
+<div class="card"><small>Training days</small><b>{invoice['variable']['training_days']:,.0f}</b><small>Reconciled WST to invoice</small></div>
+<div class="card"><small>Driver sentiment</small><b>{f'{sentiment_favorable:.1f}%' if sentiment_favorable is not None else 'Unavailable'}</b><small>{f'{sentiment_response:.1f}% response rate' if sentiment_response is not None else 'Latest sentiment report not parsed'}</small></div>
+<div class="card"><small>W{latest_week} average DVIC duration</small><b>{f'{dvic_avg:.1f} sec' if dvic_avg is not None else 'Unavailable'}</b><small>{f'{dvic_count} inspections · {dvic_short} at or under 30 sec' if dvic_count is not None and dvic_short is not None else 'Latest DVIC report not parsed'}</small></div>
+<div class="card"><small>Latest ADP timecards</small><b class="{'good' if timecards_posted else 'warn'}">{timecard_value}</b><small>{timecard_detail} · {timecard_period} · captured {workforce_as_of}</small></div>
+</section>
+<h2>Reimbursement review modules</h2><section class="score">
+<div class="card"><small>Weekly Payments · {html.escape(weekly_case['external_key'])}</small><b class="good">{html.escape(weekly_case['status'].replace('_',' ').title())}</b><small>{weekly_case['candidate_count']} dispute candidates · {float(weekly_case.get('recovered_routes', 0)):g} route(s) / ${float(weekly_case.get('recovered_value', 0)):,.2f} recovered</small></div>
+<div class="card"><small>Capacity &amp; Reliability · {html.escape(capacity_case['external_key'])}</small><b class="good">{html.escape(capacity_case['status'].replace('_',' ').title())}</b><small>{capacity_case['summary']['amazon_completed_routes']} routes verified · {capacity_case['candidate_count']} candidates</small></div>
+<div class="card"><small>Fixed Monthly · August 2026</small><b class="good">{html.escape(fixed_approval['status'].replace('_',' ').title())}</b><small>Approval-gated case · Amazon confirmation retained</small></div>
+<div class="card"><small>FIF reimbursements</small><b class="warn">Import ready</b><small>Requires approved claims + reimbursement invoice</small></div>
+<div class="card"><small>Fifth-Day Overtime</small><b class="warn">Import ready</b><small>Requires DA route detail + payroll reimbursement</small></div>
+<div class="card"><small>Next Mile Tuition</small><b class="warn">Import ready</b><small>Requires InStride + payroll reimbursement</small></div>
+<div class="card"><small>Meals, Awards &amp; Adjustments</small><b class="warn">Import ready</b><small>Requires program support + invoice adjustments</small></div>
+</section><div class="card notice">Each review is an independent billable module. Missing evidence remains explicitly blocked and is never treated as zero. External submissions require module-specific owner approval.</div>
+<h2>Owner action queue</h2><section class="actions">
+<div class="card action"><strong>1. Customer delivery accuracy</strong><p>Wrong-address and instruction-following complaints remain the largest W{latest_week} CDF buckets. Coach the concentrated drivers and audit exception-stop POD behavior.</p></div>
+<div class="card action"><strong>2. Fleet readiness</strong><p>Restore or replace {grounded} grounded vehicles. Peak forecast reaches {peak_route_target:,.0f} routes in {peak_forecast['Amazon Week']} versus {operational} operational vehicles in the {fleet_as_of} dispatch snapshot.</p></div>
+<div class="card action"><strong>3. Overtime control</strong><p>Review the {payroll['employees_with_overtime']} employees with OT in the {paid_period} finalized payroll by fifth-day work, rescue coverage, and route overrun before the next payroll close; measure OT pay and hours together.</p></div>
+<div class="card action"><strong>4. DCR process risk</strong><p>Investigate the concentrated RTS outliers, file only evidence-backed disputes, and treat unsupported cases as coaching/process correction.</p></div>
+</section>
+<h2>Source data</h2><div class="card source-table-wrap"><table class="source-table"><thead><tr><th>Source</th><th>Reporting period</th><th>Status</th><th>Dashboard use</th><th>Local file</th></tr></thead><tbody>
+<tr><td>Weekly operations summaries</td><td>W{weeks[0]}–W{weeks[-1]}</td><td>Latest 13-week window; missing weeks not interpolated; W31 derived from W32's verified prior-week baseline</td><td>Current, trailing 6-week, and trailing 3-month views for packages, DCR, POD, CDF, DSB, safety events, and active DAs</td><td><code>data/scorecard_data/2026-wk{{NN}}/week{{NN}}-summary.md</code></td></tr>
+<tr><td>WST / invoice reconciliation</td><td>W{payment_week} 2026</td><td>{payment_status}</td><td>Incentive rating and dollars, route blocks, eligible packages, pickup activity, and training days</td><td><code>{invoice_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>Weekly Payments module case</td><td>{html.escape(weekly_case['external_key'])}</td><td>{html.escape(weekly_case['status'])}; {weekly_case['candidate_count']} dispute candidates; ${float(weekly_case.get('recovered_value', 0)):,.2f} recovered</td><td>Evidence-backed weekly invoice disposition, immutable WST change history, and confirmed recovery outcomes</td><td><code>{weekly_case_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>Capacity &amp; Reliability module case</td><td>{html.escape(capacity_case['external_key'])}</td><td>{html.escape(capacity_case['status'])}; {capacity_case['summary']['amazon_completed_routes']} routes verified</td><td>Amazon completed routes versus WST route-coded executions</td><td><code>{capacity_case_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>Fixed Monthly approval audit</td><td>August 2026</td><td>{html.escape(fixed_approval['status'])}</td><td>Evidence hash, owner decision, guarded submission, and confirmation</td><td><code>{fixed_approval_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>ADP timecard snapshot</td><td>{timecard_period}</td><td>Newest captured snapshot; {'time posted' if timecards_posted else 'no entries posted yet'}</td><td>Current hours and employees with time</td><td><code>{adp_summary_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>ADP worker roster</td><td>As of {workforce_as_of}</td><td>Newest captured snapshot</td><td>Weekly active-employee trend; active drivers require primary Driver job/DRVR code and Home Department 000004; hiring, separations, net staffing, and attrition</td><td><code>{workers_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>Workforce availability adjustments</td><td>As of {workforce_adjustments['asOf']}</td><td>Owner-confirmed plus leadership WhatsApp evidence</td><td>Recent/future hires, workers' comp count, and actual available-driver calculation</td><td><code>{workforce_adjustments_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>Finalized payroll summary</td><td>{paid_period}</td><td>Newest finalized paid-payroll register available locally</td><td>Regular and overtime hours/pay, employee count, and overtime ratios</td><td><code>{payroll_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>Fleet operating snapshot</td><td>Operations: {fleet_period}<br>Ownership: {ownership_period}</td><td>Dispatch readiness plus a 50-VIN roster; R-34 updated to RENTAL from the owner's live Fleet Portal confirmation</td><td>Registered fleet count, operational/grounded status, and ownership mix</td><td><code>{fleet_snapshot_path.relative_to(ROOT)}</code></td></tr>
+<tr><td>EFR / allowance summary</td><td>September 7, 2026 snapshot</td><td>Live API export captured locally</td><td>Base requirement, planned EFR, and downtime allowance capacity view</td><td><code>data/fleet_reviews/2026-09-07/afs-summary-2.json</code></td></tr>
+<tr><td>Published route forecast</td><td>September 3, 2026 publication</td><td>Amazon communication transcribed locally</td><td>Peak weekly route targets through W49</td><td><code>data/fleet_reviews/2026-09-07/route-forecast.csv</code></td></tr>
+<tr><td>Fleet expense / coverage reconciliation</td><td>June–August 2026</td><td>June and July final; August advance/provisional; Acura excluded</td><td>Rental and LMR expense, Amazon coverage, monthly differences, and three-month coverage rate</td><td><code>data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx</code></td></tr>
+</tbody></table></div>
+<footer>Local sources only: latest 13-week scorecard window (W{weeks[0]}–W{weeks[-1]}); W{payment_week} WST/invoice reconciliation; latest locally available ADP timecard/worker snapshot and finalized payroll register; {fleet_period} fleet operations with ownership updated through {ownership_period}; Sep 7 EFR; June–August rental reconciliation; and Sep 3 route forecast. Missing weeks and unavailable current-week values are not presented as zero.</footer>
+</section>
+<section class="screen" data-screen="evaluation">
+<article class="card evaluation-hero"><div><h2 id="evaluation-title">Weekly evaluation</h2><div class="muted" id="evaluation-subtitle"></div></div><label><span class="muted">Scorecard week</span><br><select class="week-select" id="evaluation-week" aria-label="Scorecard week"></select></label></article>
+<article class="card executive-summary"><h3>Weekly executive summary</h3><p id="executive-summary"></p></article>
+<div class="evaluation-grid" id="evaluation-metrics"></div>
+<div class="card notice" id="supplementary-scorecard"></div>
+<div class="driver-rankings" id="driver-rankings"></div>
+<h2>Disputes</h2>
+<article class="card executive-summary"><h3>Executive dispute read</h3><p id="dispute-read"></p></article>
+<div class="dispute-list" id="dispute-list"></div>
+<article class="card executive-summary"><h3>Do not file / coaching-first lanes</h3><p id="coaching-lanes"></p></article>
+<h2>Weekly management priorities</h2><section class="actions">
+<div class="card action"><strong>Customer delivery accuracy</strong><p>Focus coaching on wrong-address and instruction-following complaints, then audit exception-stop POD behavior.</p></div>
+<div class="card action"><strong>DCR process control</strong><p>Review concentrated RTS outliers and file only evidence-backed disputes.</p></div>
+<div class="card action"><strong>Safety follow-up</strong><p>Review every W{latest_week} event and confirm approved disputes are reflected before coaching.</p></div>
+<div class="card action"><strong>DVIC discipline</strong><p>Use inspection duration and completion evidence to prevent rushed pre-trip checks.</p></div>
+</section>
+</section>
+<section class="screen" data-screen="time-attendance">
+<article class="card evaluation-hero"><h2>Time & Attendance</h2><div class="muted">Missed punches and shifts exceeding 10 hours for all employees</div></article>
+<div class="card notice"><strong>Data source:</strong> Latest ADP timecard snapshot ({time_attendance_as_of}). Only active delivery associates are shown.</div>
+<div class="source-table-wrap"><table class="source-table">
+<thead><tr><th>Employee</th><th>Date</th><th>Issue Type</th><th>Details</th></tr></thead>
+<tbody>
+{time_attendance_table_rows}
+</tbody>
+</table></div>
+</section>
+<section class="screen" data-screen="disputes">
+<article class="card evaluation-hero"><h2>Disputes</h2><div class="muted">All filed disputes and their current submission status</div></article>
+<div class="card notice"><strong>Data source:</strong> Dispute submission records from weekly scorecard folders. Only disputes with submission confirmations are shown.</div>
+<div class="source-table-wrap"><table class="source-table">
+<thead><tr><th>Week</th><th>Driver</th><th>Metric</th><th>Status</th><th>Submitted</th><th>Confirmation</th><th>Outcome</th></tr></thead>
+<tbody>
+{disputes_table_rows}
+</tbody>
+</table></div>
+</section>
+</main><script>window.__WEEKLY_EVALUATIONS__={evaluation_payload_json};</script><script>(()=>{{const button=document.getElementById('financial-mask');const key='jec-mask-financial';let masked=false;try{{masked=localStorage.getItem(key)==='1'}}catch(_error){{}}const render=()=>{{document.body.classList.toggle('mask-financial',masked);button.setAttribute('aria-pressed',String(masked));button.textContent=masked?'Show financial data':'Mask financial data'}};button.addEventListener('click',()=>{{masked=!masked;try{{localStorage.setItem(key,masked?'1':'0')}}catch(_error){{}}render()}});render();const viewButtons=[...document.querySelectorAll('[data-set-view]')];const viewKey='jec-kpi-period-view';let view='current';try{{view=localStorage.getItem(viewKey)||'current'}}catch(_error){{}}if(!['current','six','three-months'].includes(view))view='current';const setView=(next)=>{{view=next;document.body.classList.remove('view-current','view-six','view-three-months');document.body.classList.add(`view-${{view}}`);viewButtons.forEach(item=>item.setAttribute('aria-pressed',String(item.dataset.setView===view)));try{{localStorage.setItem(viewKey,view)}}catch(_error){{}}}};viewButtons.forEach(item=>item.addEventListener('click',()=>setView(item.dataset.setView)));setView(view);const screenButtons=[...document.querySelectorAll('[data-screen-target]')];const screens=[...document.querySelectorAll('[data-screen]')];const setScreen=(screen)=>{{screens.forEach(item=>item.classList.toggle('active',item.dataset.screen===screen));screenButtons.forEach(item=>item.setAttribute('aria-pressed',String(item.dataset.screenTarget===screen)));window.scrollTo({{top:0,behavior:'smooth'}})}};screenButtons.forEach(item=>item.addEventListener('click',()=>setScreen(item.dataset.screenTarget)));document.getElementById('logout-button').addEventListener('click',()=>{{sessionStorage.clear();location.assign('/')}});const data=window.__WEEKLY_EVALUATIONS__;const weekSelect=document.getElementById('evaluation-week');const esc=(value)=>String(value??'').replace(/[&<>"']/g,char=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}}[char]));const format=(value,digits=0)=>value==null?'Unavailable':Number(value).toLocaleString(undefined,{{minimumFractionDigits:digits,maximumFractionDigits:digits}});const driverTable=(title,rows,tone)=>`<article class="card driver-ranking"><h3>${{esc(title)}}</h3><div class="driver-table-wrap"><table class="driver-table"><thead><tr><th>Rank</th><th>Driver</th><th>Overall</th><th>Packages</th><th>POD</th><th>CDF DPMO</th><th>DSB</th></tr></thead><tbody>${{rows.map((row,index)=>`<tr><td><span class="rank rank-${{tone}}">${{index+1}}</span></td><td><strong>${{esc(row.name)}}</strong><small>${{esc(row.standing)}}</small></td><td><strong>${{format(row.score,2)}}</strong></td><td>${{format(row.packages)}}</td><td>${{esc(row.pod||'N/A')}}</td><td>${{esc(row.cdf||'N/A')}}</td><td>${{esc(row.dsb||'N/A')}}</td></tr>`).join('')}}</tbody></table></div></article>`;const metricCard=(label,value,tone='')=>`<div class="card"><small>${{esc(label)}}</small><b class="${{tone}}">${{esc(value)}}</b></div>`;const token=()=>sessionStorage.getItem('dsp-platform-id-token');async function fileDispute(event){{const control=event.currentTarget;const week=control.dataset.week;const key=control.dataset.key;if(!confirm(`File this dispute with Amazon?\n\n${{week}} · ${{key}}`))return;control.disabled=true;control.textContent='Submitting…';const status=control.parentElement.querySelector('.submission-status');status.textContent='Submission in progress';try{{const response=await fetch(`/api/disputes/${{encodeURIComponent(week)}}/${{encodeURIComponent(key)}}/submit`,{{method:'POST',headers:{{authorization:`Bearer ${{token()}}`,'x-tenant-id':'jec-logistics','content-type':'application/json'}},body:JSON.stringify({{confirmation:true}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||`request failed (${{response.status}})`);control.textContent='Submitted';status.textContent=result.confirmation?`Amazon confirmation: ${{result.confirmation}}`:'Submitted successfully'}}catch(error){{control.disabled=false;control.textContent='File dispute';status.textContent=error.message}}}}function renderWeek(week){{const item=data[week];if(!item)return;const metrics=item.metrics;document.getElementById('evaluation-title').textContent=`${{week}} evaluation`;document.getElementById('evaluation-subtitle').textContent=`${{item.topDrivers.length||item.bottomDrivers.length}} scored delivery associates · ranked by Amazon overall score`;document.getElementById('executive-summary').textContent=item.summary;const cards=[['Paid rating',metrics.rating,'good'],['Average DA score',format(metrics.averageScore,2),''],['Active DAs',format(metrics.activeDAs),''],['Packages delivered',format(metrics.packages),''],['DCR',metrics.dcr==null?'Unavailable':`${{format(metrics.dcr,2)}}%`,'good'],['POD',metrics.pod==null?'Unavailable':`${{format(metrics.pod,2)}}%`,'good'],['CDF negatives',format(metrics.cdf),'warn'],['DSB defects',format(metrics.dsb),'warn'],['Failed pickup stops',format(metrics.failedPickups),'good'],['Safety events',format(metrics.safety),'good'],['Average DVIC',metrics.dvicAverage==null?'Unavailable':`${{format(metrics.dvicAverage,1)}} sec`,''],['Driver sentiment',metrics.sentiment==null?'Unavailable':`${{format(metrics.sentiment,1)}}%`,'']];document.getElementById('evaluation-metrics').innerHTML=cards.map(card=>metricCard(...card)).join('');document.getElementById('supplementary-scorecard').innerHTML=`<strong>Supplementary scorecard:</strong> Capacity reliability: ${{esc(metrics.capacityReliability)}} · CAS compliance: ${{esc(metrics.casCompliance)}} · Tenured workforce: ${{esc(metrics.tenuredWorkforce)}}. Missing reports remain unavailable and are not treated as zero.`;document.getElementById('driver-rankings').innerHTML=driverTable(`${{week}} · top 10 drivers`,item.topDrivers,'best')+driverTable(`${{week}} · bottom 10 drivers`,item.bottomDrivers,'watch');document.getElementById('dispute-read').textContent=item.disputeRead;document.getElementById('coaching-lanes').textContent=item.coachingLanes;const disputeList=document.getElementById('dispute-list');disputeList.innerHTML=item.candidates.length?item.candidates.map(candidate=>`<article class="card dispute-card"><div><h3>${{esc(candidate.driverName)}} · ${{esc(candidate.metric)}}</h3><div class="dispute-meta">Priority ${{esc(candidate.priority)}} · ${{esc(candidate.reason)}} · ${{esc(candidate.appealedWeek)}} · ${{candidate.tba_ids.length}} TBA${{candidate.tba_ids.length===1?'':'s'}}</div><p>${{esc(candidate.appealDetails)}}</p><div class="tba-list">${{candidate.tba_ids.map(esc).join(' · ')}}</div></div><div><button type="button" class="file-dispute" data-week="${{esc(week)}}" data-key="${{esc(candidate.submissionKey)}}">File dispute</button><div class="submission-status">Ready for owner submission</div></div></article>`).join(''):`<div class="card empty-state"><strong>No evidence-cleared dispute candidates for ${{esc(week)}}.</strong><br>The report remains coaching-first; no submission button is shown.</div>`;disputeList.querySelectorAll('.file-dispute').forEach(item=>item.addEventListener('click',fileDispute))}}Object.keys(data).forEach((week,index)=>{{const option=document.createElement('option');option.value=week;option.textContent=week+(index===0?' · latest':'');weekSelect.appendChild(option)}});weekSelect.addEventListener('change',()=>renderWeek(weekSelect.value));renderWeek(weekSelect.value)}})();</script></body></html>'''
+    output.write_text(html_doc, encoding="utf-8")
+    print(output)
+
+
+if __name__ == "__main__":
+    main()

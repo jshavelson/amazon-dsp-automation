@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JECS Daily Route Entry</title>
+<style>
+:root {
+  --bg: #07111f;
+  --panel: #101e32;
+  --panel2: #14263e;
+  --text: #eaf1fb;
+  --muted: #8fa4bf;
+  --line: #263a54;
+  --good: #22c55e;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --blue: #38bdf8;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(circle at 85% 0, #16365e, #07111f 35%);
+  color: var(--text);
+  font: 14px/1.45 Inter, system-ui, sans-serif;
+}
+
+main {
+  max-width: 1400px;
+  margin: auto;
+  padding: 26px;
+}
+
+h1 { font-size: 28px; letter-spacing: -.035em; margin: 0 0 10px; }
+h2 { font-size: 18px; margin: 20px 0 10px; }
+h3 { font-size: 14px; margin: 0 0 8px; }
+.muted { color: var(--muted); }
+
+.card {
+  background: linear-gradient(180deg, rgba(20, 38, 62, .97), rgba(12, 27, 46, .97));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px #0002;
+  margin-bottom: 12px;
+}
+
+.card-body { padding: 18px; }
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.button {
+  appearance: none;
+  border: 1px solid #4b6382;
+  background: #18304d;
+  color: var(--text);
+  border-radius: 9px;
+  padding: 9px 13px;
+  font: 700 12px/1 system-ui;
+  cursor: pointer;
+}
+
+.button:hover { background: #21405f; }
+.button.primary { background: #075985; border-color: #38bdf8; color: #fff; }
+.button.primary:hover { background: #0869a5; }
+.button.danger { border-color: #7f1d1d; background: #3f171b; color: #fecaca; }
+.button.danger:hover { background: #5f1d24; }
+.button.success { border-color: #16a34a; background: #14532d; color: #dcfce7; }
+.button.success:hover { background: #166534; }
+
+.save-status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.save-status.saving { color: var(--blue); }
+.save-status.saved { color: var(--good); }
+.save-status.error { color: var(--bad); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 180px 140px 120px 100px 100px 100px 100px auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.form-row:last-child { border-bottom: none; }
+
+.form-row input,
+.form-row select {
+  appearance: none;
+  border: 1px solid #4b6382;
+  background: #0b1a2d;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: 13px/1 system-ui;
+  width: 100%;
+}
+
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.form-row input::placeholder { color: var(--muted); }
+
+.driver-select, .van-select {
+  position: relative;
+}
+
+.driver-select input, .van-select input {
+  cursor: pointer;
+}
+
+.driver-dropdown, .van-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+}
+
+.driver-dropdown.show, .van-dropdown.show { display: block; }
+
+.driver-dropdown div, .van-dropdown div {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.driver-dropdown div:hover, .van-dropdown div:hover { background: #1a2e42; }
+
+.add-row-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  color: var(--muted);
+  cursor: pointer;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.add-row-button:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.history-panel {
+  margin-top: 20px;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+
+.history-table tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+.revert-button {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.date-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.date-nav input[type="date"] {
+  appearance: none;
+  border: 1px solid #4b6382;
+  background: #0b1a2d;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: 13px/1 system-ui;
+}
+
+.date-nav input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 1200px) {
+  .form-row {
+    grid-template-columns: 140px 120px 100px 100px 100px 100px auto;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 800px) {
+  .form-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  main { padding: 12px; }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  .toolbar { flex-direction: column; }
+  .button { width: 100%; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>JECS Daily Route Entry</h1>
+    <div class="muted">Enter route assignments and time data for each day</div>
+  </header>
+
+  <div class="toolbar">
+    <div class="date-nav">
+      <button type="button" class="button" id="prev-day">← Previous</button>
+      <input type="date" id="current-date">
+      <button type="button" class="button" id="next-day">Next →</button>
+      <button type="button" class="button" id="today-btn">Today</button>
+    </div>
+    <div class="save-status" id="save-status">Auto-save enabled</div>
+    <button type="button" class="button warn" id="retry-api" style="display:none;">Retry Load Data</button>
+  </div>
+  <div class="card" id="api-error-banner" style="display:none;">
+    <div class="card-body">
+      <strong class="bad">⚠️ API Connection Error</strong>
+      <span class="muted">: The daily entry API server is not running. Please start the server on this machine with:</span>
+      <code style="background:#0b1a2d;padding:2px 6px;border-radius:4px;font-size:12px;">python3 scripts/daily_entry_api.py</code>
+      <button type="button" class="button primary" id="retry-api-full" style="margin-top:10px;">Retry Connection</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2>Route Assignments for <span id="date-display"></span></h2>
+      
+      <div id="entries-container">
+        <div class="empty-state">Loading entries...</div>
+      </div>
+      
+      <div class="add-row-button" id="add-row">
+        + Add Route Entry
+      </div>
+    </div>
+  </div>
+
+  <div class="card history-panel">
+    <div class="card-body">
+      <h2>History for <span id="history-date"></span></h2>
+      <div id="history-container">
+        <div class="empty-state">No history yet</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// Configuration - Use relative paths for API access
+// Since the form is served from the same origin as the dashboard (port 8443),
+// we can use relative paths. The API server must be running on port 8443.
+const API_BASE = '/api/daily-entries';
+
+// Helper to get full API URL
+function apiUrl(path) {
+    return path;
+}
+const DEBOUNCE_MS = 1000;
+
+// State
+let currentDate = new Date().toISOString().split('T')[0];
+let drivers = [];
+let vans = [];
+let entries = [];
+let saveTimeout = null;
+let isSaving = false;
+let apiAvailable = true;
+
+// DOM elements
+const dateInput = document.getElementById('current-date');
+const dateDisplay = document.getElementById('date-display');
+const historyDate = document.getElementById('history-date');
+const entriesContainer = document.getElementById('entries-container');
+const historyContainer = document.getElementById('history-container');
+const saveStatus = document.getElementById('save-status');
+const addRowBtn = document.getElementById('add-row');
+const prevDayBtn = document.getElementById('prev-day');
+const nextDayBtn = document.getElementById('next-day');
+const todayBtn = document.getElementById('today-btn');
+
+// Format date for display
+function formatDate(d) {
+  const date = new Date(d);
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric',
+    year: 'numeric' 
+  });
+}
+
+// Update date display
+function updateDateDisplay() {
+  dateInput.value = currentDate;
+  dateDisplay.textContent = formatDate(currentDate);
+  historyDate.textContent = formatDate(currentDate);
+}
+
+// Load drivers from database
+async function loadDrivers() {
+  try {
+    const response = await fetch(apiUrl('/api/drivers'));
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    drivers = await response.json();
+    drivers.sort((a, b) => a.name.localeCompare(b.name));
+    return true;
+  } catch (error) {
+    console.error('Error loading drivers:', error);
+    drivers = [];
+    return false;
+  }
+}
+
+// Load vans from database
+async function loadVans() {
+  try {
+    const response = await fetch(apiUrl('/api/vans'));
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    vans = await response.json();
+    vans.sort((a, b) => (a.van_number || a.id).localeCompare(b.van_number || b.id));
+    return true;
+  } catch (error) {
+    console.error('Error loading vans:', error);
+    vans = [];
+    return false;
+  }
+}
+
+// Show/hide API error banner
+function setApiAvailable(available) {
+  apiAvailable = available;
+  const banner = document.getElementById('api-error-banner');
+  const retryBtn = document.getElementById('retry-api');
+  const retryFullBtn = document.getElementById('retry-api-full');
+  
+  if (available) {
+    banner.style.display = 'none';
+    retryBtn.style.display = 'none';
+  } else {
+    banner.style.display = 'block';
+    retryBtn.style.display = 'inline-block';
+  }
+  
+  retryBtn.onclick = retryLoadAll;
+  retryFullBtn.onclick = retryLoadAll;
+}
+
+// Retry loading all data
+async function retryLoadAll() {
+  const driversOk = await loadDrivers();
+  const vansOk = await loadVans();
+  
+  if (driversOk && vansOk) {
+    setApiAvailable(true);
+    await loadEntries();
+  } else {
+    setApiAvailable(false);
+  }
+}
+
+// Load entries for current date
+async function loadEntries() {
+  try {
+    const response = await fetch(`${API_BASE}?date=${currentDate}`);
+    if (!response.ok) throw new Error('Failed to load entries');
+    entries = await response.json();
+    renderEntries();
+    loadHistory();
+  } catch (error) {
+    console.error('Error loading entries:', error);
+    entries = [];
+    renderEntries();
+  }
+}
+
+// Load history for current date
+async function loadHistory() {
+  try {
+    const response = await fetch(`${API_BASE}/history?date=${currentDate}`);
+    if (!response.ok) throw new Error('Failed to load history');
+    const history = await response.json();
+    renderHistory(history);
+  } catch (error) {
+    console.error('Error loading history:', error);
+    renderHistory([]);
+  }
+}
+
+// Render entries table
+function renderEntries() {
+  if (entries.length === 0) {
+    entriesContainer.innerHTML = '<div class="empty-state">No entries for this date. Click "+ Add Route Entry" to add one.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const entry of entries) {
+    const vanName = entry.van_number || entry.van_id || '';
+    html += `
+      <div class="form-row" data-id="${entry.id || 'new'}">
+        <div class="driver-select">
+          <input type="text" 
+                 class="driver-input" 
+                 value="${escapeHtml(entry.driver_name || '')}" 
+                 placeholder="Select driver..."
+                 data-driver-id="${entry.driver_id || ''}"
+                 readonly>
+        </div>
+        <div class="van-select">
+          <input type="text" 
+                 class="van-input" 
+                 value="${escapeHtml(vanName)}" 
+                 placeholder="Select van..."
+                 data-van-id="${entry.van_id || ''}"
+                 readonly>
+        </div>
+        <input type="text" class="route-code" value="${escapeHtml(entry.route_code || '')}" placeholder="Route code">
+        <input type="number" class="stops" value="${entry.stops || ''}" placeholder="Stops">
+        <input type="number" class="packages" value="${entry.packages || ''}" placeholder="Packages">
+        <select class="status">
+          <option value="">Select...</option>
+          <option value="Completed" ${entry.status === 'Completed' ? 'selected' : ''}>Completed</option>
+          <option value="Missed" ${entry.status === 'Missed' ? 'selected' : ''}>Missed</option>
+          <option value="Partial" ${entry.status === 'Partial' ? 'selected' : ''}>Partial</option>
+          <option value="Rescue" ${entry.status === 'Rescue' ? 'selected' : ''}>Rescue</option>
+        </select>
+        <input type="time" class="start-time" value="${entry.start_time || ''}">
+        <input type="time" class="end-time" value="${entry.end_time || ''}">
+        <button type="button" class="button danger delete-row" title="Delete">×</button>
+      </div>
+    `;
+  }
+  entriesContainer.innerHTML = html;
+  
+  // Add event listeners
+  document.querySelectorAll('.driver-input').forEach(input => {
+    input.addEventListener('click', (e) => showDropdown(e, 'driver'));
+  });
+  document.querySelectorAll('.van-input').forEach(input => {
+    input.addEventListener('click', (e) => showDropdown(e, 'van'));
+  });
+  document.querySelectorAll('.delete-row').forEach(btn => {
+    btn.addEventListener('click', deleteRow);
+  });
+  document.querySelectorAll('.form-row input, .form-row select').forEach(field => {
+    field.addEventListener('change', scheduleSave);
+    field.addEventListener('input', scheduleSave);
+  });
+}
+
+// Render history table
+function renderHistory(history) {
+  if (history.length === 0) {
+    historyContainer.innerHTML = '<div class="empty-state">No history for this date</div>';
+    return;
+  }
+
+  let html = '<table class="history-table"><thead><tr><th>Time</th><th>Driver</th><th>Van</th><th>Route</th><th>Action</th><th></th></tr></thead><tbody>';
+  for (const item of history) {
+    html += `
+      <tr>
+        <td>${new Date(item.changed_at).toLocaleTimeString()}</td>
+        <td>${escapeHtml(item.driver_name || item.driver_id || 'Unknown')}</td>
+        <td>${escapeHtml(item.van_number || item.van_id || '-')}</td>
+        <td>${escapeHtml(item.route_code || '-')}</td>
+        <td>${escapeHtml(item.change_type)}</td>
+        <td><button type="button" class="button revert-button" data-id="${item.id}">Revert</button></td>
+      </tr>
+    `;
+  }
+  html += '</tbody></table>';
+  historyContainer.innerHTML = html;
+  
+  // Add revert listeners
+  document.querySelectorAll('.revert-button').forEach(btn => {
+    btn.addEventListener('click', revertToHistory);
+  });
+}
+
+// Show dropdown (driver or van)
+function showDropdown(e, type) {
+  const input = e.target;
+  const rect = input.getBoundingClientRect();
+  const row = input.closest('.form-row');
+  
+  // Close existing dropdowns
+  document.querySelectorAll('.driver-dropdown, .van-dropdown').forEach(d => d.remove());
+  
+  // Create dropdown
+  const dropdown = document.createElement('div');
+  dropdown.className = `${type}-dropdown show`;
+  dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+  dropdown.style.left = `${rect.left + window.scrollX}px`;
+  dropdown.style.minWidth = `${rect.width}px`;
+  
+  const items = type === 'driver' ? drivers : vans;
+  
+  // Add items
+  for (const item of items) {
+    const div = document.createElement('div');
+    div.textContent = type === 'driver' ? item.name : (item.van_number || item.id);
+    div.dataset.id = item.id;
+    div.addEventListener('click', () => selectItem(item, input, row, type));
+    dropdown.appendChild(div);
+  }
+  
+  // Close on outside click
+  document.addEventListener('click', closeDropdowns, { once: true });
+  document.body.appendChild(dropdown);
+}
+
+// Close all dropdowns
+function closeDropdowns() {
+  document.querySelectorAll('.driver-dropdown, .van-dropdown').forEach(d => d.remove());
+}
+
+// Select item from dropdown
+function selectItem(item, input, row, type) {
+  input.value = type === 'driver' ? item.name : (item.van_number || item.id);
+  input.dataset[`${type}Id`] = item.id;
+  closeDropdowns();
+  scheduleSave();
+}
+
+// Add new row
+function addNewRow() {
+  const newEntry = {
+    id: 'new',
+    driver_id: '',
+    driver_name: '',
+    van_id: '',
+    van_number: '',
+    route_code: '',
+    date: currentDate,
+    stops: '',
+    packages: '',
+    status: '',
+    start_time: '',
+    end_time: '',
+    notes: ''
+  };
+  entries.push(newEntry);
+  renderEntries();
+  
+  // Focus the new driver input
+  const newRow = entriesContainer.lastElementChild;
+  newRow.querySelector('.driver-input').focus();
+}
+
+// Delete row
+function deleteRow(e) {
+  const row = e.target.closest('.form-row');
+  const id = row.dataset.id;
+  
+  if (id !== 'new') {
+    // Mark for deletion
+    const index = entries.findIndex(e => e.id == id);
+    if (index !== -1) {
+      entries[index]._deleted = true;
+    }
+  } else {
+    // Remove new entry
+    const index = entries.findIndex(e => e.id === 'new');
+    if (index !== -1) {
+      entries.splice(index, 1);
+    }
+  }
+  
+  renderEntries();
+  scheduleSave();
+}
+
+// Revert to history
+async function revertToHistory(e) {
+  const historyId = e.target.dataset.id;
+  if (!confirm('Revert to this version? This will overwrite current entries for this date.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}/revert?history_id=${historyId}`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to revert');
+    await loadEntries();
+    updateSaveStatus('Reverted successfully', 'saved');
+  } catch (error) {
+    console.error('Error reverting:', error);
+    updateSaveStatus('Revert failed: ' + error.message, 'error');
+  }
+}
+
+// Schedule auto-save
+function scheduleSave() {
+  clearTimeout(saveTimeout);
+  updateSaveStatus('Saving...', 'saving');
+  saveTimeout = setTimeout(saveEntries, DEBOUNCE_MS);
+}
+
+// Save entries to database
+async function saveEntries() {
+  if (isSaving) return;
+  isSaving = true;
+  
+  try {
+    const payload = entries.map(entry => ({
+      id: entry.id,
+      driver_id: entry.driver_id,
+      van_id: entry.van_id,
+      route_code: entry.route_code,
+      date: entry.date,
+      stops: entry.stops ? parseInt(entry.stops) : null,
+      packages: entry.packages ? parseInt(entry.packages) : null,
+      status: entry.status,
+      start_time: entry.start_time,
+      end_time: entry.end_time,
+      notes: entry.notes,
+      deleted: entry._deleted === true
+    }));
+    
+    const response = await fetch(`${API_BASE}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: payload, date: currentDate })
+    });
+    
+    if (!response.ok) throw new Error('Failed to save');
+    
+    const result = await response.json();
+    entries = result.entries;
+    updateSaveStatus('Saved successfully', 'saved');
+    loadHistory();
+  } catch (error) {
+    console.error('Error saving:', error);
+    updateSaveStatus('Save failed: ' + error.message, 'error');
+  } finally {
+    isSaving = false;
+  }
+}
+
+// Update save status
+function updateSaveStatus(message, type) {
+  saveStatus.textContent = message;
+  saveStatus.className = 'save-status ' + type;
+}
+
+// Escape HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Navigation
+function setDate(dateStr) {
+  currentDate = dateStr;
+  updateDateDisplay();
+  loadEntries();
+}
+
+function prevDay() {
+  const date = new Date(currentDate);
+  date.setDate(date.getDate() - 1);
+  setDate(date.toISOString().split('T')[0]);
+}
+
+function nextDay() {
+  const date = new Date(currentDate);
+  date.setDate(date.getDate() + 1);
+  setDate(date.toISOString().split('T')[0]);
+}
+
+function today() {
+  setDate(new Date().toISOString().split('T')[0]);
+}
+
+// Initialize
+async function init() {
+  const driversOk = await loadDrivers();
+  const vansOk = await loadVans();
+  
+  if (driversOk && vansOk) {
+    setApiAvailable(true);
+  } else {
+    setApiAvailable(false);
+  }
+  
+  updateDateDisplay();
+  await loadEntries();
+  
+  // Event listeners
+  dateInput.addEventListener('change', () => setDate(dateInput.value));
+  prevDayBtn.addEventListener('click', prevDay);
+  nextDayBtn.addEventListener('click', nextDay);
+  todayBtn.addEventListener('click', today);
+  addRowBtn.addEventListener('click', addNewRow);
+  
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '+' || e.key === '=') {
+      addNewRow();
+    }
+  });
+}
+
+// Start
+init();
+</script>
+</body>
+</html>

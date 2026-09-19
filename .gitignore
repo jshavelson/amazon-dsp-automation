@@ -1,0 +1,105 @@
+# OS generated files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DS_Store?
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+
+# Logs
+*.log
+.log/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Local data that shouldn't be committed
+.data/
+.local/
+
+# OpenClaw
+.openclaw/
+
+# Tools
+.tools/
+
+# Email inbox data (contains sensitive information)
+data/email_inbox/
+
+# Fleet reviews (large binary files)
+data/fleet_reviews/
+
+# Payment reconciliation
+data/payment_reconciliation/
+
+# Scorecard data (large CSV/PDF files)
+data/scorecard_data/
+
+# Manuals (PDF files)
+data/manuals/
+
+# Module approvals
+data/module_approvals/
+
+# Previews
+data/dashboards/previews/
+
+# Platform
+data/dashboards/platform/
+
+# Import templates
+data/import_templates/
+
+# Policies (PDF files)
+data/policies/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
