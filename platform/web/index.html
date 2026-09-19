@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>DSP Operations Platform</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="DSP Operations Platform home">
+      <span class="brand-mark">D</span>
+      <span>DSP Operations</span>
+    </a>
+    <div class="session-actions"><span class="environment">Secure pilot</span><button id="session-button" class="session-button" type="button">Sign in</button></div>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">SECURE OPERATIONS CONTROL PLANE</p>
+      <h1>Every reimbursement and operating signal in one place.</h1>
+      <p class="lede">Tenant-isolated dashboards, evidence-backed reviews, approval controls, and independently licensed modules.</p>
+      <div class="hero-actions">
+        <button class="primary-action" id="dashboard-button" type="button" disabled>Sign in to open dashboard</button>
+        <span class="preview-copy" id="session-status">Secure account access required</span>
+      </div>
+      <div class="security-note"><strong>Security:</strong> Tenant data and dashboard documents are returned only after verified sign-in and tenant entitlement checks.</div>
+    </section>
+    <section class="pilot" aria-labelledby="pilot-heading">
+      <div>
+        <p class="eyebrow">PILOT TENANT</p>
+        <h2 id="pilot-heading">JEC Logistics Solutions</h2>
+        <p>The existing operations dashboard remains available while its data publishers are migrated into tenant-scoped snapshots.</p>
+      </div>
+      <button class="secondary-action" id="pilot-dashboard-button" type="button" disabled>View dashboard</button>
+    </section>
+    <section aria-labelledby="modules-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">PRODUCT MODULES</p>
+          <h2 id="modules-heading">Enable only what each DSP needs</h2>
+        </div>
+        <span class="pill">9 separate SKUs</span>
+      </div>
+      <div class="module-grid">
+        <article class="module featured" data-module-id="executive_dashboard"><div class="module-top"><span>Dashboard</span><b class="status">Loading</b></div><h3>Executive Operations</h3><p>Scorecard, fleet, workforce, payroll, payments, and route-readiness views.</p><small></small></article>
+        <article class="module featured" data-module-id="data_integrations"><div class="module-top"><span>Integrations</span><b class="status">Loading</b></div><h3>Secure Data Connections</h3><p>Amazon, ADP, email, WhatsApp, and controlled file imports with vault-backed credentials.</p><small></small></article>
+        <article class="module active" data-module-id="fixed_monthly"><div class="module-top"><span>Payments</span><b class="status">Loading</b></div><h3>Fixed Monthly</h3><p>AFS reconciliation, owner approval, and guarded dispute submission.</p><small></small></article>
+        <article class="module" data-module-id="weekly_payments"><div class="module-top"><span>Payments</span><b class="status">Loading</b></div><h3>Weekly Variable + Incentive</h3><p>WST-to-invoice verification and exception review.</p><small></small></article>
+        <article class="module" data-module-id="capacity_reliability"><div class="module-top"><span>Operations</span><b class="status">Loading</b></div><h3>Capacity + Reliability</h3><p>Amazon C&amp;R versus route-coded WST execution, dropped-route analysis, and evidence cases.</p><small></small></article>
+        <article class="module" data-module-id="fif_reimbursements"><div class="module-top"><span>Reimbursements</span><b class="status">Loading</b></div><h3>FIF Claims</h3><p>Approved-claim and reimbursement matching.</p><small></small></article>
+        <article class="module" data-module-id="fifth_day_overtime"><div class="module-top"><span>Payroll</span><b class="status">Loading</b></div><h3>Fifth-Day Overtime</h3><p>Eligibility, route, time, and payroll reconciliation with excluded-work filtering.</p><small></small></article>
+        <article class="module" data-module-id="next_mile_tuition"><div class="module-top"><span>Benefits</span><b class="status">Loading</b></div><h3>Next Mile Tuition</h3><p>InStride disbursement and 30–45 day payroll reimbursement verification.</p><small></small></article>
+        <article class="module" data-module-id="program_adjustments"><div class="module-top"><span>Adjustments</span><b class="status">Loading</b></div><h3>Meals + Awards</h3><p>Program roster, receipt, and invoice validation.</p><small></small></article>
+      </div>
+    </section>
+  </main>
+  <footer>Tenant-isolated foundation · External actions remain approval-gated · <span id="status-time">Sign in to load tenant status</span></footer>
+  <script src="app.js" defer></script>
+</body>
+</html>

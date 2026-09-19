@@ -1,0 +1,11 @@
+{
+  "id": "data_integrations",
+  "displayName": "Secure Data Integrations",
+  "billingSku": "platform.data-integrations",
+  "version": 1,
+  "status": "in_development",
+  "approvalRequired": true,
+  "runner": null,
+  "capabilities": ["amazon_logistics", "amazon_payments", "adp", "email", "whatsapp", "file_imports", "connection_health"],
+  "dataClasses": ["connection_metadata", "secret_references", "sync_health", "source_fingerprints"]
+}

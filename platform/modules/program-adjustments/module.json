@@ -1,0 +1,11 @@
+{
+  "id": "program_adjustments",
+  "displayName": "Meals, Awards, and Adjustments",
+  "billingSku": "platform.program-adjustments",
+  "version": 1,
+  "status": "ready_for_import",
+  "approvalRequired": true,
+  "runner": "scripts/reconcile_program_adjustments.py",
+  "capabilities": ["invoice_detection", "roster_and_receipt_validation", "exception_detection"],
+  "dataClasses": ["receipts", "program_rosters", "amazon_payments"]
+}

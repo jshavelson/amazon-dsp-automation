@@ -1,0 +1,30 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: platform/Dockerfile
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8787
+      DATABASE_URL: ${DATABASE_URL:?Set a TLS PostgreSQL runtime-role URL}
+      OIDC_ISSUER: ${OIDC_ISSUER:?Set the production OIDC issuer}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set the API audience}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:?Set the HTTPS JWKS URL}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:?Set the OIDC public client ID}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL:?Set the OIDC authorization URL}
+      TOKEN_URL: ${TOKEN_URL:?Set the OIDC token URL}
+      TENANT_SLUG: ${TENANT_SLUG:-jecs}
+      DASHBOARD_HTML_PATH: /app/dashboard/amazon-dsp-kpi-dashboard.html
+    ports:
+      - "127.0.0.1:8787:8787"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m

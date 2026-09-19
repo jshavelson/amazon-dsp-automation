@@ -1,0 +1,11 @@
+{
+  "id": "fixed_monthly",
+  "displayName": "Fixed Monthly Fleet Reconciliation",
+  "billingSku": "platform.fixed-monthly",
+  "version": 1,
+  "status": "active",
+  "approvalRequired": true,
+  "runner": "scripts/run_fixed_monthly_cycle.py",
+  "capabilities": ["invoice_discovery", "afs_reconciliation", "approval_email", "approved_dispute_submission"],
+  "dataClasses": ["amazon_payments", "fleet", "approval_audit"]
+}

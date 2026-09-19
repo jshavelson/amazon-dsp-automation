@@ -1,0 +1,11 @@
+{
+  "id": "capacity_reliability",
+  "displayName": "Capacity and Reliability Review",
+  "billingSku": "platform.capacity-reliability",
+  "version": 1,
+  "status": "active",
+  "approvalRequired": true,
+  "runner": "scripts/reconcile_capacity_reliability.py",
+  "capabilities": ["weekly_report_ingestion", "wst_route_reconciliation", "dropped_route_analysis", "evidence_hashing", "case_generation"],
+  "dataClasses": ["scorecard", "capacity", "routes"]
+}

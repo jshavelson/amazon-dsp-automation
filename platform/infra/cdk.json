@@ -1,0 +1,21 @@
+{
+  "app": "node lib/main.js",
+  "watch": {
+    "include": [
+      "**"
+    ],
+    "exclude": [
+      "node_modules/**",
+      "lib/**",
+      ".cdk/**",
+      "cdk.out/**"
+    ]
+  },
+  "context": {
+    "@aws-cdk/core:enableStackNameDuplicates": "true",
+    "@aws-cdk/core:stackRelativeExports": "true",
+    "@aws-cdk/aws-ecs:enableFargateIMDSv1": "false",
+    "@aws-cdk/aws-rds:lowercaseDbIdentifier": "false",
+    "@aws-cdk/aws-secretsmanager:replicateSecretToRegions": "[]"
+  }
+}

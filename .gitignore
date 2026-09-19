@@ -1,42 +1,13 @@
-# OS generated files
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-.DS_Store?
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Dependencies
+node_modules/
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+# Build outputs
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
 
 # IDE
 .idea/
@@ -45,61 +16,111 @@ ENV/
 *.swo
 *~
 
-# Node
-node_modules/
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
 
 # Logs
 *.log
-.log/
+logs/
 
 # Temporary files
-*.tmp
-*.temp
-.tmp/
-.temp/
+tmp_*
+.tmp-*
+.tmp-ops-*
+
+# Memory and dreams
+memory/
+.dreams/
 
 # Local data that shouldn't be committed
-.data/
-.local/
+data/adp/
+data/attendance_inbox/
+data/attendance_reports/
+data/daily_operations/
+data/email_inbox/
+data/fleet_reviews/
+data/import_templates/
+data/manuals/
+data/module_approvals/
+data/payment_reconciliation/
+data/policies/
+data/scorecard_data/
+data/workforce/
+media/
 
-# OpenClaw
+# OpenClaw configuration
 .openclaw/
-
-# Tools
 .tools/
 
-# Email inbox data (contains sensitive information)
-data/email_inbox/
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
 
-# Fleet reviews (large binary files)
-data/fleet_reviews/
+# Package lock files (if you want to exclude them)
+# package-lock.json
 
-# Payment reconciliation
-data/payment_reconciliation/
+# Local configuration
+*.json
+!package.json
+!package-lock.json
 
-# Scorecard data (large CSV/PDF files)
-data/scorecard_data/
+# Temporary directories
+.tmp-ops-pdf-pages/
 
-# Manuals (PDF files)
-data/manuals/
+# Local files
+.dockerignore
+DREAMS.md
+HEARTBEAT.md
+NOTES.md
 
-# Module approvals
-data/module_approvals/
+# Test files
+tests/
 
-# Previews
+# Script backups
+*.backup
+
+# Platform specific (if these are generated)
+platform/.env.example
+platform/deployment.env.example
+
+# Dashboard previews
+data/dashboards/platform/
 data/dashboards/previews/
 
-# Platform
-data/dashboards/platform/
+# WhatsApp plugin
+plugins/
 
-# Import templates
-data/import_templates/
+# SaaS
+saas/
 
-# Policies (PDF files)
-data/policies/
+# Compensation model
+*.xlsx
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*.backup
+# HTML temporary files
+*.html
+!data/dashboards/*.html
+!platform/**/*.html
+
+# JSON temporary files
+*.json
+!package.json
+!package-lock.json
+!platform/**/*.json
+!data/**/*.json
+!*.json
+
+# PNG temporary files
+tmp_*.png
+
+# Text files
+tmp_*.txt
+
+# Request files
+tmp_*.json

@@ -1,0 +1,11 @@
+{
+  "id": "weekly_payments",
+  "displayName": "Weekly Variable and Incentive Review",
+  "billingSku": "platform.weekly-payments",
+  "version": 1,
+  "status": "active",
+  "approvalRequired": true,
+  "runner": "scripts/reconcile_payments.py",
+  "capabilities": ["wst_capture", "invoice_reconciliation", "exception_detection", "case_generation"],
+  "dataClasses": ["amazon_payments", "routes", "incentives"]
+}

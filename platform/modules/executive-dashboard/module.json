@@ -1,0 +1,11 @@
+{
+  "id": "executive_dashboard",
+  "displayName": "Executive Operations Dashboard",
+  "billingSku": "platform.executive-dashboard",
+  "version": 1,
+  "status": "in_development",
+  "approvalRequired": true,
+  "runner": "scripts/build_dsp_kpi_dashboard.py",
+  "capabilities": ["executive_kpis", "weekly_trends", "fleet_readiness", "workforce_availability", "payment_reconciliation"],
+  "dataClasses": ["scorecard", "fleet", "workforce", "payroll", "amazon_payments"]
+}

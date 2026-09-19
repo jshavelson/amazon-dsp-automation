@@ -1,0 +1,11 @@
+{
+  "id": "fifth_day_overtime",
+  "displayName": "Fifth-Day Overtime Support",
+  "billingSku": "platform.fifth-day-overtime",
+  "version": 1,
+  "status": "ready_for_import",
+  "approvalRequired": true,
+  "runner": "scripts/reconcile_fifth_day_overtime.py",
+  "capabilities": ["employee_eligibility", "route_payroll_matching", "excluded_work_filtering"],
+  "dataClasses": ["payroll", "time_attendance", "routes"]
+}

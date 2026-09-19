@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-09-19T00:32:31.107515+00:00",
+  "tenant": "JEC Logistics Solutions",
+  "modules": [
+    {
+      "id": "capacity_reliability",
+      "display_name": "Capacity and Reliability Review",
+      "billing_sku": "platform.capacity-reliability",
+      "implementation_status": "active",
+      "state": "active",
+      "headline": "Route reconciliation live",
+      "detail": "Amazon C&R is checked against route-coded WST executions.",
+      "last_case": "2026-W36",
+      "case_status": "closed",
+      "candidate_count": 0,
+      "verified_routes": 245
+    },
+    {
+      "id": "data_integrations",
+      "display_name": "Secure Data Integrations",
+      "billing_sku": "platform.data-integrations",
+      "implementation_status": "in_development",
+      "state": "foundation",
+      "headline": "Vault contract implemented",
+      "detail": "Production OIDC, database, and cloud secret infrastructure remain deployment work."
+    },
+    {
+      "id": "executive_dashboard",
+      "display_name": "Executive Operations Dashboard",
+      "billing_sku": "platform.executive-dashboard",
+      "implementation_status": "in_development",
+      "state": "active",
+      "headline": "JECS dashboard available",
+      "detail": "Current private dashboard remains linked from this site."
+    },
+    {
+      "id": "fif_reimbursements",
+      "display_name": "FIF Reimbursement Review",
+      "billing_sku": "platform.fif-reimbursements",
+      "implementation_status": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for approved-claims and reimbursement-invoice exports."
+    },
+    {
+      "id": "fifth_day_overtime",
+      "display_name": "Fifth-Day Overtime Support",
+      "billing_sku": "platform.fifth-day-overtime",
+      "implementation_status": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for route detail and payroll detail."
+    },
+    {
+      "id": "fixed_monthly",
+      "display_name": "Fixed Monthly Fleet Reconciliation",
+      "billing_sku": "platform.fixed-monthly",
+      "implementation_status": "active",
+      "state": "active",
+      "headline": "Approval and guarded submission live",
+      "detail": "Latest approved case submitted to Amazon.",
+      "last_case": "FM-0I0000000827-7068E2F524",
+      "case_status": "submitted",
+      "candidate_count": 1
+    },
+    {
+      "id": "next_mile_tuition",
+      "display_name": "Next Mile Tuition Reconciliation",
+      "billing_sku": "platform.next-mile-tuition",
+      "implementation_status": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for InStride and payroll reimbursement exports."
+    },
+    {
+      "id": "program_adjustments",
+      "display_name": "Meals, Awards, and Adjustments",
+      "billing_sku": "platform.program-adjustments",
+      "implementation_status": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for program support and invoice-adjustment exports."
+    },
+    {
+      "id": "weekly_payments",
+      "display_name": "Weekly Variable and Incentive Review",
+      "billing_sku": "platform.weekly-payments",
+      "implementation_status": "active",
+      "state": "active",
+      "headline": "Weekly recovery confirmed",
+      "detail": "WST and invoice evidence confirm $327.00 recovered.",
+      "last_case": "2026-W37",
+      "case_status": "closed",
+      "candidate_count": 0,
+      "recovered_routes": 1.0,
+      "recovered_value": 327.0
+    }
+  ],
+  "security": {
+    "credentials_rendered": false,
+    "employee_level_data_rendered": false,
+    "non_sensitive_status_only": true
+  }
+}

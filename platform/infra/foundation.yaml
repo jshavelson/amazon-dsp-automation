@@ -1,0 +1,336 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Secure multi-tenant DSP operations foundation in AWS.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: dsp-operations
+    AllowedPattern: '^[a-z][a-z0-9-]{2,30}$'
+  CognitoDomainPrefix:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]{8,50}$'
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-vpc'}]
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: {VpcId: !Ref Vpc, InternetGatewayId: !Ref InternetGateway}
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.42.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-public-a'}]
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.42.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-public-b'}]
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.42.10.0/24
+      MapPublicIpOnLaunch: false
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-database-a'}]
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.42.11.0/24
+      MapPublicIpOnLaunch: false
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-database-b'}]
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-public'}]
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PublicSubnetA, RouteTableId: !Ref PublicRouteTable}
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PublicSubnetB, RouteTableId: !Ref PublicRouteTable}
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CloudFront origin ingress; application listener rejects requests without the origin header.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
+      SecurityGroupEgress:
+        - {IpProtocol: -1, CidrIp: 0.0.0.0/0}
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Application tasks accept traffic only from the load balancer.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 8787, ToPort: 8787, SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup}
+      SecurityGroupEgress:
+        - {IpProtocol: -1, CidrIp: 0.0.0.0/0}
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL accepts traffic only from application tasks.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref ApplicationSecurityGroup}
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private database subnets
+      SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB]
+  DatabaseAdminSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub '${ProjectName}/production/database-admin'
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"dsp_platform_admin"}'
+        GenerateStringKey: password
+        PasswordLength: 40
+        ExcludePunctuation: true
+  DatabaseRuntimeSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub '${ProjectName}/production/database-runtime'
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"dsp_app_login"}'
+        GenerateStringKey: password
+        PasswordLength: 40
+        ExcludePunctuation: true
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '${ProjectName}-production'
+      Engine: postgres
+      DBInstanceClass: db.t4g.micro
+      DBName: dsp_platform
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      StorageEncrypted: true
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DatabaseAdminSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DatabaseAdminSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: 07:00-08:00
+      PreferredMaintenanceWindow: sun:08:30-sun:09:30
+      AutoMinorVersionUpgrade: true
+      DeletionProtection: false
+      EnablePerformanceInsights: false
+      CopyTagsToSnapshot: true
+
+  ContainerRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Ref ProjectName
+      ImageScanningConfiguration: {ScanOnPush: true}
+      ImageTagMutability: MUTABLE
+      EncryptionConfiguration: {EncryptionType: AES256}
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"Retain 20 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldNoncurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpiration: {NoncurrentDays: 30}
+  DeploymentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DeploymentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt DeploymentBucket.Arn, !Sub '${DeploymentBucket.Arn}/*']
+            Condition: {Bool: {'aws:SecureTransport': false}}
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: codebuild.amazonaws.com}
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: BuildAndPushImage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents']
+                Resource: '*'
+              - Effect: Allow
+                Action: ['s3:GetObject', 's3:GetObjectVersion', 's3:GetBucketLocation']
+                Resource: [!GetAtt DeploymentBucket.Arn, !Sub '${DeploymentBucket.Arn}/*']
+              - Effect: Allow
+                Action: ['ecr:GetAuthorizationToken']
+                Resource: '*'
+              - Effect: Allow
+                Action: ['ecr:BatchCheckLayerAvailability', 'ecr:GetDownloadUrlForLayer', 'ecr:BatchGetImage', 'ecr:PutImage', 'ecr:InitiateLayerUpload', 'ecr:UploadLayerPart', 'ecr:CompleteLayerUpload']
+                Resource: !GetAtt ContainerRepository.Arn
+  ImageBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ProjectName}-image'
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts: {Type: NO_ARTIFACTS}
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - {Name: AWS_DEFAULT_REGION, Value: !Ref 'AWS::Region'}
+          - {Name: AWS_ACCOUNT_ID, Value: !Ref 'AWS::AccountId'}
+          - {Name: ECR_REPOSITORY_URI, Value: !GetAtt ContainerRepository.RepositoryUri}
+          - {Name: IMAGE_TAG, Value: pilot}
+      Source:
+        Type: S3
+        Location: !Sub '${DeploymentBucket}/source/platform-source.zip'
+        BuildSpec: platform/infra/buildspec.yml
+      TimeoutInMinutes: 30
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-production'
+      ClusterSettings: [{Name: containerInsights, Value: enabled}]
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadDatabaseSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['secretsmanager:GetSecretValue']
+                Resource: [!Ref DatabaseAdminSecret, !Ref DatabaseRuntimeSecret]
+  ApplicationTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: TenantSecretMetadata
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['secretsmanager:DescribeSecret']
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/production/tenants/*'
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub '${ProjectName}-production'
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      MfaConfiguration: 'ON'
+      EnabledMfas: [SOFTWARE_TOKEN_MFA]
+      UserAttributeUpdateSettings: {AttributesRequireVerificationBeforeUpdate: [email]}
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 14
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 3
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - {Name: verified_email, Priority: 1}
+      AdminCreateUserConfig: {AllowAdminCreateUserOnly: true}
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: {Domain: !Ref CognitoDomainPrefix, UserPoolId: !Ref UserPool}
+
+Outputs:
+  VpcId: {Value: !Ref Vpc}
+  PublicSubnetAId: {Value: !Ref PublicSubnetA}
+  PublicSubnetBId: {Value: !Ref PublicSubnetB}
+  ApplicationSecurityGroupId: {Value: !Ref ApplicationSecurityGroup}
+  LoadBalancerSecurityGroupId: {Value: !Ref LoadBalancerSecurityGroup}
+  DatabaseEndpoint: {Value: !GetAtt Database.Endpoint.Address}
+  DatabasePort: {Value: !GetAtt Database.Endpoint.Port}
+  DatabaseAdminSecretArn: {Value: !Ref DatabaseAdminSecret}
+  DatabaseRuntimeSecretArn: {Value: !Ref DatabaseRuntimeSecret}
+  ContainerRepositoryUri: {Value: !GetAtt ContainerRepository.RepositoryUri}
+  DeploymentBucketName: {Value: !Ref DeploymentBucket}
+  ImageBuildProjectName: {Value: !Ref ImageBuildProject}
+  EcsClusterName: {Value: !Ref EcsCluster}
+  TaskExecutionRoleArn: {Value: !GetAtt TaskExecutionRole.Arn}
+  ApplicationTaskRoleArn: {Value: !GetAtt ApplicationTaskRole.Arn}
+  UserPoolId: {Value: !Ref UserPool}
+  UserPoolIssuer: {Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'}
+  CognitoDomainPrefix: {Value: !Ref CognitoDomainPrefix}
