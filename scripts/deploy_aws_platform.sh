@@ -19,9 +19,10 @@ ensure_aws_session() {
   if aws_cmd sts get-caller-identity >/dev/null 2>&1; then
     return
   fi
-  print "AWS session is missing or expired; opening secure console login..."
-  aws login --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION_NAME" --no-cli-pager
-  aws_cmd sts get-caller-identity >/dev/null
+  print "AWS session is missing or expired."
+  print "Please run: aws sso login --profile $AWS_PROFILE_NAME --region $AWS_REGION_NAME"
+  print "Then retry the deployment."
+  exit 1
 }
 
 stack_output() {
