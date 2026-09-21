@@ -31,6 +31,8 @@ DB_PATH = ROOT / "data/dsp_operations.db"
 DASHBOARD_DIR = ROOT / "data/dashboards"
 DASHBOARD_PATH = DASHBOARD_DIR / "amazon-dsp-kpi-dashboard.html"
 FLEET_REVIEW_DIR = ROOT / "data/fleet_reviews"
+WEAR_TEAR_TARGET_PERCENT = 80.0
+WEAR_TEAR_STRETCH_PERCENT = 85.0
 
 
 def _read_json(path):
@@ -206,8 +208,10 @@ def build_fleet_compliance_payload():
     if wear_data:
         eligible_denominator = int(wear_data.get('eligibleVehicleCount') or len(rows))
         current_percent = float(wear_data.get('currentPercent') or 0)
-        target_percent = float(wear_data.get('targetPercent') or 70)
-        stretch_percent = float(wear_data.get('stretchPercent') or 75)
+        # Management target is an application policy, not a value inherited
+        # from an older evidence snapshot. Keep it stable across exports.
+        target_percent = WEAR_TEAR_TARGET_PERCENT
+        stretch_percent = WEAR_TEAR_STRETCH_PERCENT
         current_count = int(wear_data.get('wearTearPassingCount') or round(current_percent / 100 * eligible_denominator))
         target_count = math.ceil(target_percent / 100 * eligible_denominator)
         stretch_count = math.ceil(stretch_percent / 100 * eligible_denominator)
@@ -249,6 +253,8 @@ def build_fleet_compliance_payload():
         ))
         wear_and_tear = {
             **wear_data,
+            'targetPercent': target_percent,
+            'stretchPercent': stretch_percent,
             'planningDenominator': eligible_denominator,
             'estimatedCurrentCompliant': current_count,
             'targetCompliant': target_count,
