@@ -3,7 +3,7 @@
   "displayName": "Next Mile Tuition Reconciliation",
   "billingSku": "platform.next-mile-tuition",
   "version": 1,
-  "status": "ready_for_import",
+  "status": "active",
   "approvalRequired": true,
   "runner": "scripts/reconcile_next_mile_tuition.py",
   "capabilities": ["instride_matching", "payroll_reimbursement_verification", "aging_alerts"],

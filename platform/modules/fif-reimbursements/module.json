@@ -3,7 +3,7 @@
   "displayName": "FIF Reimbursement Review",
   "billingSku": "platform.fif-reimbursements",
   "version": 1,
-  "status": "ready_for_import",
+  "status": "active",
   "approvalRequired": true,
   "runner": "scripts/reconcile_fif_reimbursements.py",
   "capabilities": ["claim_to_invoice_matching", "reimbursement_exception_detection"],

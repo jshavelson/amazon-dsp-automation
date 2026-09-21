@@ -203,10 +203,10 @@ export async function createApp({
       return reply.code(400).send({ error: 'invalid dispute candidate' });
     }
     if (request.body?.confirmation !== true) {
-      return reply.code(403).send({ error: 'explicit confirmation is required' });
+      return reply.code(400).send({ error: 'explicit confirmation is required' });
     }
     if (!disputeSubmission?.submit) {
-      return reply.code(403).send({ error: 'Amazon dispute submission adapter is unavailable' });
+      return reply.code(503).send({ error: 'Amazon dispute submission adapter is unavailable' });
     }
     try {
       const result = await disputeSubmission.submit({
@@ -231,22 +231,22 @@ export async function createApp({
   });
 
   // Register PAVE routes
-  paveRoutes(app, { repository, logger });
+  paveRoutes(app, { repository, registry, logger });
 
   // Register Driver Performance routes
-  driverPerformanceRoutes(app, { repository, logger });
+  driverPerformanceRoutes(app, { repository, registry, logger });
 
   // Register Fleet Costs routes
-  fleetCostsRoutes(app, { repository, logger });
+  fleetCostsRoutes(app, { repository, registry, logger });
 
   // Register Disputes routes
-  disputesRoutes(app, { repository, logger });
+  disputesRoutes(app, { repository, registry, logger });
 
   // Register Route Monitor routes
-  routeMonitorRoutes(app, { repository, logger });
+  routeMonitorRoutes(app, { repository, registry, logger });
 
   // Register Payroll routes
-  payrollRoutes(app, { repository, logger });
+  payrollRoutes(app, { repository, registry, logger });
 
   // React application compatibility endpoints backed by the tenant repository.
   reactCompatRoutes(app, { repository, dashboardHtmlPath, logger });

@@ -4,7 +4,7 @@
 
 import { getDisputeCandidates } from '../services/scorecard-data-service.mjs';
 
-export function disputesRoutes(app, { repository, logger }) {
+export function disputesRoutes(app, { repository, registry, logger }) {
 
   /**
    * GET /api/disputes/candidates
