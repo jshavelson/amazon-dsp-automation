@@ -191,7 +191,7 @@ const RoutesPage: React.FC = () => {
       width: '120px',
       render: (value) => (
         <Badge
-          variant={
+          variant={{
             planned: 'secondary',
             assigned: 'info',
             in_progress: 'primary',
@@ -298,7 +298,7 @@ const RoutesPage: React.FC = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading routes..." />
       </div>
     );
@@ -307,7 +307,7 @@ const RoutesPage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <p className="text-danger-600 mb-4">Failed to load routes</p>
           <Button onClick={() => refetch()}>Retry</Button>

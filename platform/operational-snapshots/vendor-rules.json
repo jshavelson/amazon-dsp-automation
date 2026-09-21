@@ -1,0 +1,52 @@
+{
+  "tenant": "jecs",
+  "rules": [
+    {
+      "match": "enterprise",
+      "vendor": "Enterprise Rent-A-Car",
+      "treatment": "INCLUDE",
+      "coverageClass": "Rental + lease coverage"
+    },
+    {
+      "match": "hertz",
+      "vendor": "Hertz",
+      "treatment": "INCLUDE",
+      "coverageClass": "Rental + lease coverage"
+    },
+    {
+      "match": "merchauto",
+      "vendor": "MerchAuto9150 Corp",
+      "treatment": "INCLUDE",
+      "coverageClass": "Amazon LMR coverage"
+    },
+    {
+      "match": "element",
+      "vendor": "Element Fleet",
+      "treatment": "INCLUDE",
+      "coverageClass": "Unallocated"
+    },
+    {
+      "match": "acura",
+      "vendor": "Acura",
+      "treatment": "EXCLUDE",
+      "coverageClass": "Excluded from fleet comparison"
+    },
+    {
+      "match": "rt specialty",
+      "vendor": "RT Specialty",
+      "treatment": "EXCLUDE",
+      "coverageClass": "Insurance (not reimbursable)"
+    },
+    {
+      "match": "insurance",
+      "vendor": "Insurance",
+      "treatment": "EXCLUDE",
+      "coverageClass": "Insurance (not reimbursable)"
+    }
+  ],
+  "providers": {
+    "digits": "Digits",
+    "quickbooks": "QuickBooks",
+    "generic": "Generic CSV / spreadsheet"
+  }
+}

@@ -93,6 +93,9 @@ print "Running tests..."
 cd "$PROJECT_ROOT"
 npm test
 
+print "Refreshing packaged operational snapshots..."
+python3 scripts/export_platform_snapshots.py
+
 deployment_bucket="$(stack_output "$FOUNDATION_STACK" DeploymentBucketName)"
 build_project="$(stack_output "$FOUNDATION_STACK" ImageBuildProjectName)"
 repository_uri="$(stack_output "$FOUNDATION_STACK" ContainerRepositoryUri)"

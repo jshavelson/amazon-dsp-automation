@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/app/' : '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -22,7 +23,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8787',
         changeOrigin: true,
       },
     },
@@ -46,4 +47,4 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: true,
   },
-});
+}));

@@ -1,0 +1,1668 @@
+{
+  "period": "June-August 2026",
+  "asOf": "2026-09-07",
+  "source": "data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx",
+  "summary": {
+    "threeMonthIncludedCost": 79904.99,
+    "threeMonthAmazonCoverage": 73207.43,
+    "threeMonthDifference": -6697.56,
+    "coverageRate": 91.6,
+    "augustDifference": -10907.91,
+    "thirdPartyRentalCost": 45714.32,
+    "rentalLeaseCoverage": 5154.86,
+    "lmrCost": 33944.77,
+    "lmrCoverage": 68052.57,
+    "elementCost": 245.9,
+    "acuraExcluded": 4200.0,
+    "fullAmazonCoverage": 173943.39,
+    "includedTransactions": 44,
+    "excludedTransactions": 3,
+    "unmatchedVinCharges": 44
+  },
+  "months": [
+    {
+      "month": "June",
+      "status": "final",
+      "invoiceBasis": "June final 0790",
+      "includedCost": 21333.92,
+      "amazonCoverage": 21666.74,
+      "difference": 332.82,
+      "coverageRate": 101.6,
+      "thirdPartyRentalCost": 11158.79,
+      "rentalLeaseCoverage": 726.05,
+      "rentalLeaseBalance": -10432.74,
+      "lmrCost": 10014.69,
+      "lmrCoverage": 20940.69,
+      "lmrBalance": 10926.0,
+      "elementCost": 160.44,
+      "acuraExcluded": 1400.0,
+      "rawExportTotal": 22733.92,
+      "fullAmazonCoverage": 56555.94
+    },
+    {
+      "month": "July",
+      "status": "final",
+      "invoiceBasis": "July final 0810",
+      "includedCost": 25742.93,
+      "amazonCoverage": 29620.46,
+      "difference": 3877.53,
+      "coverageRate": 115.1,
+      "thirdPartyRentalCost": 15725.66,
+      "rentalLeaseCoverage": 2122.32,
+      "rentalLeaseBalance": -13603.34,
+      "lmrCost": 10014.69,
+      "lmrCoverage": 27498.14,
+      "lmrBalance": 17483.45,
+      "elementCost": 2.58,
+      "acuraExcluded": 1400.0,
+      "rawExportTotal": 27142.93,
+      "fullAmazonCoverage": 62936.75
+    },
+    {
+      "month": "August",
+      "status": "advance",
+      "invoiceBasis": "August advance 0807",
+      "includedCost": 32828.14,
+      "amazonCoverage": 21920.23,
+      "difference": -10907.91,
+      "coverageRate": 66.8,
+      "thirdPartyRentalCost": 18829.87,
+      "rentalLeaseCoverage": 2306.49,
+      "rentalLeaseBalance": -16523.38,
+      "lmrCost": 13915.39,
+      "lmrCoverage": 19613.74,
+      "lmrBalance": 5698.35,
+      "elementCost": 82.88,
+      "acuraExcluded": 1400.0,
+      "rawExportTotal": 34228.14,
+      "fullAmazonCoverage": 54450.7
+    }
+  ],
+  "vendors": [
+    {
+      "vendor": "Enterprise Rent-A-Car",
+      "monthly": [
+        11158.79,
+        11174.1,
+        16148.63
+      ],
+      "total": 38481.52,
+      "coverageClass": "Rental + lease coverage"
+    },
+    {
+      "vendor": "Hertz",
+      "monthly": [
+        0.0,
+        4551.56,
+        2681.24
+      ],
+      "total": 7232.8,
+      "coverageClass": "Rental + lease coverage"
+    },
+    {
+      "vendor": "MerchAuto9150 Corp",
+      "monthly": [
+        10014.69,
+        10014.69,
+        13915.39
+      ],
+      "total": 33944.77,
+      "coverageClass": "Amazon LMR coverage"
+    },
+    {
+      "vendor": "Element Fleet",
+      "monthly": [
+        160.44,
+        2.58,
+        82.88
+      ],
+      "total": 245.9,
+      "coverageClass": "Unallocated"
+    }
+  ],
+  "amazonClasses": [
+    {
+      "category": "Branded Custom Delivery Van (Element - Amazon Owned)",
+      "coverage": [
+        2240.1,
+        2240.06,
+        2240.06
+      ],
+      "vehicleDays": [
+        60.0,
+        62.0,
+        62.0
+      ],
+      "perVehicleDay": [
+        37.34,
+        36.13,
+        36.13
+      ],
+      "group": "branded"
+    },
+    {
+      "category": "Branded Custom Delivery Van (Wheels - Amazon Owned)",
+      "coverage": [
+        1120.2,
+        1120.03,
+        1120.03
+      ],
+      "vehicleDays": [
+        30.0,
+        31.0,
+        31.0
+      ],
+      "perVehicleDay": [
+        37.34,
+        36.13,
+        36.13
+      ],
+      "group": "branded"
+    },
+    {
+      "category": "Branded Extended Van (Element - Amazon Owned)",
+      "coverage": [
+        5181.48,
+        4640.08,
+        4640.08
+      ],
+      "vehicleDays": [
+        134.0,
+        124.0,
+        124.0
+      ],
+      "perVehicleDay": [
+        38.67,
+        37.42,
+        37.42
+      ],
+      "group": "branded"
+    },
+    {
+      "category": "Branded Extended Van (Wheels - Amazon Owned)",
+      "coverage": [
+        2977.42,
+        1945.84,
+        1160.02
+      ],
+      "vehicleDays": [
+        77.0,
+        52.0,
+        31.0
+      ],
+      "perVehicleDay": [
+        38.67,
+        37.42,
+        37.42
+      ],
+      "group": "branded"
+    },
+    {
+      "category": "Branded Last Mile Rental Van",
+      "coverage": [
+        20940.69,
+        27498.14,
+        19613.74
+      ],
+      "vehicleDays": [
+        311.0,
+        422.0,
+        301.0
+      ],
+      "perVehicleDay": [
+        67.33,
+        65.16,
+        65.16
+      ],
+      "group": "lmr"
+    },
+    {
+      "category": "Branded Rivian Electric Vehicle (Element - Amazon Owned)",
+      "coverage": [
+        23370.0,
+        23370.28,
+        23370.28
+      ],
+      "vehicleDays": [
+        570.0,
+        589.0,
+        589.0
+      ],
+      "perVehicleDay": [
+        41.0,
+        39.68,
+        39.68
+      ],
+      "group": "branded"
+    },
+    {
+      "category": "DSP Leased Van",
+      "coverage": [
+        396.69,
+        767.76,
+        712.92
+      ],
+      "vehicleDays": [
+        7.0,
+        14.0,
+        13.0
+      ],
+      "perVehicleDay": [
+        56.67,
+        54.84,
+        54.84
+      ],
+      "group": "rental_lease"
+    },
+    {
+      "category": "Rental Van",
+      "coverage": [
+        329.36,
+        1354.56,
+        1593.57
+      ],
+      "vehicleDays": [
+        4.0,
+        17.0,
+        20.0
+      ],
+      "perVehicleDay": [
+        82.34,
+        79.68,
+        79.68
+      ],
+      "group": "rental_lease"
+    }
+  ],
+  "invoiceBridge": [
+    {
+      "period": "June",
+      "finalGross": 56555.94,
+      "priorAdvanceDeducted": 50531.57,
+      "netReconciliation": 6024.37,
+      "invoiceIssued": "2026-07-09",
+      "note": null
+    },
+    {
+      "period": "July",
+      "finalGross": 62936.75,
+      "priorAdvanceDeducted": 56370.5,
+      "netReconciliation": 6566.25,
+      "invoiceIssued": "2026-08-10",
+      "note": null
+    },
+    {
+      "period": "August",
+      "finalGross": null,
+      "priorAdvanceDeducted": 54450.7,
+      "netReconciliation": null,
+      "invoiceIssued": "Advance 2026-08-05",
+      "note": "Not yet posted"
+    }
+  ],
+  "charges": [
+    {
+      "month": "June",
+      "datePosted": "2026-06-29",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1645.3,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-25",
+      "vendor": "MerchAuto9150 Corp",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 10014.69,
+      "treatment": "INCLUDE",
+      "memo": "MERCHAUTO9150 CORP COLL",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-19",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-11",
+      "vendor": "Element Fleet",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 160.44,
+      "treatment": "INCLUDE",
+      "memo": "ELEMENT FLEET DD PAYMENT",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-10",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-10",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-10",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-10",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-06",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-04",
+      "vendor": "Acura",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 1400.0,
+      "treatment": "EXCLUDE - Acura",
+      "memo": "ACURA PMT 8669509678",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "June",
+      "datePosted": "2026-06-01",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-31",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-29",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-28",
+      "vendor": "MerchAuto9150 Corp",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 10014.69,
+      "treatment": "INCLUDE",
+      "memo": "MERCHAUTO9150 CORP COLL",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-24",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-13",
+      "vendor": "Element Fleet",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 2.58,
+      "treatment": "INCLUDE",
+      "memo": "ELEMENT FLEET DD PAYMENT",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-09",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 300.0,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-09",
+      "vendor": "Hertz",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 335.15,
+      "treatment": "INCLUDE",
+      "memo": "Hertz Rent-a-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-08",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-08",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-07",
+      "vendor": "Acura",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 1400.0,
+      "treatment": "EXCLUDE - Acura",
+      "memo": "ACURA PMT 8669509678",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-07",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-07",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.84,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-07",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.84,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-03",
+      "vendor": "Hertz",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1405.47,
+      "treatment": "INCLUDE",
+      "memo": "Hertz Rent-a-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-03",
+      "vendor": "Hertz",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1405.47,
+      "treatment": "INCLUDE",
+      "memo": "Hertz Rent-a-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "July",
+      "datePosted": "2026-07-03",
+      "vendor": "Hertz",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1405.47,
+      "treatment": "INCLUDE",
+      "memo": "Hertz Rent-a-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-31",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 0.1,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-31",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 0.1,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-31",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 0.1,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-31",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 0.1,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-29",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Capital One - Credit Card (9150)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "Enterprise Rent-A-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-28",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Capital One - Credit Card (9150)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "Enterprise Rent-A-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-26",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Capital One - Credit Card (9150)",
+      "netCharge": 1659.07,
+      "treatment": "INCLUDE",
+      "memo": "Enterprise Rent-A-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-26",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Capital One - Credit Card (9150)",
+      "netCharge": 1659.07,
+      "treatment": "INCLUDE",
+      "memo": "Enterprise Rent-A-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-26",
+      "vendor": "MerchAuto9150 Corp",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 13915.39,
+      "treatment": "INCLUDE",
+      "memo": "MERCHAUTO9150 CORP COLL",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-15",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Capital One - Credit Card (9150)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "Enterprise Rent-A-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-11",
+      "vendor": "Element Fleet",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 82.88,
+      "treatment": "INCLUDE",
+      "memo": "ELEMENT FLEET DD PAYMENT",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-05",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1358.3,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-05",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1358.3,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-05",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-05",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1359.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-04",
+      "vendor": "Acura",
+      "account": "TD BUSINESS CONVENIENCE PLUS (1077) - 1",
+      "netCharge": 1400.0,
+      "treatment": "EXCLUDE - Acura",
+      "memo": "ACURA PMT 8669509678",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-03",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1659.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-03",
+      "vendor": "Enterprise Rent-A-Car",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1659.07,
+      "treatment": "INCLUDE",
+      "memo": "ENTERPRISE 421840FORT PIERCE",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-02",
+      "vendor": "Hertz",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1340.62,
+      "treatment": "INCLUDE",
+      "memo": "Hertz Rent-a-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    },
+    {
+      "month": "August",
+      "datePosted": "2026-08-02",
+      "vendor": "Hertz",
+      "account": "Business Platinum Card\u00ae (22002)",
+      "netCharge": 1340.62,
+      "treatment": "INCLUDE",
+      "memo": "Hertz Rent-a-Car",
+      "vin": null,
+      "invoice": null,
+      "serviceStart": null,
+      "serviceEnd": null
+    }
+  ],
+  "fleet": [
+    {
+      "unit": "R-20 (ENT)",
+      "vin": "3C6LRVDG7TE179292",
+      "year": "2026",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-07-17",
+      "ownershipEnd": "2026-11-27"
+    },
+    {
+      "unit": "EDV 16",
+      "vin": "7FCEHEB20RN026201",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-06-15",
+      "ownershipEnd": "2045-06-15"
+    },
+    {
+      "unit": "R-19 (ENT)",
+      "vin": "3C6MRVHG3SE546234",
+      "year": "2025",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-04-24",
+      "ownershipEnd": "2027-04-24"
+    },
+    {
+      "unit": "EDV 4",
+      "vin": "7FCEHEB24RN025942",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "CDV 1",
+      "vin": "1FDDF6P87MKA92695",
+      "year": "2021",
+      "make": "Ford",
+      "model": "Transit",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "LP",
+      "ownershipStart": "2023-06-19",
+      "ownershipEnd": "2043-06-19"
+    },
+    {
+      "unit": "EDV 10",
+      "vin": "7FCEHEB20RN025940",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-17",
+      "ownershipEnd": "2045-03-17"
+    },
+    {
+      "unit": "EDV-LMR-7",
+      "vin": "7FCEHEB23TN047339",
+      "year": "2026",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-06-24",
+      "ownershipEnd": "2026-09-28"
+    },
+    {
+      "unit": "LMR 14",
+      "vin": "1FTYR3XM9KKB29204",
+      "year": "2019",
+      "make": "Ford",
+      "model": "Transit",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-02-11",
+      "ownershipEnd": "2026-09-17"
+    },
+    {
+      "unit": "EDV-LMR-5",
+      "vin": "7FCEHEB20SN033185",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2025-12-22",
+      "ownershipEnd": "2026-09-26"
+    },
+    {
+      "unit": "HERTZ 1",
+      "vin": "3C6LRVDG5TE152267",
+      "year": "2026",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Hertz",
+      "ownershipStart": "2026-07-17",
+      "ownershipEnd": "2026-12-24"
+    },
+    {
+      "unit": "EDV-LMR-9",
+      "vin": "7FCEHEB27SN031787",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-01-29",
+      "ownershipEnd": "2026-10-02"
+    },
+    {
+      "unit": "EDV-LMR-12",
+      "vin": "7FCEHEB2XSN031699",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-02-11",
+      "ownershipEnd": "2026-09-16"
+    },
+    {
+      "unit": "EDV 12",
+      "vin": "7FCEHEB22RN025941",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-17",
+      "ownershipEnd": "2045-03-17"
+    },
+    {
+      "unit": "R-39 (ENT)",
+      "vin": "3C6LRVDG3TE196042",
+      "year": "2026",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "GROUNDED",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-08-03",
+      "ownershipEnd": "2026-12-03"
+    },
+    {
+      "unit": "EDV 9",
+      "vin": "7FCEHEB20RN025937",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-17",
+      "ownershipEnd": "2045-03-17"
+    },
+    {
+      "unit": "R-35 (ENT)",
+      "vin": "3C6LRVDG1SE507403",
+      "year": "2025",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-05-11",
+      "ownershipEnd": "2026-11-11"
+    },
+    {
+      "unit": "EDV-LMR-4",
+      "vin": "7FCEHEB25SN030928",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2025-11-19",
+      "ownershipEnd": "2026-09-29"
+    },
+    {
+      "unit": "EDV 18",
+      "vin": "7FCEHEB20RN026151",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-06-15",
+      "ownershipEnd": "2045-06-15"
+    },
+    {
+      "unit": "HERTZ 2",
+      "vin": "3C6LRVDGXTE152281",
+      "year": "2026",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Hertz",
+      "ownershipStart": "2026-07-23",
+      "ownershipEnd": "2026-11-26"
+    },
+    {
+      "unit": "EDV-LMR-3",
+      "vin": "7FCEHEB24SN030919",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "GROUNDED",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2025-11-19",
+      "ownershipEnd": "2026-09-29"
+    },
+    {
+      "unit": "EDV-LMR-16",
+      "vin": "7FCEHEB24TN047026",
+      "year": "2026",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-08-01",
+      "ownershipEnd": "2026-09-26"
+    },
+    {
+      "unit": "R-37 (ENT)",
+      "vin": "3C6LRVDG3RE141258",
+      "year": "2024",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-05-13",
+      "ownershipEnd": "2026-11-13"
+    },
+    {
+      "unit": "EDV 6",
+      "vin": "7FCEHEB2XRN025945",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "EDV 2",
+      "vin": "7FCEHEB23RN025950",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "EDV 5",
+      "vin": "7FCEHEB29RN025936",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "Van 14",
+      "vin": "3C6MRVJG7ME563552",
+      "year": "2021",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "GROUNDED",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2021-09-20",
+      "ownershipEnd": "2041-09-20"
+    },
+    {
+      "unit": "EDV-LMR-11",
+      "vin": "7FCEHEB24TN047110",
+      "year": "2026",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-06-24",
+      "ownershipEnd": "2026-09-29"
+    },
+    {
+      "unit": "EDV 3",
+      "vin": "7FCEHEB24RN025939",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "EDV-LMR-10",
+      "vin": "7FCEHEB28SN031331",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-07-31",
+      "ownershipEnd": "2026-09-15"
+    },
+    {
+      "unit": "CDV 7",
+      "vin": "1FDDF6P80NKA46224",
+      "year": "2022",
+      "make": "Ford",
+      "model": "Transit",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2022-10-03",
+      "ownershipEnd": "2042-10-03"
+    },
+    {
+      "unit": "EDV 8",
+      "vin": "7FCEHEB28RN025944",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "EDV 19",
+      "vin": "7FCEHEB29RN025421",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-10-21",
+      "ownershipEnd": "2045-10-21"
+    },
+    {
+      "unit": "R-40 (ENT)",
+      "vin": "3C6LRVDG5TE195815",
+      "year": "2026",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-08-03",
+      "ownershipEnd": "2026-12-03"
+    },
+    {
+      "unit": "R-34 (ENT)",
+      "vin": "3C6MRVHGXSE546215",
+      "year": "2025",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "LEASE",
+      "provider": "enterprise",
+      "ownershipStart": "2026-05-08",
+      "ownershipEnd": "2026-10-08"
+    },
+    {
+      "unit": "EDV 14",
+      "vin": "7FCEHEB26RN025943",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-20",
+      "ownershipEnd": "2045-03-20"
+    },
+    {
+      "unit": "EDV-LMR-6",
+      "vin": "7FCEHEB27SN031126",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-01-21",
+      "ownershipEnd": "2026-09-28"
+    },
+    {
+      "unit": "R-38 (ENT)",
+      "vin": "1FTBR1X84TKA65376",
+      "year": "2026",
+      "make": "Ford",
+      "model": "Transit",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-05-13",
+      "ownershipEnd": "2026-11-13"
+    },
+    {
+      "unit": "EDV 15",
+      "vin": "7FCEHEB27RN025949",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-18",
+      "ownershipEnd": "2045-03-18"
+    },
+    {
+      "unit": "EDV 1",
+      "vin": "7FCEHEB23RN025947",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "EDV 11",
+      "vin": "7FCEHEB22RN025938",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-17",
+      "ownershipEnd": "2045-03-17"
+    },
+    {
+      "unit": "Van 11",
+      "vin": "3C6MRVJG6ME563431",
+      "year": "2021",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2021-09-20",
+      "ownershipEnd": "2041-09-20"
+    },
+    {
+      "unit": "EDV LMR-15",
+      "vin": "7FCEHEB24SN030922",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-04-30",
+      "ownershipEnd": "2026-09-13"
+    },
+    {
+      "unit": "R-36 ENT",
+      "vin": "3C6LRVDG4TE195840",
+      "year": "2026",
+      "make": "Ram",
+      "model": "ProMaster",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "RENTAL",
+      "provider": "Enterprise",
+      "ownershipStart": "2026-07-23",
+      "ownershipEnd": "2026-09-25"
+    },
+    {
+      "unit": "CDV 8",
+      "vin": "1FDDF6P83NKA51532",
+      "year": "2022",
+      "make": "Ford",
+      "model": "Transit",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2022-10-03",
+      "ownershipEnd": "2042-10-03"
+    },
+    {
+      "unit": "Van 18",
+      "vin": "1FTBR3X89LKB03972",
+      "year": "2020",
+      "make": "Ford",
+      "model": "Transit",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "LP",
+      "ownershipStart": "2022-07-14",
+      "ownershipEnd": "2042-07-14"
+    },
+    {
+      "unit": "EDV 7",
+      "vin": "7FCEHEB21RN025946",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-16",
+      "ownershipEnd": "2045-03-16"
+    },
+    {
+      "unit": "EDV-LMR-13",
+      "vin": "7FCEHEB28SN031765",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-02-11",
+      "ownershipEnd": "2026-09-17"
+    },
+    {
+      "unit": "EDV-LMR-8",
+      "vin": "7FCEHEB26SN031635",
+      "year": "2025",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "GROUNDED",
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipStart": "2026-01-26",
+      "ownershipEnd": "2026-09-30"
+    },
+    {
+      "unit": "EDV 13",
+      "vin": "7FCEHEB25RN025948",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-03-20",
+      "ownershipEnd": "2045-03-20"
+    },
+    {
+      "unit": "EDV 17",
+      "vin": "7FCEHEB20RN025422",
+      "year": "2024",
+      "make": "Rivian",
+      "model": "EDV 700",
+      "status": "ACTIVE",
+      "operationalStatus": "OPERATIONAL",
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipStart": "2025-06-15",
+      "ownershipEnd": "2045-06-15"
+    },
+    {
+      "unit": "UNREGISTERED ENTERPRISE 1",
+      "vin": null,
+      "year": null,
+      "make": null,
+      "model": null,
+      "status": "User reported; not in portal",
+      "operationalStatus": null,
+      "ownership": null,
+      "provider": "Enterprise",
+      "ownershipStart": null,
+      "ownershipEnd": null
+    },
+    {
+      "unit": "UNREGISTERED ENTERPRISE 2",
+      "vin": null,
+      "year": null,
+      "make": null,
+      "model": null,
+      "status": "User reported; not in portal",
+      "operationalStatus": null,
+      "ownership": null,
+      "provider": "Enterprise",
+      "ownershipStart": null,
+      "ownershipEnd": null
+    }
+  ],
+  "notes": [
+    {
+      "topic": "User directions",
+      "detail": "Acura ignored for fleet cost comparison all months; MerchAuto confirmed LMR rentals."
+    },
+    {
+      "topic": "Updated August",
+      "detail": "Replaces initial August XLSX. Added MerchAuto13915.39,Element82.88,Acura1400(excluded),four0.10Enterprise entries. No old/new export stacking."
+    },
+    {
+      "topic": "Source counts",
+      "detail": "47 raw transactions,3Acura excluded,44included. Raw total84104.99; excluded4200; included79904.99."
+    },
+    {
+      "topic": "Timing",
+      "detail": "Digits dates are posting dates, not confirmed rental service periods. Amazon figures finalJune/July,advanceAugust; no bank receipts matched."
+    },
+    {
+      "topic": "Supplier scope",
+      "detail": "MerchAutoLMR mapping confirmed, but completeness and serviceperiod still require invoices; Element allocation unconfirmed."
+    },
+    {
+      "topic": "Full fleet margin",
+      "detail": "Rental-only coverage comparison excludes branded Amazon payments and their costs; also lacks complete insurance,maintenance,fees,etc. Not net profit."
+    },
+    {
+      "topic": "No underpayment claim",
+      "detail": "Bills can exceed EFR-covered quantities. Differences do not prove invoice errors or disputable amounts."
+    },
+    {
+      "topic": "Current vehicles",
+      "detail": "52reported=25branded+14LMR+9portalEnterprise+2offportalEnterprise+2Hertz. Not historic monthly count. R34LEASEclassification verifyagreement."
+    },
+    {
+      "topic": "August microcharges",
+      "detail": "Four0.10Enterprise debits retained; no guess about reason. Transaction count is not vehicle count."
+    },
+    {
+      "topic": "Purchases",
+      "detail": "Compare avoided rental bills and change in Amazon coverage against ownership costs. Intercompany rent cancels in combined-owner view."
+    },
+    {
+      "topic": "Unresolved",
+      "detail": "Augustfinal; VIN/serviceperiod matching; twooffportalVIN/startdates; Elementallocation; completeness of vendor costs."
+    },
+    {
+      "topic": "Actions",
+      "detail": "Read-only Amazon review. No registrations,disputes,returns or invoiceapprovals."
+    }
+  ],
+  "tenant": "jecs",
+  "needsData": false,
+  "dataSources": [
+    {
+      "side": "What I paid",
+      "label": "Reviewed reconciliation workbook",
+      "kind": "workbook",
+      "reference": "data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx",
+      "asOf": "2026-09-07"
+    },
+    {
+      "side": "What Amazon paid",
+      "label": "Amazon reconciliation invoices",
+      "kind": "workbook",
+      "reference": "data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx",
+      "asOf": "2026-09-07"
+    }
+  ],
+  "caveats": [
+    "Posting-period comparison: Digits dates are posting dates, not confirmed rental service periods.",
+    "June and July use final Amazon reconciliation invoices; August uses the advance because the final was not locally available.",
+    "Acura ($1,400/month) is excluded from the fleet comparison at owner direction.",
+    "Differences are not net profit/loss and do not prove underpayment; VIN/service-period matching is still open."
+  ]
+}

@@ -216,7 +216,7 @@ const VansPage: React.FC = () => {
       width: '120px',
       render: (value) => (
         <Badge
-          variant={
+          variant={{
             active: 'success',
             inactive: 'secondary',
             maintenance: 'warning',
@@ -287,7 +287,7 @@ const VansPage: React.FC = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading vans..." />
       </div>
     );
@@ -296,7 +296,7 @@ const VansPage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <p className="text-danger-600 mb-4">Failed to load vans</p>
           <Button onClick={() => refetch()}>Retry</Button>

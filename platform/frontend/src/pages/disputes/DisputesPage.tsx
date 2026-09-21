@@ -231,7 +231,7 @@ const DisputesPage: React.FC = () => {
       width: '150px',
       render: (value) => (
         <Badge
-          variant={
+          variant={{
             draft: 'secondary',
             pending_review: 'info',
             under_review: 'primary',
@@ -257,7 +257,7 @@ const DisputesPage: React.FC = () => {
       width: '100px',
       render: (value) => (
         <Badge
-          variant={
+          variant={{
             low: 'secondary',
             medium: 'info',
             high: 'warning',
@@ -337,7 +337,7 @@ const DisputesPage: React.FC = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading disputes..." />
       </div>
     );
@@ -346,7 +346,7 @@ const DisputesPage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <p className="text-danger-600 mb-4">Failed to load disputes</p>
           <Button onClick={() => refetch()}>Retry</Button>

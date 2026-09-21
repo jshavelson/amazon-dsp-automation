@@ -13,6 +13,10 @@ import LoadingSpinner from '../shared/LoadingSpinner';
 const DashboardLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    const savedTheme = localStorage.getItem('dsp-theme');
+    return savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -27,6 +31,15 @@ const DashboardLayout: React.FC = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
+    localStorage.setItem('dsp-theme', darkMode ? 'dark' : 'light');
+
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    themeColor?.setAttribute('content', darkMode ? '#0f172a' : '#2563eb');
+  }, [darkMode]);
 
   // Close sidebar on mobile when route changes
   useEffect(() => {
@@ -65,7 +78,7 @@ const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 text-gray-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
       {/* Mobile sidebar backdrop */}
       <AnimatePresence>
         {sidebarOpen && isMobile && (
@@ -88,7 +101,7 @@ const DashboardLayout: React.FC = () => {
             exit={{ x: -256 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className={clsx(
-              'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:z-auto',
+              'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out md:translate-x-0 dark:bg-slate-900 dark:border-slate-800',
               {
                 'translate-x-0': sidebarOpen,
                 '-translate-x-full': !sidebarOpen,
@@ -106,30 +119,23 @@ const DashboardLayout: React.FC = () => {
         sidebarOpen={sidebarOpen}
         user={user}
         onLogout={handleLogout}
+        darkMode={darkMode}
+        onThemeToggle={() => setDarkMode((current) => !current)}
       />
 
       {/* Main content */}
       <main
         className={clsx(
-          'pt-16 min-h-screen transition-all duration-300 ease-in-out',
+          'pt-16 min-h-screen bg-gray-50 transition-all duration-300 ease-in-out dark:bg-slate-950',
           {
             'md:pl-64': sidebarOpen,
             'md:pl-0': !sidebarOpen,
           }
         )}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="p-4 md:p-6 lg:p-8"
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <div className="p-4 md:p-6 lg:p-8">
+          <Outlet />
+        </div>
       </main>
 
       {/* Mobile sidebar toggle button */}

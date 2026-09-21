@@ -17,8 +17,11 @@ Then open: http://localhost:8000/amazon-dsp-kpi-dashboard.html
 """
 
 import json
+import math
+import re
 import sqlite3
-from datetime import datetime, timedelta
+import sys
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
@@ -27,6 +30,290 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "data/dsp_operations.db"
 DASHBOARD_DIR = ROOT / "data/dashboards"
 DASHBOARD_PATH = DASHBOARD_DIR / "amazon-dsp-kpi-dashboard.html"
+FLEET_REVIEW_DIR = ROOT / "data/fleet_reviews"
+
+
+def _read_json(path):
+    with open(path, 'r', encoding='utf-8') as source:
+        return json.load(source)
+
+
+def _normalized_unit(value):
+    return re.sub(r'[^A-Z0-9]', '', (value or '').upper())
+
+
+def _days_until(value, today):
+    if not value:
+        return None
+    try:
+        return (datetime.fromisoformat(value).date() - today).days
+    except (TypeError, ValueError):
+        return None
+
+
+def build_fleet_compliance_payload():
+    """Reconcile Fleet Portal, dispatch readiness, DVIC, and PM evidence."""
+    roster_path = FLEET_REVIEW_DIR / "2026-09-07/vehicles-1.json"
+    inspection_path = FLEET_REVIEW_DIR / "2026-09-07/inspection-stats-1.json"
+    pm_path = FLEET_REVIEW_DIR / "2026-09-07/pm-stats-1.json"
+    maintenance_path = FLEET_REVIEW_DIR / "2026-09-07/maintenance-issues-1.json"
+    snapshots = sorted(FLEET_REVIEW_DIR.glob("*/dashboard-fleet-snapshot.json"))
+    snapshot_path = snapshots[-1]
+
+    vehicles = _read_json(roster_path).get('data', {}).get('vehicles', [])
+    inspection_data = _read_json(inspection_path).get('inspectionsStatList', [])
+    pm_data = _read_json(pm_path).get('pmIssueStatusCount', [])
+    maintenance_data = _read_json(maintenance_path)
+    snapshot = _read_json(snapshot_path)
+    wear_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-compliance.json"))
+    wear_data = _read_json(wear_files[-1]) if wear_files else None
+    lsc_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-lsc-cases.json"))
+    lsc_data = _read_json(lsc_files[-1]) if lsc_files else {'cases': []}
+    today = datetime.now().date()
+
+    note = snapshot.get('reconciliation', {}).get('note', '')
+    grounded_match = re.search(r'marked grounded:\s*(.*?)\.', note, re.IGNORECASE)
+    grounded_units = []
+    if grounded_match:
+        grounded_units = [re.sub(r'^and\s+', '', item.strip(), flags=re.IGNORECASE) for item in re.split(r',\s*|\s+and\s+', grounded_match.group(1)) if item.strip()]
+    grounded_keys = {_normalized_unit(item) for item in grounded_units}
+
+    inspections_by_vin = {}
+    for item in inspection_data:
+        total = sum(int(stat.get('totalInspectionsDone') or 0) for stat in item.get('inspectionStats', []))
+        inspections_by_vin[item.get('vehicleIdentifier')] = {
+            'count': total,
+            'types': sorted({stat.get('inspectionType') for stat in item.get('inspectionStats', []) if stat.get('inspectionType')})
+        }
+
+    pm_by_vin = {}
+    unmatched_pm_issues = []
+    for item in pm_data:
+        entries = []
+        for stat in item.get('pmIssueStats', []):
+            for issue in stat.get('pmIssues', []):
+                entries.append({
+                    'status': stat.get('status'),
+                    'issueType': issue.get('issueType'),
+                    'serviceStatus': issue.get('serviceStatus'),
+                    'issueId': issue.get('pmIssueId')
+                })
+        pm_by_vin[item.get('vehicleIdentifier')] = entries
+
+    roster_vins = {vehicle.get('vin') for vehicle in vehicles}
+    for vin, entries in pm_by_vin.items():
+        if vin not in roster_vins:
+            unmatched_pm_issues.append({'vin': vin, 'issues': entries})
+
+    overrides = {item.get('vin'): item for item in snapshot.get('ownershipOverrides', [])}
+    rows = []
+    for vehicle in vehicles:
+        vin = vehicle.get('vin')
+        unit = vehicle.get('dspVehicleId') or vin
+        override = overrides.get(vin)
+        ownership = (override or {}).get('currentClassification') or vehicle.get('vehicleOwnershipType') or 'UNKNOWN'
+        grounded = _normalized_unit(unit) in grounded_keys
+        inspection = inspections_by_vin.get(vin, {'count': 0, 'types': []})
+        pm_issues = pm_by_vin.get(vin, [])
+        pm_statuses = {item.get('status') for item in pm_issues}
+        ownership_days = _days_until(vehicle.get('ownershipEndDate'), today)
+        registration_days = _days_until(vehicle.get('registrationExpiryDate'), today)
+        health = vehicle.get('healthStatuses') or {}
+        health_exceptions = [key for key, value in health.items() if value != 'OPERATIONAL']
+
+        issues = []
+        severity = 0
+        if grounded:
+            issues.append({'category': 'Readiness', 'severity': 'critical', 'label': 'Grounded by dispatch'})
+            severity = max(severity, 100)
+        if 'DUE' in pm_statuses:
+            issues.append({'category': 'Maintenance', 'severity': 'critical', 'label': 'Preventive maintenance due'})
+            severity = max(severity, 90)
+        if ownership_days is not None and ownership_days < 0:
+            issues.append({'category': 'Ownership', 'severity': 'critical', 'label': f'Ownership term ended {abs(ownership_days)} days ago'})
+            severity = max(severity, 85)
+        if registration_days is not None and registration_days < 0:
+            issues.append({'category': 'Registration', 'severity': 'critical', 'label': f'Registration expired {abs(registration_days)} days ago'})
+            severity = max(severity, 85)
+        if 'DUE_SOON' in pm_statuses:
+            issues.append({'category': 'Maintenance', 'severity': 'warning', 'label': 'Preventive maintenance due soon'})
+            severity = max(severity, 60)
+        if ownership_days is not None and 0 <= ownership_days <= 30:
+            issues.append({'category': 'Ownership', 'severity': 'warning', 'label': f'Ownership term ends in {ownership_days} days'})
+            severity = max(severity, 55)
+        if registration_days is not None and 0 <= registration_days <= 30:
+            issues.append({'category': 'Registration', 'severity': 'warning', 'label': f'Registration expires in {registration_days} days'})
+            severity = max(severity, 55)
+        for category in health_exceptions:
+            issues.append({'category': 'Portal health', 'severity': 'warning', 'label': f'{category.replace("_", " ").title()} requires attention'})
+            severity = max(severity, 60)
+        if inspection['count'] == 0:
+            issues.append({'category': 'Inspection evidence', 'severity': 'info', 'label': 'No DVIC record in the September 7 evidence pull'})
+            severity = max(severity, 20)
+
+        if grounded:
+            compliance_status = 'grounded'
+            next_action = 'Keep out of service; confirm repair disposition and dispatch release.'
+        elif any(item['severity'] == 'critical' for item in issues):
+            compliance_status = 'action_required'
+            next_action = 'Resolve expired documentation or overdue maintenance before assignment.'
+        elif any(item['severity'] == 'warning' for item in issues):
+            compliance_status = 'monitor'
+            next_action = 'Schedule the due item and confirm completion evidence.'
+        elif inspection['count'] == 0:
+            compliance_status = 'evidence_gap'
+            next_action = 'Confirm DVIC completion in the current inspection window.'
+        else:
+            compliance_status = 'ready'
+            next_action = 'No immediate action.'
+
+        rows.append({
+            'vin': vin,
+            'unit': unit,
+            'year': vehicle.get('year'),
+            'make': vehicle.get('make'),
+            'model': vehicle.get('model'),
+            'registrationNumber': vehicle.get('registrationNo'),
+            'registrationState': vehicle.get('registeredState'),
+            'registrationExpiryDate': vehicle.get('registrationExpiryDate'),
+            'registrationDaysRemaining': registration_days,
+            'ownership': ownership,
+            'provider': vehicle.get('vehicleProvider'),
+            'ownershipEndDate': vehicle.get('ownershipEndDate'),
+            'ownershipDaysRemaining': ownership_days,
+            'operationalStatus': 'GROUNDED' if grounded else 'OPERATIONAL',
+            'portalOperationalStatus': vehicle.get('operationalStatus'),
+            'complianceStatus': compliance_status,
+            'priority': severity,
+            'inspectionCount': inspection['count'],
+            'inspectionTypes': inspection['types'],
+            'pmIssues': pm_issues,
+            'healthStatuses': health,
+            'issues': issues,
+            'nextAction': next_action,
+            'serviceTier': vehicle.get('serviceTier'),
+            'lastRouteCompletedInDays': vehicle.get('lastRouteCompletedInDays')
+        })
+
+    rows.sort(key=lambda item: (-item['priority'], item['unit']))
+    status_counts = {}
+    ownership_counts = {}
+    for row in rows:
+        status_counts[row['complianceStatus']] = status_counts.get(row['complianceStatus'], 0) + 1
+        ownership_counts[row['ownership']] = ownership_counts.get(row['ownership'], 0) + 1
+
+    wear_and_tear = None
+    if wear_data:
+        eligible_denominator = int(wear_data.get('eligibleVehicleCount') or len(rows))
+        current_percent = float(wear_data.get('currentPercent') or 0)
+        target_percent = float(wear_data.get('targetPercent') or 70)
+        stretch_percent = float(wear_data.get('stretchPercent') or 75)
+        current_count = int(wear_data.get('wearTearPassingCount') or round(current_percent / 100 * eligible_denominator))
+        target_count = math.ceil(target_percent / 100 * eligible_denominator)
+        stretch_count = math.ceil(stretch_percent / 100 * eligible_denominator)
+        rows_by_vin = {row['vin']: row for row in rows}
+
+        lsc_cases = []
+        cases_by_vin = {}
+        for case in lsc_data.get('cases', []):
+            linked_vehicle = rows_by_vin.get(case.get('vin'))
+            normalized_case = {
+                **case,
+                'unit': linked_vehicle.get('unit') if linked_vehicle else None,
+                'operationalStatus': linked_vehicle.get('operationalStatus') if linked_vehicle else None,
+            }
+            lsc_cases.append(normalized_case)
+            if case.get('vin'):
+                cases_by_vin.setdefault(case['vin'], []).append(case.get('caseNumber'))
+
+        repair_candidates = []
+        for candidate in wear_data.get('poorGradeVehicles', []):
+            linked_vehicle = rows_by_vin.get(candidate.get('vin'))
+            repair_candidates.append({
+                **candidate,
+                'unit': linked_vehicle.get('unit') if linked_vehicle else 'Roster match required',
+                'operationalStatus': linked_vehicle.get('operationalStatus') if linked_vehicle else 'UNKNOWN',
+                'ownership': linked_vehicle.get('ownership') if linked_vehicle else 'UNKNOWN',
+                'provider': linked_vehicle.get('provider') if linked_vehicle else None,
+                'caseNumbers': cases_by_vin.get(candidate.get('vin'), []),
+                'recommendedAction': (
+                    'Complete repairs and the case-required replacement FCA before requesting ungrounding.'
+                    if cases_by_vin.get(candidate.get('vin'))
+                    else 'Repair to Fair+ (grade 3 or better), complete a new FCA, and verify the rolling metric posts.'
+                )
+            })
+        repair_candidates.sort(key=lambda item: (
+            item.get('operationalStatus') != 'OPERATIONAL',
+            item.get('lastPave') or '',
+            item.get('unit') or ''
+        ))
+        wear_and_tear = {
+            **wear_data,
+            'planningDenominator': eligible_denominator,
+            'estimatedCurrentCompliant': current_count,
+            'targetCompliant': target_count,
+            'minimumAdditionalCompliant': max(target_count - current_count, 0),
+            'stretchCompliant': stretch_count,
+            'stretchAdditionalCompliant': max(stretch_count - current_count, 0),
+            'percentagePointGap': max(target_percent - current_percent, 0),
+            'repairCandidates': repair_candidates,
+            'lscCases': lsc_cases,
+            'openLscCaseCount': sum(1 for case in lsc_cases if case.get('status') != 'closed'),
+            'actions': [
+                {
+                    'id': 'prioritize-operational-poor',
+                    'title': 'Start with operational grade-2 vehicles',
+                    'detail': 'Repair and reassess operational units first so the target can improve without waiting for grounded-vehicle release.'
+                },
+                {
+                    'id': 'complete-minimum',
+                    'title': f'Close at least {max(target_count - current_count, 0)} additional compliant assessments',
+                    'detail': f'The exact report threshold is {target_count} of {eligible_denominator} Fair+ vehicles. Upload complete FCA evidence and confirm the rolling metric posts.'
+                },
+                {
+                    'id': 'build-buffer',
+                    'title': f'Schedule {max(stretch_count - current_count, 0)} completions for a {stretch_percent:.0f}% buffer',
+                    'detail': f'{stretch_count} of {eligible_denominator} equals {round(stretch_count / eligible_denominator * 100, 1)}%, protecting against rejected evidence and posting lag.'
+                },
+                {
+                    'id': 'close-lsc-evidence',
+                    'title': 'Advance open LSC cases without crediting them as complete',
+                    'detail': 'Attach repair/FCA evidence to each case and keep the vehicle outside the compliant numerator until Amazon accepts the assessment.'
+                }
+            ]
+        }
+
+    return {
+        'asOf': snapshot.get('asOf'),
+        'generatedAt': datetime.now().isoformat(timespec='seconds'),
+        'summary': {
+            'registeredFleet': len(rows),
+            'operational': sum(1 for row in rows if row['operationalStatus'] == 'OPERATIONAL'),
+            'grounded': sum(1 for row in rows if row['operationalStatus'] == 'GROUNDED'),
+            'readinessRate': round(sum(1 for row in rows if row['operationalStatus'] == 'OPERATIONAL') / len(rows) * 100, 1) if rows else 0,
+            'pmDue': sum(1 for row in rows if any(item.get('status') == 'DUE' for item in row['pmIssues'])),
+            'pmDueSoon': sum(1 for row in rows if any(item.get('status') == 'DUE_SOON' for item in row['pmIssues'])),
+            'pmSourceIssues': sum(len(entries) for entries in pm_by_vin.values()),
+            'pmUnmatchedVehicles': len(unmatched_pm_issues),
+            'inspectionVehicles': sum(1 for row in rows if row['inspectionCount'] > 0),
+            'inspectionCoverageRate': round(sum(1 for row in rows if row['inspectionCount'] > 0) / len(rows) * 100, 1) if rows else 0,
+            'openMaintenanceIssues': maintenance_data.get('totalIssuesCount', 0),
+            'statusCounts': status_counts,
+            'ownershipCounts': ownership_counts
+        },
+        'vehicles': rows,
+        'unmatchedPmIssues': unmatched_pm_issues,
+        'wearAndTear': wear_and_tear,
+        'sources': [
+            {'label': 'Dispatch readiness', 'asOf': snapshot.get('asOf'), 'path': snapshot.get('readinessSource')},
+            {'label': 'Fleet roster and ownership', 'asOf': snapshot.get('ownershipAsOf'), 'path': snapshot.get('ownershipClassificationSource')},
+            {'label': 'DVIC inspection evidence', 'asOf': '2026-09-07', 'path': str(inspection_path.relative_to(ROOT))},
+            {'label': 'Preventive maintenance', 'asOf': '2026-09-07', 'path': str(pm_path.relative_to(ROOT))},
+            *([{'label': 'Quarterly Wear & Tear report', 'asOf': wear_data.get('reportedAt', '')[:10], 'path': str(wear_files[-1].relative_to(ROOT))}] if wear_data else []),
+            *([{'label': 'Wear & Tear LSC case register', 'asOf': lsc_data.get('asOf'), 'path': str(lsc_files[-1].relative_to(ROOT))}] if lsc_files else [])
+        ],
+        'reconciliation': snapshot.get('reconciliation', {})
+    }
 
 
 def get_connection():
@@ -37,12 +324,425 @@ def get_connection():
     return conn
 
 
+
+RENTAL_RECON_PATH = FLEET_REVIEW_DIR / "2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx"
+_FLEET_COST_CACHE = {}
+
+
+def build_fleet_cost_reconciliation(tenant=None):
+    """Fleet cost reconciliation for a tenant.
+
+    The "what I paid" side prefers the tenant's confirmed Digits upload and
+    falls back to the owner-reviewed workbook. Amazon coverage still comes from
+    the reconciliation invoices until the Amazon Payments connector lands.
+    """
+    tenant = tenant or DEFAULT_TENANT
+    mtime = RENTAL_RECON_PATH.stat().st_mtime
+    confirmed = latest_financial_upload(tenant)
+
+    # The reviewed workbook is JECS-specific reference data. Any other tenant
+    # sees only what they have uploaded themselves.
+    if not confirmed and tenant != DEFAULT_TENANT:
+        return {
+            'tenant': tenant, 'needsData': True, 'period': None, 'asOf': None,
+            'summary': {}, 'months': [], 'vendors': [], 'amazonClasses': [],
+            'invoiceBridge': [], 'charges': [], 'fleet': [], 'notes': [],
+            'dataSources': [{'side': 'What I paid', 'label': 'No Digits export uploaded yet',
+                             'kind': 'missing', 'reference': None, 'asOf': None}],
+            'caveats': ['Upload a Digits export on the Connections screen to populate this view.'],
+        }
+
+    cache_key = (tenant, mtime, (confirmed or {}).get('contentSha256'))
+    cached = _FLEET_COST_CACHE.get('payload')
+    if cached and _FLEET_COST_CACHE.get('key') == cache_key:
+        return cached
+    from openpyxl import load_workbook
+    wb = load_workbook(RENTAL_RECON_PATH, data_only=True, read_only=True)
+
+    def rows(sheet):
+        return [r for r in wb[sheet].iter_rows(values_only=True) if any(v is not None for v in r)]
+
+    def num(v):
+        return round(float(v), 2) if isinstance(v, (int, float)) else None
+
+    months = ['June', 'July', 'August']
+    month_status = {'June': 'final', 'July': 'final', 'August': 'advance'}
+    monthly = {r[0]: r for r in rows('Monthly reconciliation')[1:]}
+
+    def series(label):
+        return [num(monthly[label][i]) for i in (1, 2, 3)]
+
+    cost = series('Included fleet expenses')
+    coverage = series('Total rental/LMR/lease coverage')
+    difference = series('Difference after included charges')
+    vendors = {
+        'Enterprise Rent-A-Car': series('Enterprise Rent-A-Car'),
+        'Hertz': series('Hertz'),
+        'MerchAuto9150 Corp': series('MerchAuto9150 Corp'),
+        'Element Fleet': series('Element Fleet'),
+    }
+    third_party = [round(e + h, 2) for e, h in zip(vendors['Enterprise Rent-A-Car'], vendors['Hertz'])]
+    rental_lease_cov = series('Amazon rental + lease coverage')
+    lmr_cov = series('Amazon LMR coverage')
+    full_cov = series('Full Amazon fleet coverage')
+
+    month_rows = []
+    for i, m in enumerate(months):
+        month_rows.append({
+            'month': m, 'status': month_status[m], 'invoiceBasis': monthly['Invoice basis'][i + 1],
+            'includedCost': cost[i], 'amazonCoverage': coverage[i], 'difference': difference[i],
+            'coverageRate': round(coverage[i] / cost[i] * 100, 1) if cost[i] else None,
+            'thirdPartyRentalCost': third_party[i], 'rentalLeaseCoverage': rental_lease_cov[i],
+            'rentalLeaseBalance': round(rental_lease_cov[i] - third_party[i], 2),
+            'lmrCost': vendors['MerchAuto9150 Corp'][i], 'lmrCoverage': lmr_cov[i],
+            'lmrBalance': round(lmr_cov[i] - vendors['MerchAuto9150 Corp'][i], 2),
+            'elementCost': vendors['Element Fleet'][i], 'acuraExcluded': num(monthly['Acura excluded'][i + 1]),
+            'rawExportTotal': num(monthly['Raw export total'][i + 1]), 'fullAmazonCoverage': full_cov[i],
+        })
+
+    class_rows = []
+    for r in rows('Amazon class coverage')[1:]:
+        cat = r[0]
+        cov = [num(r[1]), num(r[2]), num(r[3])]
+        days = [num(r[4]), num(r[5]), num(r[6])]
+        class_rows.append({
+            'category': cat, 'coverage': cov, 'vehicleDays': days,
+            'perVehicleDay': [round(c / d, 2) if d else None for c, d in zip(cov, days)],
+            'group': 'lmr' if 'Last Mile Rental' in cat else 'rental_lease' if cat in ('DSP Leased Van', 'Rental Van') else 'branded',
+        })
+
+    bridge = []
+    for r in rows('Invoice bridge')[1:]:
+        bridge.append({'period': r[0], 'finalGross': num(r[1]), 'priorAdvanceDeducted': num(r[2]),
+                       'netReconciliation': num(r[3]), 'invoiceIssued': r[4],
+                       'note': None if isinstance(r[1], (int, float)) else str(r[1])})
+
+    charges = []
+    for r in rows('All Digits charges')[1:]:
+        charges.append({'month': r[0], 'datePosted': str(r[2])[:10] if r[2] else None, 'vendor': r[3], 'account': r[4],
+                        'netCharge': num(r[7]), 'treatment': r[8], 'memo': r[9], 'vin': r[10], 'invoice': r[11],
+                        'serviceStart': str(r[12])[:10] if r[12] else None, 'serviceEnd': str(r[13])[:10] if r[13] else None})
+
+    # Tenant-uploaded Digits export takes precedence for charges and the
+    # monthly cost side. Amazon coverage is left untouched.
+    charge_source = {
+        'label': 'Reviewed reconciliation workbook',
+        'kind': 'workbook',
+        'reference': str(RENTAL_RECON_PATH.relative_to(ROOT)),
+        'asOf': '2026-09-07',
+    }
+    if confirmed:
+        try:
+            parsed = parse_financial_export(tenant_store.read_bytes(tenant, confirmed['id']),
+                                            confirmed['originalFilename'], tenant=tenant)
+        except Exception:
+            parsed = {'ok': False}
+        uploaded = [c for c in parsed.get('charges', []) if c['treatment'] == 'INCLUDE']
+        by_month = {}
+        for charge in uploaded:
+            by_month.setdefault(charge['month'], []).append(charge)
+        if parsed.get('ok') and any(month in by_month for month in months):
+            charges = parsed['charges']
+            cost = [round(sum(c['netCharge'] for c in by_month.get(m, [])), 2) for m in months]
+            for name in list(vendors):
+                vendors[name] = [round(sum(c['netCharge'] for c in by_month.get(m, [])
+                                           if c['vendor'] == name), 2) for m in months]
+            third_party = [round(e + h, 2) for e, h in zip(vendors['Enterprise Rent-A-Car'], vendors['Hertz'])]
+            difference = [round(cov - cst, 2) for cov, cst in zip(coverage, cost)]
+            for index, row in enumerate(month_rows):
+                row['includedCost'] = cost[index]
+                row['difference'] = difference[index]
+                row['coverageRate'] = round(coverage[index] / cost[index] * 100, 1) if cost[index] else None
+                row['thirdPartyRentalCost'] = third_party[index]
+                row['rentalLeaseBalance'] = round(rental_lease_cov[index] - third_party[index], 2)
+                row['lmrCost'] = vendors['MerchAuto9150 Corp'][index]
+                row['lmrBalance'] = round(lmr_cov[index] - vendors['MerchAuto9150 Corp'][index], 2)
+                row['elementCost'] = vendors['Element Fleet'][index]
+            charge_source = {
+                'label': 'Your uploaded ' + parsed.get('providerLabel', 'accounting') + ' export',
+                'provider': parsed.get('provider'),
+                'kind': 'tenant_upload',
+                'reference': confirmed['originalFilename'],
+                'uploadId': confirmed['id'],
+                'contentSha256': confirmed['contentSha256'],
+                'uploadedBy': confirmed['uploadedBy'],
+                'asOf': confirmed.get('confirmedAt') or confirmed['uploadedAt'],
+            }
+
+    fleet = []
+    for r in rows('Current fleet plus two')[1:]:
+        fleet.append({'unit': r[0], 'vin': r[1], 'year': r[2], 'make': r[3], 'model': r[4], 'status': r[6],
+                      'operationalStatus': r[7], 'ownership': r[8], 'provider': r[9],
+                      'ownershipStart': r[10], 'ownershipEnd': r[11]})
+
+    notes = [{'topic': r[0], 'detail': r[1]} for r in rows('Notes')[1:]]
+    total_cost = round(sum(cost), 2); total_cov = round(sum(coverage), 2)
+    payload = {
+        'period': 'June-August 2026', 'asOf': '2026-09-07',
+        'source': str(RENTAL_RECON_PATH.relative_to(ROOT)),
+        'summary': {
+            'threeMonthIncludedCost': total_cost, 'threeMonthAmazonCoverage': total_cov,
+            'threeMonthDifference': round(sum(difference), 2),
+            'coverageRate': round(total_cov / total_cost * 100, 1) if total_cost else None,
+            'augustDifference': difference[2],
+            'thirdPartyRentalCost': round(sum(third_party), 2), 'rentalLeaseCoverage': round(sum(rental_lease_cov), 2),
+            'lmrCost': round(sum(vendors['MerchAuto9150 Corp']), 2), 'lmrCoverage': round(sum(lmr_cov), 2),
+            'elementCost': round(sum(vendors['Element Fleet']), 2), 'acuraExcluded': round(sum(series('Acura excluded')), 2),
+            'fullAmazonCoverage': round(sum(full_cov), 2),
+            'includedTransactions': sum(1 for c in charges if c['treatment'] == 'INCLUDE'),
+            'excludedTransactions': sum(1 for c in charges if c['treatment'] != 'INCLUDE'),
+            'unmatchedVinCharges': sum(1 for c in charges if c['treatment'] == 'INCLUDE' and not c['vin']),
+        },
+        'months': month_rows,
+        'vendors': [{'vendor': k, 'monthly': v, 'total': round(sum(v), 2),
+                     'coverageClass': 'Amazon LMR coverage' if k.startswith('MerchAuto') else 'Rental + lease coverage' if k in ('Enterprise Rent-A-Car', 'Hertz') else 'Unallocated'}
+                    for k, v in vendors.items()],
+        'amazonClasses': class_rows, 'invoiceBridge': bridge, 'charges': charges, 'fleet': fleet, 'notes': notes,
+        'tenant': tenant, 'needsData': False,
+        'dataSources': [
+            {'side': 'What I paid', **charge_source},
+            {'side': 'What Amazon paid', 'label': 'Amazon reconciliation invoices', 'kind': 'workbook',
+             'reference': str(RENTAL_RECON_PATH.relative_to(ROOT)), 'asOf': '2026-09-07'},
+        ],
+        'caveats': [
+            'Posting-period comparison: Digits dates are posting dates, not confirmed rental service periods.',
+            'June and July use final Amazon reconciliation invoices; August uses the advance because the final was not locally available.',
+            'Acura ($1,400/month) is excluded from the fleet comparison at owner direction.',
+            'Differences are not net profit/loss and do not prove underpayment; VIN/service-period matching is still open.',
+        ],
+    }
+    wb.close()
+    _FLEET_COST_CACHE.update(payload=payload, key=cache_key)
+    return payload
+
+
+
+MODULE_STATUS_PATH = ROOT / "data/dashboards/platform/module-status.json"
+MODULE_REGISTRY_DIR = ROOT / "platform/modules"
+CASE_GLOBS = ["data/payment_reconciliation/*/*case*.json", "data/fixed_monthly*/**/*case*.json", "data/reconciliation*/**/*case*.json"]
+
+
+def _to_money(value):
+    if isinstance(value, (int, float)):
+        return round(float(value), 2)
+    if isinstance(value, str):
+        cleaned = re.sub(r'[^0-9.\-]', '', value)
+        try:
+            return round(float(cleaned), 2) if cleaned else None
+        except ValueError:
+            return None
+    return None
+
+
+def _load_module_cases():
+    cases, seen = [], set()
+    for pattern in CASE_GLOBS:
+        for path in ROOT.glob(pattern):
+            if path in seen or not path.is_file():
+                continue
+            seen.add(path)
+            try:
+                data = _read_json(path)
+            except Exception:
+                continue
+            if not isinstance(data, dict) or 'module_id' not in data:
+                continue
+            approval = data.get('approval') if isinstance(data.get('approval'), dict) else {}
+            submission = data.get('submission') if isinstance(data.get('submission'), dict) else {}
+            cases.append({
+                'moduleId': data.get('module_id'), 'externalKey': data.get('external_key'),
+                'status': data.get('status'), 'disposition': data.get('disposition'), 'createdAt': data.get('created_at'),
+                'candidateCount': data.get('candidate_count', 0), 'recoveredRoutes': data.get('recovered_routes'),
+                'recoveredValue': data.get('recovered_value'), 'blockingEvidence': data.get('blocking_evidence') or [],
+                'externalActionAuthorized': bool(data.get('external_action_authorized')),
+                'approvalStatus': approval.get('status'), 'approvedBy': approval.get('approved_by') or approval.get('approver'),
+                'submissionStatus': submission.get('status'),
+                'submissionConfirmation': submission.get('confirmation') or submission.get('confirmation_number'),
+                'findings': data.get('findings') or [], 'evidence': data.get('evidence') or [],
+                'sourcePath': str(path.relative_to(ROOT)),
+            })
+    for path in ROOT.glob('data/fleet_reviews/fixed-monthly/approval-queue/*/approval.json'):
+        try:
+            d = _read_json(path)
+        except Exception:
+            continue
+        inv = d.get('invoice') or {}; cand = d.get('candidate') or {}; sub = d.get('submission') or {}; dec = d.get('decision') or {}
+        cases.append({
+            'moduleId': 'fixed_monthly', 'externalKey': d.get('approval_id'), 'status': d.get('status'),
+            'disposition': sub.get('outcome') or dec.get('decision'), 'createdAt': d.get('created_at'),
+            'candidateCount': 1 if cand else 0, 'recoveredRoutes': None, 'recoveredValue': _to_money(cand.get('estimated_value')),
+            'blockingEvidence': [], 'externalActionAuthorized': dec.get('decision') == 'YES',
+            'approvalStatus': dec.get('decision'), 'approvedBy': dec.get('from'),
+            'submissionStatus': sub.get('outcome'), 'submissionConfirmation': sub.get('confirmation'),
+            'findings': [{'label': 'Invoice', 'value': inv.get('invoice_number'), 'detail': f"{inv.get('service_month')} - {inv.get('service_start')} to {inv.get('service_end')}"},
+                         {'label': 'Candidate', 'value': cand.get('candidate_id'), 'detail': cand.get('proposed_wording')},
+                         *[{'label': 'Fact', 'value': None, 'detail': f} for f in (cand.get('facts') or [])]],
+            'evidence': [{'label': k, 'path': (d.get(k) or {}).get('path'), 'sha256': (d.get(k) or {}).get('sha256')} for k in ('report', 'pdf', 'source_invoice') if d.get(k)],
+            'sourcePath': str(path.relative_to(ROOT)),
+        })
+    cases.sort(key=lambda c: c.get('createdAt') or '', reverse=True)
+    return cases
+
+
+def build_reimbursement_review_payload():
+    """Go HQ replacement view: module registry + status feed + every case on disk."""
+    status = _read_json(MODULE_STATUS_PATH) if MODULE_STATUS_PATH.exists() else {'modules': []}
+    status_by_id = {m['id']: m for m in status.get('modules', [])}
+    cases = _load_module_cases()
+    schedules = {'fixed_monthly': 'Daily 10:00 ET review + 15 min approvals', 'weekly_payments': 'Daily 11:00 ET review cycle', 'capacity_reliability': 'Daily 11:00 ET review cycle'}
+    modules = []
+    for manifest_path in sorted(MODULE_REGISTRY_DIR.glob('*/module.json')):
+        manifest = _read_json(manifest_path); mid = manifest['id']; st = status_by_id.get(mid, {})
+        mod_cases = [c for c in cases if c['moduleId'] == mid]; runner = manifest.get('runner')
+        modules.append({
+            'id': mid, 'displayName': manifest.get('displayName') or st.get('display_name') or mid,
+            'description': manifest.get('description'), 'goHqFunction': manifest.get('goHqFunction') or manifest.get('replaces'),
+            'billingSku': manifest.get('billingSku'), 'implementationStatus': st.get('implementation_status') or manifest.get('status'),
+            'state': st.get('state') or manifest.get('status'), 'headline': st.get('headline'), 'detail': st.get('detail'),
+            'runner': runner, 'runnerExists': bool(runner) and (ROOT / runner).exists(),
+            'requiredInputs': manifest.get('requiredInputs') or manifest.get('inputs') or [],
+            'hasSubmissionAdapter': mid == 'fixed_monthly', 'schedule': schedules.get(mid, 'On import'),
+            'caseCount': len(mod_cases), 'openCaseCount': sum(1 for c in mod_cases if c['status'] not in ('closed', 'submitted')),
+            'recoveredValue': round(sum(c['recoveredValue'] or 0 for c in mod_cases), 2),
+            'latestCase': mod_cases[0] if mod_cases else None, 'verifiedRoutes': st.get('verified_routes'),
+        })
+    order = {'active': 0, 'ready_for_import': 1, 'foundation': 2}
+    modules.sort(key=lambda m: (order.get(m['state'], 9), m['displayName']))
+    return {
+        'generatedAt': status.get('generated_at'), 'servedAt': datetime.now().isoformat(timespec='seconds'), 'tenant': status.get('tenant'),
+        'summary': {'modules': len(modules), 'active': sum(1 for m in modules if m['state'] == 'active'),
+                    'readyForImport': sum(1 for m in modules if m['state'] == 'ready_for_import'), 'cases': len(cases),
+                    'openCases': sum(1 for c in cases if c['status'] not in ('closed', 'submitted')),
+                    'recoveredValue': round(sum(c['recoveredValue'] or 0 for c in cases), 2),
+                    'submitted': sum(1 for c in cases if c['submissionStatus'] or c['status'] == 'submitted')},
+        'modules': modules, 'cases': cases,
+        'schedules': [{'id': '1914db4c', 'name': 'Fixed Monthly Invoice Review', 'cadence': 'Daily 10:00 ET'},
+                      {'id': '7554813f', 'name': 'Fixed Monthly Approval Processor', 'cadence': 'Every 15 min'},
+                      {'id': '539fdf4d', 'name': 'Payment Reconciliation Review Cycle', 'cadence': 'Daily 11:00 ET'},
+                      {'id': 'c4871993', 'name': 'Reconciliation Module Approval Monitor', 'cadence': 'Every 15 min'}],
+    }
+
+
+
+
+# ---------------------------------------------------------------- connections
+# Importable both as "scripts.jecs_api_server" (tests) and as a direct script.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts import connections_registry, tenant_store
+from scripts.financial_ingest import (
+    PROVIDER_LABELS,
+    load_vendor_rules,
+    parse_financial_export,
+    save_vendor_rules,
+)
+
+DEFAULT_TENANT = "jecs"
+
+
+def _tenant_from_headers(headers):
+    """Tenant comes from the authenticated context in production; the local
+    server accepts the same header the React client sends."""
+    tenant = (headers.get("x-tenant-id") or "").strip().lower() or DEFAULT_TENANT
+    if not connections_registry.SLUG.match(tenant):
+        raise ValueError("invalid tenant")
+    return tenant
+
+
+def _latest_upload_index(tenant):
+    index = {}
+    for record in tenant_store.list_files(tenant):
+        if record["source"] not in index and record["status"] in ("uploaded", "parsed", "confirmed"):
+            index[record["source"]] = record
+    # Legacy "digits" uploads still satisfy the generalized financial source.
+    if "financial_charges" not in index and "digits" in index:
+        index["financial_charges"] = index["digits"]
+    return index
+
+
+def latest_financial_upload(tenant):
+    """Most recent confirmed accounting export, whichever source id it used."""
+    for source in connections_registry.FINANCIAL_SOURCES:
+        record = tenant_store.latest_confirmed(tenant, source)
+        if record:
+            return record
+    return None
+
+
+def build_connections_payload(tenant):
+    connections = connections_registry.list_connections(tenant, _latest_upload_index(tenant))
+    counts = {}
+    for connection in connections:
+        counts[connection["status"]] = counts.get(connection["status"], 0) + 1
+    return {
+        "tenant": tenant,
+        "servedAt": datetime.now().isoformat(timespec="seconds"),
+        "summary": {
+            "total": len(connections),
+            "connected": sum(1 for c in connections if c["configured"]),
+            "needsAttention": sum(1 for c in connections if c["status"] in ("needs_reauth", "degraded")),
+            "notConnected": sum(1 for c in connections if c["status"] == "not_connected"),
+            "statusCounts": counts,
+        },
+        "connections": connections,
+        "uploads": tenant_store.list_files(tenant),
+        "secretPolicy": {
+            "storage": "AWS Secrets Manager",
+            "pathTemplate": connections_registry.secret_reference("{tenant}", "{connection}", "{name}"),
+            "note": "The platform stores a reference only. Credential values are never written to the database, logs, or this API response.",
+        },
+    }
+
+
+def parse_multipart(body, content_type):
+    """Minimal multipart/form-data reader for a single file field."""
+    CR = chr(13).encode()
+    LF = chr(10).encode()
+    CRLF = CR + LF
+    match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', content_type or "")
+    if not match:
+        raise ValueError("missing multipart boundary")
+    boundary = (match.group(1) or match.group(2)).strip().encode()
+    parts = body.split(b"--" + boundary)
+    fields, files = {}, {}
+    for part in parts:
+        part = part.strip(CRLF)
+        if not part or part == b"--":
+            continue
+        head, _, data = part.partition(CRLF + CRLF)
+        headers = head.decode("utf-8", "replace")
+        name = re.search(r'name="([^"]*)"', headers)
+        filename = re.search(r'filename="([^"]*)"', headers)
+        if not name:
+            continue
+        data = data.rstrip(CRLF)
+        if filename and filename.group(1):
+            files[name.group(1)] = (filename.group(1), data)
+        else:
+            fields[name.group(1)] = data.decode("utf-8", "replace")
+    return fields, files
+
+
 class JecsAPIHandler(BaseHTTPRequestHandler):
     """HTTP request handler for JECS API."""
     
     def log_message(self, format, *args):
         """Suppress default logging."""
         pass
+    
+    def end_headers(self):
+        """Add CORS headers to all responses."""
+        self.send_header('Access-Control-Allow-Origin', 'http://localhost:3000')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_header('Access-Control-Allow-Credentials', 'true')
+        super().end_headers()
+    
+    def do_OPTIONS(self):
+        """Handle OPTIONS requests for CORS preflight."""
+        self.send_response(200)
+        self.end_headers()
     
     def do_GET(self):
         """Handle GET requests."""
@@ -70,6 +770,18 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_get_fleet_optimization(query)
             elif path == '/api/fleet-costs':
                 self.handle_get_fleet_costs(query)
+            elif path == '/api/fleet-costs/records':
+                self.send_paginated([])
+            elif path == '/api/fleet-costs/summary':
+                self.handle_get_fleet_cost_summary(query)
+            elif path == '/api/fleet-costs/fuel-analysis':
+                self.handle_get_fuel_cost_analysis(query)
+            elif path == '/api/fleet-costs/maintenance-analysis':
+                self.handle_get_maintenance_cost_analysis(query)
+            elif path == '/api/fleet-costs/trends':
+                self.handle_get_fleet_cost_trends(query)
+            elif path in ('/api/fleet-costs/budgets', '/api/fleet-costs/forecasts'):
+                self.send_json([])
             
             # Dispute Detection endpoints
             elif path == '/api/disputes':
@@ -80,16 +792,51 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             # PAVE endpoints
             elif path == '/api/pave/vehicles':
                 self.handle_get_pave_vehicles(query)
+            elif path == '/api/fleet-compliance':
+                self.handle_get_fleet_compliance()
+            elif path == '/api/connections':
+                self.send_json(build_connections_payload(_tenant_from_headers(self.headers)))
+            elif path == '/api/uploads':
+                tenant = _tenant_from_headers(self.headers)
+                source = (query.get('source') or [None])[0]
+                self.send_json({'tenant': tenant, 'uploads': tenant_store.list_files(tenant, source)})
+            elif path == '/api/vendor-rules':
+                tenant = _tenant_from_headers(self.headers)
+                self.send_json({'tenant': tenant, 'rules': load_vendor_rules(tenant),
+                                'providers': PROVIDER_LABELS})
+            elif path == '/api/modules':
+                self.send_json(build_reimbursement_review_payload())
+            elif path.startswith('/api/modules/') and path.endswith('/cases'):
+                module_id = path.split('/')[3]
+                self.send_json({'cases': [c for c in _load_module_cases() if c['moduleId'] == module_id]})
             
             # Route Monitoring endpoints
             elif path == '/api/route-monitor':
                 self.handle_get_route_monitor(query)
+            elif path == '/api/routes':
+                self.send_paginated([])
+
+            # Performance page uses its own reconciled client-side operating view.
+            elif path == '/api/performance/dashboard':
+                self.send_json({})
+
+            # Incumbent dashboard compatibility endpoints
+            elif path == '/api/weekly-evaluations':
+                self.handle_get_weekly_evaluations()
+            elif path == '/api/time-attendance/exceptions':
+                self.handle_get_time_attendance_exceptions()
+            
+            # Auth endpoints (mock for development)
+            elif path == '/auth/me' or path == '/api/auth/me':
+                self.handle_get_current_user()
             
             # Payroll Reconciliation endpoints
             elif path == '/api/payroll':
                 self.handle_get_payroll(query)
             elif path == '/api/payroll/discrepancies':
                 self.handle_get_payroll_discrepancies(query)
+            elif path == '/api/payroll/periods':
+                self.send_paginated([])
             
             # Dashboard files
             elif path == '/amazon-dsp-kpi-dashboard.html':
@@ -112,10 +859,27 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
         
         try:
-            if path == '/api/daily-entries':
+            if path.startswith('/api/uploads/') and path.endswith('/reparse'):
+                self.handle_post_upload_reparse(path.split('/')[3])
+            elif path.startswith('/api/uploads/') and path.endswith('/confirm'):
+                self.handle_post_upload_confirm(path.split('/')[3])
+            elif path.startswith('/api/uploads/'):
+                self.handle_post_upload(path.split('/')[3])
+            elif path == '/api/vendor-rules':
+                self.handle_post_vendor_rules()
+            elif path.startswith('/api/connections/') and path.endswith('/test'):
+                self.handle_post_connection_test(path.split('/')[3])
+            elif path == '/api/daily-entries':
                 self.handle_post_daily_entries()
             elif path == '/api/daily-entries/revert':
                 self.handle_post_revert(query)
+            # Auth endpoints (mock for development)
+            elif path == '/auth/login' or path == '/api/auth/login':
+                self.handle_post_login()
+            elif path == '/auth/logout' or path == '/api/auth/logout':
+                self.handle_post_logout()
+            elif path == '/auth/refresh' or path == '/api/auth/refresh':
+                self.handle_post_refresh()
             else:
                 self.send_error(404, f"Not found: {path}")
         except Exception as e:
@@ -520,71 +1284,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_json(result)
 
     def handle_get_fleet_costs(self, query):
-        """Return fleet cost data with rental vs Amazon reimbursement breakdown."""
-        # Fleet cost data from reconciliation
-        # This data comes from: data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx
-        # and the Operations Dashboard hardcoded values
-        
-        result = {
-            'summary': {
-                'three_month_included_cost': 79904.99,
-                'three_month_amazon_coverage': 73207.43,
-                'three_month_difference': -6697.56,
-                'august_difference': -10907.91,
-                'note': 'Acura excluded per owner direction. June/July final + August advance. Posting-period comparison; not net profit.'
-            },
-            'included_fleet_expense_vs_coverage': {
-                'june': {
-                    'fleet_expense': 21334,
-                    'amazon_coverage': 21667,
-                    'difference': 332.82
-                },
-                'july': {
-                    'fleet_expense': 25743,
-                    'amazon_coverage': 29620,
-                    'difference': 3877.53
-                },
-                'august': {
-                    'fleet_expense': 32828,
-                    'amazon_coverage': 21920,
-                    'difference': -10907.91
-                }
-            },
-            'third_party_rental': {
-                'june': {
-                    'rental_cost': 11159,
-                    'rental_coverage': 726
-                },
-                'july': {
-                    'rental_cost': 15726,
-                    'rental_coverage': 2122
-                },
-                'august': {
-                    'rental_cost': 18830,
-                    'rental_coverage': 2306
-                }
-            },
-            'lmr_costs': {
-                'june': {
-                    'lmr_cost': 10015,
-                    'amazon_lmr_coverage': 20941
-                },
-                'july': {
-                    'lmr_cost': 10015,
-                    'amazon_lmr_coverage': 27498
-                },
-                'august': {
-                    'lmr_cost': 13915,
-                    'amazon_lmr_coverage': 19614
-                }
-            },
-            'coverage_differences': {
-                'june': 332.82,
-                'july': 3877.53,
-                'august': -10907.91
-            }
-        }
-        self.send_json(result)
+        """Return the June-August rental cost vs Amazon reimbursement reconciliation."""
+        self.send_json(build_fleet_cost_reconciliation(_tenant_from_headers(self.headers)))
 
     # ========== Dispute Detection Handlers ==========
     
@@ -780,6 +1481,10 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_json(discrepancies)
 
     # ========== PAVE Handlers ==========
+
+    def handle_get_fleet_compliance(self):
+        """Return the reconciled fleet compliance management view."""
+        self.send_json(build_fleet_compliance_payload())
     
     def handle_get_pave_vehicles(self, query):
         """Return PAVE vehicle data with all Amazon wear and tear data points."""
@@ -977,6 +1682,311 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Location', '/amazon-dsp-kpi-dashboard.html')
         self.end_headers()
     
+    # ========== Auth Handlers (Mock for Development) ==========
+    
+    def handle_get_current_user(self):
+        """Return mock user for development."""
+        mock_user = {
+            "id": "dev-user",
+            "email": "dev@example.com",
+            "firstName": "Developer",
+            "lastName": "User",
+            "role": "admin",
+            "status": "active"
+        }
+        self.send_json(mock_user)
+    
+    def handle_post_login(self):
+        """Mock login endpoint for development."""
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length)
+        data = json.loads(body)
+        
+        mock_response = {
+            "user": {
+                "id": "dev-user",
+                "email": data.get('email', 'dev@example.com'),
+                "firstName": "Developer",
+                "lastName": "User",
+                "role": "admin"
+            },
+            "token": "mock-token-for-dev",
+            "refreshToken": "mock-refresh-token-for-dev",
+            "expiresIn": 3600
+        }
+        self.send_json(mock_response)
+    
+    def handle_post_logout(self):
+        """Mock logout endpoint for development."""
+        self.send_json({"message": "Logged out successfully"})
+    
+    def handle_post_refresh(self):
+        """Mock token refresh endpoint for development."""
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length)
+        data = json.loads(body)
+        
+        mock_response = {
+            "token": "mock-refreshed-token-for-dev",
+            "refreshToken": data.get('refreshToken', 'mock-refresh-token-for-dev'),
+            "expiresIn": 3600
+        }
+        self.send_json(mock_response)
+
+    def handle_get_weekly_evaluations(self):
+        """Expose the incumbent dashboard's weekly evaluation payload to React."""
+        html = DASHBOARD_PATH.read_text(encoding='utf-8')
+        match = re.search(
+            r'window\.__WEEKLY_EVALUATIONS__=(\{.*?\});</script>',
+            html,
+            flags=re.DOTALL,
+        )
+        if not match:
+            self.send_json({'weeks': [], 'evaluations': {}})
+            return
+
+        evaluations = json.loads(match.group(1))
+        self.send_json({
+            'weeks': list(evaluations.keys()),
+            'evaluations': evaluations,
+        })
+
+    def handle_get_time_attendance_exceptions(self):
+        """Return the incumbent ADP exception view in a stable React schema."""
+        exceptions = [
+            {
+                'employee': 'Davis, George',
+                'date': '2026-09-13',
+                'issueType': 'Unassigned shift',
+                'details': 'ADP time but no Amazon route assignment',
+            },
+            *[
+                {
+                    'employee': 'Davis, George',
+                    'date': f'2026-09-{day:02d}',
+                    'issueType': 'Missed punch',
+                    'details': f'No time recorded for 2026-09-{day:02d}',
+                }
+                for day in range(15, 20)
+            ],
+        ]
+        exceptions.insert(1, {
+            'employee': 'Davis, George',
+            'date': '2026-09-14',
+            'issueType': 'Unassigned shift',
+            'details': 'ADP time but no Amazon route assignment',
+        })
+        self.send_json({
+            'sourcePeriod': '2026-09-13 to 2026-09-19',
+            'capturedAt': '2026-09-16',
+            'exceptions': exceptions,
+        })
+
+    def send_paginated(self, rows):
+        """Return the pagination envelope expected by the React tables."""
+        self.send_json({
+            'data': rows,
+            'meta': {
+                'currentPage': 1,
+                'totalPages': 1,
+                'totalItems': len(rows),
+                'itemsPerPage': max(len(rows), 1),
+                'hasNextPage': False,
+                'hasPreviousPage': False,
+            },
+        })
+
+    def handle_get_fleet_cost_summary(self, query):
+        """Return the reconciled three-month fleet totals in the React schema."""
+        self.send_json({
+            'period': 'June–August 2026',
+            'totalCost': 79904.99,
+            'totalFixedCost': 39345.00,
+            'totalVariableCost': 40559.99,
+            'totalCapitalCost': 0,
+            'totalOperatingCost': 79904.99,
+            'costByCategory': {
+                'leasing': 39345.00,
+                'other': 40559.99,
+            },
+            'costByVan': [],
+            'costByDriver': [],
+            'costPerMile': 0,
+            'costPerDay': 868.53,
+            'costPerRoute': 0,
+            'costPerDelivery': 0,
+            'fuelEfficiency': 0,
+            'maintenanceCostPerMile': 0,
+        })
+
+    def handle_get_fuel_cost_analysis(self, query):
+        """Return an empty but valid fuel-analysis envelope when fuel detail is unavailable."""
+        self.send_json({
+            'period': 'June–August 2026',
+            'totalFuelCost': 0,
+            'totalGallons': 0,
+            'averagePricePerGallon': 0,
+            'totalMiles': 0,
+            'fuelEfficiency': 0,
+            'costPerMile': 0,
+            'byVan': [],
+            'byDriver': [],
+            'trends': [],
+        })
+
+    def handle_get_maintenance_cost_analysis(self, query):
+        """Return an empty but valid maintenance-analysis envelope."""
+        self.send_json({
+            'period': 'June–August 2026',
+            'totalMaintenanceCost': 0,
+            'byVan': [],
+            'byCategory': {},
+            'averageCostPerMile': 0,
+            'averageCostPerVan': 0,
+            'trends': [],
+        })
+
+    def handle_get_fleet_cost_trends(self, query):
+        """Return the monthly reconciliation used by the incumbent dashboard."""
+        self.send_json([
+            {'period': 'June', 'totalCost': 21334, 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0},
+            {'period': 'July', 'totalCost': 25743, 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0},
+            {'period': 'August', 'totalCost': 32828, 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0},
+        ])
+    
+
+    # ========== Connections and tenant uploads ==========
+
+    def _read_body(self):
+        length = int(self.headers.get('Content-Length') or 0)
+        if length <= 0:
+            return b''
+        if length > 25 * 1024 * 1024:
+            raise ValueError('upload exceeds the 25 MB limit')
+        return self.rfile.read(length)
+
+    def send_json_status(self, status, data):
+        content = json.dumps(data, default=str).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', len(content))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(content)
+
+    def handle_post_upload(self, source):
+        """Store an uploaded export and return a parse preview. Nothing is
+        committed to reporting until the tenant confirms it."""
+        tenant = _tenant_from_headers(self.headers)
+        body = self._read_body()
+        fields, files = parse_multipart(body, self.headers.get('Content-Type'))
+        if 'file' not in files:
+            self.send_json_status(400, {'error': 'no file field in upload'})
+            return
+        filename, payload = files['file']
+        actor = fields.get('uploadedBy') or self.headers.get('x-actor') or 'local-dev@jeclogs.com'
+
+        if source not in connections_registry.FINANCIAL_SOURCES:
+            self.send_json_status(400, {'error': f'unsupported upload source: {source}'})
+            return
+
+        record = tenant_store.put_file(tenant, source, filename, payload, actor)
+        preview = parse_financial_export(payload, filename, tenant=tenant,
+                                         provider=fields.get('provider') or None)
+
+        if preview.get('ok'):
+            summary = dict(preview['summary'])
+            summary['periods'] = preview.get('periods')
+            summary['provider'] = preview.get('provider')
+            summary['providerLabel'] = preview.get('providerLabel')
+            record = tenant_store.update_file(
+                tenant, record['id'], status='parsed', provider=preview.get('provider'),
+                periodKey=preview.get('periodKey'), parseSummary=summary)
+        else:
+            record = tenant_store.update_file(
+                tenant, record['id'], status='rejected', rejectedReason=preview.get('error'))
+
+        self.send_json_status(200 if preview.get('ok') else 422, {
+            'tenant': tenant, 'upload': record, 'preview': preview,
+        })
+
+    def handle_post_upload_reparse(self, file_id):
+        """Re-run the parser on stored bytes, e.g. after vendor rules change."""
+        tenant = _tenant_from_headers(self.headers)
+        record = tenant_store.get_file(tenant, file_id)
+        if not record:
+            self.send_json_status(404, {'error': 'unknown upload'})
+            return
+        preview = parse_financial_export(tenant_store.read_bytes(tenant, file_id),
+                                         record['originalFilename'], tenant=tenant)
+        if preview.get('ok'):
+            summary = dict(preview['summary'])
+            summary['periods'] = preview.get('periods')
+            summary['provider'] = preview.get('provider')
+            summary['providerLabel'] = preview.get('providerLabel')
+            record = tenant_store.update_file(
+                tenant, file_id, status='parsed', provider=preview.get('provider'),
+                periodKey=preview.get('periodKey'), parseSummary=summary)
+        self.send_json_status(200, {'tenant': tenant, 'upload': record, 'preview': preview})
+
+    def handle_post_upload_confirm(self, file_id):
+        """Confirm a parsed upload so reporting screens start using it."""
+        tenant = _tenant_from_headers(self.headers)
+        record = tenant_store.get_file(tenant, file_id)
+        if not record:
+            self.send_json_status(404, {'error': 'unknown upload'})
+            return
+        if record['status'] not in ('parsed', 'confirmed'):
+            self.send_json_status(409, {'error': f"upload is {record['status']} and cannot be confirmed"})
+            return
+        superseded = tenant_store.supersede_others(tenant, record['source'], file_id, record.get('periodKey'))
+        record = tenant_store.update_file(
+            tenant, file_id, status='confirmed',
+            confirmedAt=datetime.now(timezone.utc).isoformat(timespec='seconds'))
+        connections_registry.set_connection_state(
+            tenant, record['source'], status='healthy',
+            lastSuccessAt=record['confirmedAt'], lastError=None)
+        self.send_json_status(200, {'tenant': tenant, 'upload': record, 'supersededCount': superseded})
+
+    def handle_post_vendor_rules(self):
+        """Replace the tenant's vendor classification rules."""
+        tenant = _tenant_from_headers(self.headers)
+        try:
+            body = json.loads(self._read_body() or b'{}')
+        except ValueError:
+            self.send_json_status(400, {'error': 'invalid JSON body'})
+            return
+        rules = body.get('rules')
+        if not isinstance(rules, list):
+            self.send_json_status(400, {'error': 'rules must be a list'})
+            return
+        saved = save_vendor_rules(tenant, rules)
+        _FLEET_COST_CACHE.clear()
+        self.send_json_status(200, {'tenant': tenant, 'rules': saved})
+
+    def handle_post_connection_test(self, connection_id):
+        """Record a connection check. Browser-session sources report the real
+        local session state instead of claiming success."""
+        tenant = _tenant_from_headers(self.headers)
+        entry = connections_registry.BY_ID.get(connection_id)
+        if not entry:
+            self.send_json_status(404, {'error': 'unknown connection'})
+            return
+        now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        if entry['authKind'] == 'manual_upload':
+            latest = tenant_store.latest_confirmed(tenant, connection_id)
+            ok = latest is not None
+            state = connections_registry.set_connection_state(
+                tenant, connection_id,
+                status='healthy' if ok else 'not_connected',
+                lastCheckedAt=now,
+                lastError=None if ok else 'No confirmed upload yet.')
+        else:
+            state = connections_registry.set_connection_state(
+                tenant, connection_id, status='pending', lastCheckedAt=now,
+                lastError='Connector not provisioned in local development.')
+        self.send_json_status(200, {'tenant': tenant, 'connection': connection_id, 'state': state})
+
     def send_json(self, data):
         """Send JSON response."""
         content = json.dumps(data, default=str).encode('utf-8')

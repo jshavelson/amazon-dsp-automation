@@ -50,6 +50,7 @@ interface TableProps<T> {
     onPageChange: (page: number) => void;
     onPageSizeChange?: (size: number) => void;
     pageSize?: number;
+    totalItems?: number;
     pageSizeOptions?: number[];
   };
 }
@@ -136,8 +137,8 @@ function Table<T>({
 
   // Check if all rows are selected
   const allSelected = useMemo(() => {
-    return data.length > 0 && selectedRows.length === data.length;
-  }, [data.length, selectedRows.length]);
+    return data.length > 0 && data.every((item) => selectedRows.includes(keyExtractor(item)));
+  }, [data, keyExtractor, selectedRows]);
 
   // Get sort icon for column
   const getSortIcon = useCallback(
@@ -275,6 +276,7 @@ function Table<T>({
       onPageChange,
       onPageSizeChange,
       pageSize = 10,
+      totalItems = data.length,
       pageSizeOptions = [10, 25, 50, 100],
     } = pagination;
 
@@ -282,7 +284,7 @@ function Table<T>({
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
         <div className="flex items-center space-x-2">
           <span className="text-sm text-gray-500">
-            Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, data.length)} of {data.length}
+            Showing {totalItems === 0 ? 0 : ((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalItems)} of {totalItems}
           </span>
         </div>
 
@@ -328,7 +330,7 @@ function Table<T>({
   return (
     <div className={clsx('bg-white rounded-lg shadow-card overflow-hidden', className)}>
       {/* Table header with actions */}
-      {(searchable || filterable || actions || showHeader) && (
+      {(searchable || filterable || actions) && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <div className="flex items-center space-x-4">
             {searchable && (

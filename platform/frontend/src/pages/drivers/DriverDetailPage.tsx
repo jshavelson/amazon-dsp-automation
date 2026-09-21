@@ -238,7 +238,7 @@ const DriverDetailPage: React.FC = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading driver details..." />
       </div>
     );
@@ -247,7 +247,7 @@ const DriverDetailPage: React.FC = () => {
   // Error state
   if (error || !driver) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <p className="text-danger-600 mb-4">Failed to load driver details</p>
           <Button onClick={() => refetch()}>Retry</Button>

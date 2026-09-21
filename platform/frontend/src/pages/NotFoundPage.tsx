@@ -1,10 +1,11 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Home, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/shared/Button';
 
 const NotFoundPage: React.FC = () => {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="text-center max-w-md w-full">
@@ -56,21 +57,19 @@ const NotFoundPage: React.FC = () => {
           className="mt-8 flex flex-col sm:flex-row items-center justify-center space-y-3 sm:space-y-0 sm:space-x-4"
         >
           <Button
-            asChild
             variant="primary"
             leftIcon={<Home size={16} />}
+            onClick={() => navigate('/dashboard')}
           >
-            <Link to="/dashboard">Go to Dashboard</Link>
+            Go to Dashboard
           </Button>
 
           <Button
-            asChild
             variant="outline"
             leftIcon={<ArrowLeft size={16} />}
+            onClick={() => navigate(-1)}
           >
-            <Link to="#" onClick={() => window.history.back()}>
-              Go Back
-            </Link>
+            Go Back
           </Button>
         </motion.div>
 

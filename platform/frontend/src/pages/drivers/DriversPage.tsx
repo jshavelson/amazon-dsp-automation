@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import clsx from 'clsx';
+import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Users,
   Plus,
   Search,
   Filter,
@@ -11,18 +8,24 @@ import {
   Edit,
   Trash2,
   Eye,
-  ChevronUp,
-  ChevronDown,
-  ChevronsUpDown,
 } from 'lucide-react';
 import { useDrivers, useDeleteDriver } from '@/hooks/useDrivers';
 import { Driver, DriverStatus, EmploymentType } from '@/types/driver';
 import { Button, IconButton } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
-import { Select, MultiSelect } from '@/components/shared/Select';
+import { MultiSelect } from '@/components/shared/Select';
 import { Table, Column } from '@/components/shared/Table';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { Badge } from '@/components/shared/Badge';
+
+const driverStatusVariants: Record<DriverStatus, 'success' | 'warning' | 'danger' | 'info' | 'secondary'> = {
+  active: 'success',
+  on_leave: 'warning',
+  terminated: 'danger',
+  suspended: 'danger',
+  pending_onboarding: 'info',
+  inactive: 'secondary',
+};
 
 const DriversPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,21 +36,43 @@ const DriversPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
-  // Fetch drivers data
+  // Load the roster once. Search, filtering, sorting, and pagination are local
+  // so typing never tears down the screen or creates a request per keystroke.
   const { data: driversData, isLoading, error, refetch } = useDrivers({
-    search: searchQuery,
-    status: statusFilter.length > 0 ? statusFilter[0] : undefined,
-    employmentType: employmentTypeFilter.length > 0 ? employmentTypeFilter[0] : undefined,
     page: 1,
-    limit: 50,
+    limit: 500,
   });
 
   // Delete driver mutation
   const { mutate: deleteDriver } = useDeleteDriver();
 
-  // Driver data
-  const drivers: Driver[] = driversData?.data || [];
+  // The local operational API returns a compact driver roster while the
+  // production API returns a paginated Driver payload. Normalize both shapes
+  // here so local navigation displays the real roster instead of an empty table.
+  const driverPayload = driversData as unknown as { data?: Array<Partial<Driver> & { name?: string; status?: string }> } | Array<Partial<Driver> & { name?: string; status?: string }> | undefined;
+  const driverRows = (Array.isArray(driverPayload) ? driverPayload : driverPayload?.data || []);
+  const drivers: Driver[] = driverRows.map((row, index) => {
+    if (row.firstName || row.lastName) return row as Driver;
+    const parts = (row.name || 'Unknown Driver').trim().split(/\s+/);
+    const firstName = parts.shift() || 'Unknown';
+    const lastName = parts.join(' ');
+    const standing = String(row.status || 'Active');
+    return {
+      ...row,
+      id: row.id || `driver-${index}`,
+      employeeId: row.id || `DA-${index + 1}`,
+      firstName,
+      lastName,
+      email: '',
+      phone: '',
+      status: 'active',
+      employmentType: 'full_time',
+      performanceRating: standing === 'Platinum' ? 100 : standing === 'Gold' ? 90 : 85,
+    } as Driver;
+  });
 
   // Status options
   const statusOptions: { value: DriverStatus; label: string }[] = [
@@ -84,15 +109,6 @@ const DriversPage: React.FC = () => {
     );
   }, []);
 
-  // Handle select all
-  const handleSelectAll = useCallback(() => {
-    if (selectedRows.length === drivers.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(drivers.map((driver) => driver.id));
-    }
-  }, [selectedRows.length, drivers]);
-
   // Handle delete selected
   const handleDeleteSelected = useCallback(() => {
     if (selectedRows.length === 0) return;
@@ -112,22 +128,26 @@ const DriversPage: React.FC = () => {
     }
   }, [deleteDriver]);
 
-  // Get sort icon
-  const getSortIcon = useCallback((key: string) => {
-    if (sortBy !== key) {
-      return <ChevronsUpDown size={14} className="text-gray-400" />;
-    }
-    return sortOrder === 'asc' ? (
-      <ChevronUp size={14} className="text-primary-600" />
-    ) : (
-      <ChevronDown size={14} className="text-primary-600" />
-    );
-  }, [sortBy, sortOrder]);
+  const filteredDrivers = drivers.filter((driver) => {
+    const needle = searchQuery.trim().toLowerCase();
+    const matchesSearch = !needle || [
+      driver.employeeId,
+      driver.firstName,
+      driver.lastName,
+      `${driver.firstName} ${driver.lastName}`,
+      driver.email,
+      driver.phone,
+      driver.status,
+    ].some((value) => String(value || '').toLowerCase().includes(needle));
+    return matchesSearch
+      && (statusFilter.length === 0 || statusFilter.includes(driver.status))
+      && (employmentTypeFilter.length === 0 || employmentTypeFilter.includes(driver.employmentType));
+  });
 
   // Sort drivers
-  const sortedDrivers = [...drivers].sort((a, b) => {
-    const aValue = (a as Record<string, unknown>)[sortBy];
-    const bValue = (b as Record<string, unknown>)[sortBy];
+  const sortedDrivers = [...filteredDrivers].sort((a, b) => {
+    const aValue = (a as unknown as Record<string, unknown>)[sortBy];
+    const bValue = (b as unknown as Record<string, unknown>)[sortBy];
 
     if (aValue === undefined || bValue === undefined) return 0;
 
@@ -141,6 +161,17 @@ const DriversPage: React.FC = () => {
 
     return 0;
   });
+  const totalPages = Math.max(1, Math.ceil(sortedDrivers.length / pageSize));
+  const visibleDrivers = sortedDrivers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Select only the currently visible page; preserve selections made elsewhere.
+  const handleSelectAll = useCallback(() => {
+    const visibleIds = visibleDrivers.map((driver) => driver.id);
+    const allVisibleSelected = visibleIds.every((id) => selectedRows.includes(id));
+    setSelectedRows((current) => allVisibleSelected
+      ? current.filter((id) => !visibleIds.includes(id))
+      : [...new Set([...current, ...visibleIds])]);
+  }, [selectedRows, visibleDrivers]);
 
   // Table columns
   const columns: Column<Driver>[] = [
@@ -178,16 +209,9 @@ const DriversPage: React.FC = () => {
       width: '120px',
       render: (value) => (
         <Badge
-          variant={
-            active: 'success',
-            on_leave: 'warning',
-            terminated: 'danger',
-            suspended: 'danger',
-            pending_onboarding: 'info',
-            inactive: 'secondary',
-          }[value as DriverStatus] || 'secondary'}
+          variant={driverStatusVariants[value as DriverStatus] || 'secondary'}
         >
-          {value}
+          {String(value)}
         </Badge>
       ),
     },
@@ -198,7 +222,7 @@ const DriversPage: React.FC = () => {
       width: '120px',
       render: (value) => (
         <Badge variant="secondary">
-          {value}
+          {String(value)}
         </Badge>
       ),
     },
@@ -249,7 +273,7 @@ const DriversPage: React.FC = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading drivers..." />
       </div>
     );
@@ -258,7 +282,7 @@ const DriversPage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <p className="text-danger-600 mb-4">Failed to load drivers</p>
           <Button onClick={() => refetch()}>Retry</Button>
@@ -284,11 +308,7 @@ const DriversPage: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="card"
-      >
+      <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-4">
             <div className="relative">
@@ -300,7 +320,10 @@ const DriversPage: React.FC = () => {
                 type="text"
                 placeholder="Search drivers..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="pl-10 w-64"
               />
             </div>
@@ -339,12 +362,7 @@ const DriversPage: React.FC = () => {
 
         {/* Filter dropdown */}
         {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-t border-gray-200 pt-4"
-          >
+          <div className="overflow-hidden border-t border-gray-200 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -353,7 +371,10 @@ const DriversPage: React.FC = () => {
                 <MultiSelect
                   options={statusOptions}
                   value={statusFilter}
-                  onChange={setStatusFilter}
+                  onChange={(value) => {
+                    setStatusFilter(value as DriverStatus[]);
+                    setCurrentPage(1);
+                  }}
                   placeholder="All statuses"
                 />
               </div>
@@ -364,7 +385,10 @@ const DriversPage: React.FC = () => {
                 <MultiSelect
                   options={employmentTypeOptions}
                   value={employmentTypeFilter}
-                  onChange={setEmploymentTypeFilter}
+                  onChange={(value) => {
+                    setEmploymentTypeFilter(value as EmploymentType[]);
+                    setCurrentPage(1);
+                  }}
                   placeholder="All types"
                 />
               </div>
@@ -373,6 +397,7 @@ const DriversPage: React.FC = () => {
               <Button variant="outline" size="sm" onClick={() => {
                 setStatusFilter([]);
                 setEmploymentTypeFilter([]);
+                setCurrentPage(1);
               }}>
                 Clear
               </Button>
@@ -380,19 +405,15 @@ const DriversPage: React.FC = () => {
                 Apply
               </Button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </motion.div>
+      </div>
 
       {/* Drivers table */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="card"
-      >
+      <div className="card">
         <Table
           columns={columns}
-          data={sortedDrivers}
+          data={visibleDrivers}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSort={handleSort}
@@ -401,25 +422,23 @@ const DriversPage: React.FC = () => {
           onSelectRow={handleSelectRow}
           onSelectAll={handleSelectAll}
           emptyMessage="No drivers found"
-          searchable
-          onSearch={setSearchQuery}
-          searchPlaceholder="Search drivers..."
           pagination={{
-            currentPage: 1,
-            totalPages: Math.ceil(drivers.length / 10),
-            onPageChange: (page) => {},
-            pageSize: 10,
+            currentPage,
+            totalPages,
+            onPageChange: setCurrentPage,
+            onPageSizeChange: (size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            },
+            pageSize,
+            totalItems: sortedDrivers.length,
             pageSizeOptions: [10, 25, 50, 100],
           }}
         />
-      </motion.div>
+      </div>
 
       {/* Summary */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="card"
-      >
+      <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
@@ -445,7 +464,7 @@ const DriversPage: React.FC = () => {
             <p className="text-sm text-gray-500">Inactive</p>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

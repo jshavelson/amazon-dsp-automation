@@ -20,10 +20,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('auth_token');
+        const token = localStorage.getItem('auth_token') || sessionStorage.getItem('dsp-platform-id-token');
         const expiresAt = localStorage.getItem('token_expires_at');
         
-        // If no token, not authenticated
+        // If no token, auto-authenticate for development
+        if (!token && import.meta.env.DEV) {
+          // Development mode: auto-authenticate
+          setUser({
+            id: 'dev-user',
+            email: 'dev@example.com',
+            firstName: 'Developer',
+            lastName: 'User',
+            role: 'admin',
+          } as User);
+          setIsAuthenticated(true);
+          setIsLoading(false);
+          return;
+        }
+
         if (!token) {
           setIsAuthenticated(false);
           setUser(null);
@@ -68,12 +82,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(userData as User);
           setIsAuthenticated(true);
         } catch (userError) {
-          // Failed to get user, clear auth
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('token_expires_at');
-          setIsAuthenticated(false);
-          setUser(null);
+          if (import.meta.env.DEV) {
+            console.warn('Failed to get current user, auto-authenticating for dev:', userError);
+            setUser({
+              id: 'dev-user',
+              email: 'dev@example.com',
+              firstName: 'Developer',
+              lastName: 'User',
+              role: 'admin',
+            } as User);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+          }
         }
         
       } catch (err) {
@@ -128,13 +150,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token_expires_at');
+      sessionStorage.removeItem('dsp-platform-id-token');
+      sessionStorage.removeItem('dsp-platform-token-expiry');
       
       setUser(null);
       setIsAuthenticated(false);
       setError(null);
       
       // Redirect to login
-      window.location.href = '/login';
+      window.location.href = import.meta.env.PROD ? '/' : '/login';
     }
   }, []);
 

@@ -13,6 +13,7 @@ import { fleetCostsRoutes } from './api/fleet-costs-routes.mjs';
 import { disputesRoutes } from './api/disputes-routes.mjs';
 import { routeMonitorRoutes } from './api/route-monitor-routes.mjs';
 import { payrollRoutes } from './api/payroll-routes.mjs';
+import { reactCompatRoutes } from './api/react-compat-routes.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,22 +50,32 @@ export async function createApp({
     wildcard: false,
     list: false
   });
+  const frontendRoot = path.resolve(HERE, '..', 'frontend-dist');
+  const frontendAvailable = await fs.access(frontendRoot).then(() => true).catch(() => false);
+  if (frontendAvailable) {
+    await app.register(staticPlugin, {
+      root: frontendRoot,
+      prefix: '/app/',
+      index: false,
+      wildcard: false,
+      list: false,
+      decorateReply: false
+    });
+  }
 
   app.get('/health', async () => ({ status: 'ok' }));
+  if (frontendAvailable) {
+    app.get('/app', async (_request, reply) => reply.redirect('/app/'));
+    app.get('/app/*', async (_request, reply) => reply.sendFile('index.html', frontendRoot));
+  }
   
-  // Serve dashboard from root if no web index exists, or from /dashboard
+  // Keep the secure Cognito shell at the root. The approved React application
+  // is opened at /app/ after authentication, while the incumbent dashboard
+  // remains available at /dashboard and /api/dashboard/document.
+  app.get('/', async (_request, reply) => reply.sendFile('index.html', path.resolve(HERE, '..', 'web')));
+
   if (dashboardHtmlPath) {
-    // Try to serve dashboard from root
-    app.get('/', async (_request, reply) => {
-      try {
-        const document = await fs.readFile(dashboardHtmlPath, 'utf8');
-        return reply.type('text/html; charset=utf-8').send(document);
-      } catch {
-        return reply.sendFile('index.html', path.resolve(HERE, '..', 'web'));
-      }
-    });
-    
-    // Also serve from /dashboard for compatibility
+    // Serve the incumbent dashboard from /dashboard for compatibility.
     app.get('/dashboard', async (_request, reply) => {
       try {
         const document = await fs.readFile(dashboardHtmlPath, 'utf8');
@@ -81,8 +92,6 @@ export async function createApp({
         return reply.code(404).send({ error: 'dashboard unavailable' });
       }
     });
-  } else {
-    app.get('/', async (_request, reply) => reply.sendFile('index.html', path.resolve(HERE, '..', 'web')));
   }
   
   app.get('/auth/config', async () => {
@@ -115,7 +124,7 @@ export async function createApp({
   app.addHook('onRequest', async (request, reply) => {
     // Skip authentication for public dashboard API endpoints
     const path = request.url.split('?')[0];
-    const isPublicEndpoint = PUBLIC_API_ENDPOINTS.some(endpoint => 
+    const isPublicEndpoint = request.method === 'GET' && PUBLIC_API_ENDPOINTS.some(endpoint => 
       path === endpoint || path.startsWith(endpoint + '/')
     );
     
@@ -194,10 +203,10 @@ export async function createApp({
       return reply.code(400).send({ error: 'invalid dispute candidate' });
     }
     if (request.body?.confirmation !== true) {
-      return reply.code(400).send({ error: 'explicit confirmation is required' });
+      return reply.code(403).send({ error: 'explicit confirmation is required' });
     }
     if (!disputeSubmission?.submit) {
-      return reply.code(503).send({ error: 'Amazon dispute submission adapter is unavailable' });
+      return reply.code(403).send({ error: 'Amazon dispute submission adapter is unavailable' });
     }
     try {
       const result = await disputeSubmission.submit({
@@ -238,6 +247,9 @@ export async function createApp({
 
   // Register Payroll routes
   payrollRoutes(app, { repository, logger });
+
+  // React application compatibility endpoints backed by the tenant repository.
+  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger });
 
   app.setErrorHandler((error, request, reply) => {
     request.log?.warn({ err: error, requestId: request.id }, 'request failed');

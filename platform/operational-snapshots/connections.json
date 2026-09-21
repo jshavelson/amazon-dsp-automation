@@ -1,0 +1,184 @@
+{
+  "tenant": "jecs",
+  "servedAt": "2026-09-20T19:09:32",
+  "summary": {
+    "total": 7,
+    "connected": 0,
+    "needsAttention": 0,
+    "notConnected": 7,
+    "statusCounts": {
+      "not_connected": 7
+    }
+  },
+  "connections": [
+    {
+      "id": "adp",
+      "displayName": "ADP Workforce",
+      "authKind": "api_credentials",
+      "category": "Unattended",
+      "schedule": "Every 4 hours",
+      "description": "Roster, timecards, payroll registers.",
+      "feeds": [
+        "Time & Attendance",
+        "Payroll",
+        "Workforce KPIs"
+      ],
+      "reauthNote": "Certificate plus OAuth client credentials. Runs unattended once configured.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    },
+    {
+      "id": "financial_charges",
+      "displayName": "Accounting export (fleet charges)",
+      "authKind": "manual_upload",
+      "category": "Manual upload",
+      "schedule": "On upload",
+      "description": "Rental, LMR, and lease charges you actually paid, compared against Amazon coverage.",
+      "feeds": [
+        "Fleet Costs"
+      ],
+      "acceptedProviders": [
+        "Digits",
+        "QuickBooks",
+        "CSV or spreadsheet"
+      ],
+      "reauthNote": "Upload the export each period. The provider is detected automatically and no accounting credentials are shared with the platform.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    },
+    {
+      "id": "fleet_portal",
+      "displayName": "Amazon Fleet Portal / PAVE",
+      "authKind": "browser_session",
+      "category": "Amazon",
+      "schedule": "Daily 04:00",
+      "description": "Vehicle roster, ownership, registration, PM and inspection evidence.",
+      "feeds": [
+        "Fleet Compliance"
+      ],
+      "reauthNote": "Shares the Amazon session strategy; reconnect when prompted.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    },
+    {
+      "id": "amazon_logistics",
+      "displayName": "Amazon Logistics",
+      "authKind": "browser_session",
+      "category": "Amazon",
+      "schedule": "Weekly scorecard + daily checks",
+      "description": "Scorecards, driver performance, DVIC, capacity and reliability.",
+      "feeds": [
+        "Weekly Evaluation",
+        "Driver Performance",
+        "Fleet Compliance"
+      ],
+      "reauthNote": "Amazon can revoke a saved session at any time. Reconnect takes about a minute and no credential is stored by the platform.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    },
+    {
+      "id": "amazon_payments",
+      "displayName": "Amazon Payments",
+      "authKind": "browser_session",
+      "category": "Amazon",
+      "schedule": "Daily 05:00",
+      "description": "Weekly invoices, fixed monthly fleet reconciliation, AFS entitlement.",
+      "feeds": [
+        "Reimbursement Review",
+        "Fleet Costs"
+      ],
+      "reauthNote": "Kept separate from the Logistics session so a health check cannot overwrite payment authorization.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    },
+    {
+      "id": "digits_api",
+      "displayName": "Digits API",
+      "authKind": "api_credentials",
+      "category": "Unattended",
+      "schedule": "Daily 06:00",
+      "description": "Pulls fleet charges directly from Digits, replacing the monthly export upload.",
+      "feeds": [
+        "Fleet Costs"
+      ],
+      "secretNames": [
+        "client-id",
+        "client-secret"
+      ],
+      "reauthNote": "OAuth client credentials stored in managed secret storage. Runs unattended once configured; no browser session is involved.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    },
+    {
+      "id": "email_imap",
+      "displayName": "Report Email (IMAP)",
+      "authKind": "imap_password",
+      "category": "Unattended",
+      "schedule": "Every 15 minutes",
+      "description": "Fleet Condition Assessment, LSC cases, and Amazon notices delivered by email.",
+      "feeds": [
+        "Fleet Compliance",
+        "Wear & Tear",
+        "LSC cases"
+      ],
+      "reauthNote": "An app password runs unattended and is the preferred path wherever Amazon emails the report.",
+      "status": "not_connected",
+      "configured": false,
+      "secretReference": null,
+      "lastSuccessAt": null,
+      "lastCheckedAt": null,
+      "lastError": null,
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null
+    }
+  ],
+  "uploads": [],
+  "secretPolicy": {
+    "storage": "AWS Secrets Manager",
+    "pathTemplate": "secret://{tenant}/aws-secrets/{connection}/{name}",
+    "note": "The platform stores a reference only. Credential values are never written to the database, logs, or this API response."
+  }
+}

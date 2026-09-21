@@ -113,17 +113,11 @@ function renderContext(context) {
 }
 
 async function openDashboard({ replaceCurrent = false } = {}) {
-  const response = await api('/api/dashboard/document');
   if (replaceCurrent) {
-    const dashboardDocument = await response.text();
-    document.open();
-    document.write(dashboardDocument);
-    document.close();
+    location.replace('/app/');
     return;
   }
-  const blobUrl = URL.createObjectURL(await response.blob());
-  window.open(blobUrl, '_blank', 'noopener,noreferrer');
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  location.assign('/app/');
 }
 
 async function initialize() {

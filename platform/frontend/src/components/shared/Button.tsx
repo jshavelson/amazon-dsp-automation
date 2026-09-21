@@ -197,4 +197,4 @@ Button.displayName = 'Button';
 IconButton.displayName = 'IconButton';
 ButtonGroup.displayName = 'ButtonGroup';
 
-export { Button, IconButton, ButtonGroup };
+export { Button };

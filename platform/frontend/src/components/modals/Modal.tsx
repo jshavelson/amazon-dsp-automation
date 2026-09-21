@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
-export interface ModalProps {
+interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
@@ -31,7 +31,7 @@ interface ModalMethods {
   toggle: () => void;
 }
 
-const Modal = forwardRef<ModalMethods, ModalProps>(
+export const Modal = forwardRef<ModalMethods, ModalProps>(
   (
     {
       isOpen,

@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import { AnimatePresence, motion } from 'framer-motion';
 
 // Layout Components
 import DashboardLayout from './components/layouts/DashboardLayout';
@@ -26,17 +25,19 @@ import RoutesPage from './pages/routes/RoutesPage';
 import RouteDetailPage from './pages/routes/RouteDetailPage';
 import PerformancePage from './pages/performance/PerformancePage';
 import FleetCostsPage from './pages/fleet-costs/FleetCostsPage';
+import FleetCompliancePage from './pages/fleet-compliance/FleetCompliancePage';
+import WeeklyEvaluationPage from './pages/evaluation/WeeklyEvaluationPage';
+import TimeAttendancePage from './pages/time-attendance/TimeAttendancePage';
+import ReimbursementReviewPage from './pages/reimbursement/ReimbursementReviewPage';
+import ConnectionsPage from './pages/connections/ConnectionsPage';
+import SystemPage from './pages/system/SystemPage';
 
 // Shared Components
 import LoadingSpinner from './components/shared/LoadingSpinner';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Protected Route Component
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+const ProtectedRoute: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
@@ -52,15 +53,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 };
 
 // Public Route Component
-interface PublicRouteProps {
-  children: React.ReactNode;
-}
-
-const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
+const PublicRoute: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -75,7 +72,7 @@ const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 };
 
 // Main App Component
@@ -88,15 +85,7 @@ const App: React.FC = () => {
   }, [location.pathname]);
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
-        className="min-h-screen"
-      >
+    <div className="min-h-screen">
         <Routes>
           {/* Public Routes */}
           <Route element={<PublicRoute />}>
@@ -121,10 +110,12 @@ const App: React.FC = () => {
               {/* Vans */}
               <Route path="/vans" element={<VansPage />} />
               <Route path="/vans/:id" element={<VanDetailPage />} />
+              <Route path="/fleet-compliance" element={<FleetCompliancePage />} />
 
               {/* Disputes */}
               <Route path="/disputes" element={<DisputesPage />} />
               <Route path="/disputes/:id" element={<DisputeDetailPage />} />
+              <Route path="/dispute-center" element={<DisputesPage />} />
 
               {/* Payroll */}
               <Route path="/payroll" element={<PayrollPage />} />
@@ -136,17 +127,30 @@ const App: React.FC = () => {
 
               {/* Performance */}
               <Route path="/performance" element={<PerformancePage />} />
+              <Route path="/weekly-evaluation" element={<WeeklyEvaluationPage />} />
+
+              {/* Time & Attendance */}
+              <Route path="/time-attendance" element={<TimeAttendancePage />} />
+              <Route path="/reimbursement-review" element={<ReimbursementReviewPage />} />
+              <Route path="/connections" element={<ConnectionsPage />} />
 
               {/* Fleet Costs */}
               <Route path="/fleet-costs" element={<FleetCostsPage />} />
+              <Route path="/maintenance" element={<FleetCostsPage />} />
+              <Route path="/fuel" element={<FleetCostsPage />} />
+
+              {/* System */}
+              <Route path="/settings" element={<SystemPage />} />
+              <Route path="/security" element={<SystemPage />} />
+              <Route path="/notifications" element={<SystemPage />} />
+              <Route path="/help" element={<SystemPage />} />
             </Route>
           </Route>
 
           {/* 404 Not Found */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
-      </motion.div>
-    </AnimatePresence>
+    </div>
   );
 };
 

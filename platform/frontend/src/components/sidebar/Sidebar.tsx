@@ -22,6 +22,10 @@ import {
   CreditCard,
   Fuel,
   Wrench,
+  CalendarCheck,
+  ClipboardCheck,
+  Landmark,
+  Link2,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -58,17 +62,22 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       icon: <Users size={20} />,
     },
     {
+      label: 'Fleet Compliance',
+      href: '/fleet-compliance',
+      icon: <ClipboardCheck size={20} />,
+    },
+    {
       label: 'Vans',
       href: '/vans',
       icon: <Truck size={20} />,
     },
     {
-      label: 'Routes',
+      label: 'Route Monitor',
       href: '/routes',
       icon: <Route size={20} />,
     },
     {
-      label: 'Disputes',
+      label: 'Dispute Center',
       href: '/disputes',
       icon: <FileText size={20} />,
       badge: 5, // Example badge count
@@ -79,9 +88,29 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       icon: <DollarSign size={20} />,
     },
     {
-      label: 'Performance',
+      label: 'Weekly Evaluation',
+      href: '/weekly-evaluation',
+      icon: <FileBarChart size={20} />,
+    },
+    {
+      label: 'Driver Performance',
       href: '/performance',
       icon: <BarChart3 size={20} />,
+    },
+    {
+      label: 'Connections',
+      href: '/connections',
+      icon: <Link2 size={20} />,
+    },
+    {
+      label: 'Reimbursement Review',
+      href: '/reimbursement-review',
+      icon: <Landmark size={20} />,
+    },
+    {
+      label: 'Time & Attendance',
+      href: '/time-attendance',
+      icon: <CalendarCheck size={20} />,
     },
     {
       label: 'Fleet Costs',
@@ -236,7 +265,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   );
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900">
       {/* Header */}
       <SidebarHeader />
 

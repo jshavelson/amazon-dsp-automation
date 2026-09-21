@@ -11,6 +11,8 @@ import {
   LogOut,
   ChevronDown,
   X,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { User as UserType } from '@/types/auth';
 
@@ -19,6 +21,8 @@ interface HeaderProps {
   sidebarOpen?: boolean;
   user: UserType | null;
   onLogout?: () => Promise<void>;
+  darkMode: boolean;
+  onThemeToggle: () => void;
 }
 
 interface Notification {
@@ -35,6 +39,8 @@ const Header: React.FC<HeaderProps> = ({
   sidebarOpen,
   user,
   onLogout,
+  darkMode,
+  onThemeToggle,
 }) => {
   const location = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -295,7 +301,7 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header
       className={clsx(
-        'fixed top-0 right-0 z-40 h-16 bg-white border-b border-gray-200 transition-all duration-300',
+        'fixed top-0 right-0 z-40 h-16 bg-white border-b border-gray-200 transition-all duration-300 dark:bg-slate-900 dark:border-slate-800',
         {
           'left-0': !sidebarOpen,
           'left-64': sidebarOpen,
@@ -322,6 +328,16 @@ const Header: React.FC<HeaderProps> = ({
 
         {/* Right side */}
         <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={onThemeToggle}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <Sun size={19} /> : <Moon size={19} />}
+          </button>
+
           {/* Search */}
           <div className="hidden lg:flex items-center">
             <div className="relative">

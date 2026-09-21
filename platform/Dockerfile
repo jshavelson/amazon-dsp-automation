@@ -3,6 +3,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
+FROM node:24-bookworm-slim AS frontend
+WORKDIR /frontend
+COPY platform/frontend/package.json platform/frontend/package-lock.json ./
+RUN npm ci && npm cache clean --force
+COPY platform/frontend/ ./
+RUN npx vite build
+
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production
 WORKDIR /app
@@ -16,6 +23,7 @@ ENV NODE_EXTRA_CA_CERTS=/app/certs/aws-rds-global-bundle.pem
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
 COPY platform ./platform
+COPY --from=frontend /frontend/dist ./platform/frontend-dist
 COPY data/dashboards/amazon-dsp-kpi-dashboard.html ./dashboard/amazon-dsp-kpi-dashboard.html
 RUN chown -R node:node /app
 USER node

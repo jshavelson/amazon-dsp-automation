@@ -1,0 +1,1138 @@
+{
+  "generatedAt": "2026-09-19T00:05:10.439761+00:00",
+  "servedAt": "2026-09-20T19:09:32",
+  "tenant": "JEC Logistics Solutions",
+  "summary": {
+    "modules": 9,
+    "active": 4,
+    "readyForImport": 4,
+    "cases": 3,
+    "openCases": 0,
+    "recoveredValue": 587.64,
+    "submitted": 1
+  },
+  "modules": [
+    {
+      "id": "capacity_reliability",
+      "displayName": "Capacity and Reliability Review",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.capacity-reliability",
+      "implementationStatus": "active",
+      "state": "active",
+      "headline": "Route reconciliation live",
+      "detail": "Amazon C&R is checked against route-coded WST executions.",
+      "runner": "scripts/reconcile_capacity_reliability.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "Daily 11:00 ET review cycle",
+      "caseCount": 1,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": {
+        "moduleId": "capacity_reliability",
+        "externalKey": "2026-W36",
+        "status": "closed",
+        "disposition": "reconciled",
+        "createdAt": "2026-09-16T23:46:10.996504+00:00",
+        "candidateCount": 0,
+        "recoveredRoutes": null,
+        "recoveredValue": null,
+        "blockingEvidence": [],
+        "externalActionAuthorized": false,
+        "approvalStatus": null,
+        "approvedBy": null,
+        "submissionStatus": null,
+        "submissionConfirmation": null,
+        "findings": [
+          {
+            "date": "2026-08-30",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 33,
+            "completed_routes": 33,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 33,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 33,
+            "excluded_work_orders": 15,
+            "service_types": [
+              "Nursery Route Level 1",
+              "Nursery Route Level 2 - Electric Vehicle",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel Electric - Rivian MEDIUM"
+            ]
+          },
+          {
+            "date": "2026-08-31",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 36,
+            "completed_routes": 36,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 36,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 36,
+            "excluded_work_orders": 19,
+            "service_types": [
+              "Nursery Route Level 1",
+              "Nursery Route Level 2",
+              "Nursery Route Level 3",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel - On-Road Experience: Driver",
+              "Standard Parcel Electric - Rivian MEDIUM",
+              "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+            ]
+          },
+          {
+            "date": "2026-09-01",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 35,
+            "completed_routes": 35,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 35,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 35,
+            "excluded_work_orders": 14,
+            "service_types": [
+              "Nursery Route Level 1",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel Electric - Rivian MEDIUM",
+              "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+            ]
+          },
+          {
+            "date": "2026-09-02",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 35,
+            "completed_routes": 35,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 35,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 35,
+            "excluded_work_orders": 16,
+            "service_types": [
+              "Nursery Route Level 1",
+              "Nursery Route Level 2",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel - On-Road Experience: Driver",
+              "Standard Parcel Electric - Rivian MEDIUM"
+            ]
+          },
+          {
+            "date": "2026-09-03",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 35,
+            "completed_routes": 36,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 35,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 36,
+            "excluded_work_orders": 14,
+            "service_types": [
+              "Nursery Route Level 2",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel - On-Road Experience: Driver",
+              "Standard Parcel Electric - Rivian MEDIUM",
+              "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+            ]
+          },
+          {
+            "date": "2026-09-04",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 36,
+            "completed_routes": 36,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 36,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 36,
+            "excluded_work_orders": 15,
+            "service_types": [
+              "Nursery Route Level 1",
+              "Nursery Route Level 2",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel Electric - Rivian MEDIUM",
+              "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+            ]
+          },
+          {
+            "date": "2026-09-05",
+            "status": "pass",
+            "direction": "matched",
+            "difference": 0,
+            "dispute_candidate": false,
+            "final_scheduled": 34,
+            "completed_routes": 34,
+            "amazon_paid_cancels": 0,
+            "reliability_target": 34,
+            "dsp_dropped_routes": 0,
+            "wst_completed_routes": 34,
+            "excluded_work_orders": 26,
+            "service_types": [
+              "Nursery Route Level 1",
+              "Nursery Route Level 1 - Electric Vehicle",
+              "Nursery Route Level 2 - Electric Vehicle",
+              "Nursery Route Level 3 - Electric Vehicle",
+              "Standard Parcel - Custom Delivery Van 14ft",
+              "Standard Parcel - Custom Delivery Van 16ft",
+              "Standard Parcel - Extra Large Van - US",
+              "Standard Parcel - On-Road Experience: Driver",
+              "Standard Parcel Electric - Rivian MEDIUM",
+              "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "type": "amazon_capacity_reliability",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/scorecard_data/2026-wk36/US-JECS-DFH7-Week36-2026-Capacity-Reliability.xlsx",
+            "sha256": "5bcc2a40e888091a3d168b1361bfd5e81c5fb566ea409320f12fde409e7a23d0",
+            "bytes": 11913
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-08-30-worksheets.json",
+            "sha256": "cce9a33f1b8ce443ebe2aa3b978810302485051ec31d6a9b0f2f796be3a29199",
+            "bytes": 131966
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-08-31-worksheets.json",
+            "sha256": "29e0f0147ae0bb70ec0f4c7fa6eb308e553cb49184b3782999f27cc86a177d18",
+            "bytes": 139716
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-01-worksheets.json",
+            "sha256": "ca9b724728e8809bff187b74b988d572f2cdce6466c7ff7d76a05b7b931d82a8",
+            "bytes": 128184
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-02-worksheets.json",
+            "sha256": "e9087ece213701e320855ff1ab56aa7ece87b965efb053d6b28885fce901a959",
+            "bytes": 133765
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-03-worksheets.json",
+            "sha256": "cfe7b48a527d02257e0e79b3c34105d90a2f962c1313ca06f2d7caef21a5cfc4",
+            "bytes": 133891
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-04-worksheets.json",
+            "sha256": "819c2dfce90361098f47002f39809b9437f83988f567d6c2747e47f657ec206f",
+            "bytes": 136678
+          },
+          {
+            "type": "wst_daily_worksheets",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-05-worksheets.json",
+            "sha256": "073cfb2ebc84e6563340a9175a672e08edd1ff712bf14d760a8864bc67147831",
+            "bytes": 155721
+          }
+        ],
+        "sourcePath": "data/payment_reconciliation/2026-wk36/week36-capacity-reliability-case.json"
+      },
+      "verifiedRoutes": 245
+    },
+    {
+      "id": "executive_dashboard",
+      "displayName": "Executive Operations Dashboard",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.executive-dashboard",
+      "implementationStatus": "in_development",
+      "state": "active",
+      "headline": "JECS dashboard available",
+      "detail": "Current private dashboard remains linked from this site.",
+      "runner": "scripts/build_dsp_kpi_dashboard.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "On import",
+      "caseCount": 0,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": null,
+      "verifiedRoutes": null
+    },
+    {
+      "id": "fixed_monthly",
+      "displayName": "Fixed Monthly Fleet Reconciliation",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.fixed-monthly",
+      "implementationStatus": "active",
+      "state": "active",
+      "headline": "Approval and guarded submission live",
+      "detail": "Latest approved case submitted to Amazon.",
+      "runner": "scripts/run_fixed_monthly_cycle.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": true,
+      "schedule": "Daily 10:00 ET review + 15 min approvals",
+      "caseCount": 1,
+      "openCaseCount": 0,
+      "recoveredValue": 260.64,
+      "latestCase": {
+        "moduleId": "fixed_monthly",
+        "externalKey": "FM-0I0000000827-7068E2F524",
+        "status": "submitted",
+        "disposition": "submitted",
+        "createdAt": "2026-09-16T21:11:55.786003+00:00",
+        "candidateCount": 1,
+        "recoveredRoutes": null,
+        "recoveredValue": 260.64,
+        "blockingEvidence": [],
+        "externalActionAuthorized": true,
+        "approvalStatus": "YES",
+        "approvedBy": "jason@jeclogs.com",
+        "submissionStatus": "submitted",
+        "submissionConfirmation": "Reconciliation",
+        "findings": [
+          {
+            "label": "Invoice",
+            "value": "INV-USVVDX0I-0000000827",
+            "detail": "August 2026 - 2026-08-01 to 2026-08-31"
+          },
+          {
+            "label": "Candidate",
+            "value": "FIXED-MONTHLY-FLEET-ENTITLEMENT",
+            "detail": "Please review Fixed Monthly invoice INV-USVVDX0I-0000000827 for W36. Amazon's verified Cargo Van AFS exceeded the paid fleet by up to 2 vehicle(s) on 2026-08-30, 2026-08-31. The attached evidence identifies the affected dates and paid fleet mix. Please reconcile the missing eligible LMR entitlement."
+          },
+          {
+            "label": "Fact",
+            "value": null,
+            "detail": {
+              "week": 36,
+              "afs_target": 39,
+              "minimum_paid_total": 37,
+              "maximum_daily_shortage": 2,
+              "shortage_dates": [
+                "2026-08-30",
+                "2026-08-31"
+              ],
+              "estimated_lmr_due": "260.64",
+              "date_targets": [
+                {
+                  "date": "2026-08-30",
+                  "amazon_lmr_paid": 12,
+                  "amazon_lmr_final_quantity": 14
+                },
+                {
+                  "date": "2026-08-31",
+                  "amazon_lmr_paid": 12,
+                  "amazon_lmr_final_quantity": 14
+                }
+              ]
+            }
+          }
+        ],
+        "evidence": [
+          {
+            "label": "report",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/fleet_reviews/fixed-monthly/2026-08/fixed-monthly-entitlement-review.json",
+            "sha256": "7068e2f524113b80126d330fda04d327dc15112bf8dfccb3fa21287deea0611c"
+          },
+          {
+            "label": "pdf",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/fleet_reviews/fixed-monthly/2026-08/fixed-monthly-entitlement-review.pdf",
+            "sha256": "76bc6a16ef2a662223b7eda0436113e4d9a4fbb781d6cf1e794e07f081b57dd9"
+          },
+          {
+            "label": "source_invoice",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/email_inbox/owner/2026-09-15/jason@jeclogs.com/attachments/e3bb9d0b3a5ca3c3ef4b-JECS_September_2026.pdf",
+            "sha256": "5d05964365b57f2c3c430b421e721ed858c1b6ac35e5513ec9046c4e7ecbc17e"
+          }
+        ],
+        "sourcePath": "data/fleet_reviews/fixed-monthly/approval-queue/FM-0I0000000827-7068E2F524/approval.json"
+      },
+      "verifiedRoutes": null
+    },
+    {
+      "id": "weekly_payments",
+      "displayName": "Weekly Variable and Incentive Review",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.weekly-payments",
+      "implementationStatus": "active",
+      "state": "active",
+      "headline": "Weekly invoice reconciliation live",
+      "detail": "WST, variable invoice, and incentive invoice are compared.",
+      "runner": "scripts/reconcile_payments.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "Daily 11:00 ET review cycle",
+      "caseCount": 1,
+      "openCaseCount": 0,
+      "recoveredValue": 327.0,
+      "latestCase": {
+        "moduleId": "weekly_payments",
+        "externalKey": "2026-W37",
+        "status": "closed",
+        "disposition": "recovery_confirmed",
+        "createdAt": "2026-09-19T00:31:43.762694+00:00",
+        "candidateCount": 0,
+        "recoveredRoutes": 1.0,
+        "recoveredValue": 327.0,
+        "blockingEvidence": [],
+        "externalActionAuthorized": false,
+        "approvalStatus": null,
+        "approvedBy": null,
+        "submissionStatus": null,
+        "submissionConfirmation": null,
+        "findings": [
+          {
+            "check": "Reported WST recovery outcome",
+            "status": "recovered",
+            "detail": "Outcome evidence confirms 1 route(s) added through a WST request; $327.00 recovered.",
+            "direction": "recovered_before_review",
+            "dispute_candidate": false,
+            "recovered_routes": 1,
+            "recovered_amount": 327.0
+          },
+          {
+            "check": "Our Data: 10-hour route blocks",
+            "status": "pass",
+            "detail": "WST 220; Amazon invoice 220.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 220.0,
+            "amazon_value": 220.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: 9-hour route blocks",
+            "status": "pass",
+            "detail": "WST 1; Amazon invoice 1.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 1.0,
+            "amazon_value": 1.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: 8-hour route blocks",
+            "status": "pass",
+            "detail": "WST 1; Amazon invoice 1.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 1.0,
+            "amazon_value": 1.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: 10-hour ORE blocks",
+            "status": "pass",
+            "detail": "WST 3; Amazon invoice 3.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 3.0,
+            "amazon_value": 3.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: Training days",
+            "status": "pass",
+            "detail": "WST 4; Amazon invoice 4.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 4.0,
+            "amazon_value": 4.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: Eligible delivered packages",
+            "status": "review",
+            "detail": "WST 68,177; Amazon invoice 68,195.",
+            "direction": "amazon_above_wst",
+            "dispute_candidate": false,
+            "our_value": 68177.0,
+            "amazon_value": 68195.0,
+            "difference": 18.0
+          },
+          {
+            "check": "Our Data: Eligible pickup packages",
+            "status": "pass",
+            "detail": "WST 3; Amazon invoice 3.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 3.0,
+            "amazon_value": 3.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Delivered package quantity",
+            "status": "pass",
+            "detail": "Variable invoice 68,195; incentive invoice 68,195.",
+            "direction": "none",
+            "dispute_candidate": false
+          },
+          {
+            "check": "Pickup incentive quantity at matching rate",
+            "status": "pass",
+            "detail": "Variable invoice has 3 pickup package(s) at $0.05; incentive invoice pays 3.",
+            "direction": "none",
+            "dispute_candidate": false
+          },
+          {
+            "check": "Incentive invoice arithmetic",
+            "status": "pass",
+            "detail": "Line items total $10,229.40; invoice total $10,229.40.",
+            "direction": "none",
+            "dispute_candidate": false
+          }
+        ],
+        "evidence": [
+          {
+            "type": "weekly_reconciliation",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/week37-invoice-reconciliation.json",
+            "sha256": "93142f7aef4038ae22ca7256e576a7823231c0f5298c388a8fd7171f7e2ca2f8"
+          },
+          {
+            "type": "amazon_variable_invoice",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/INV-VVDX0I-0000000830.pdf",
+            "sha256": "2848a4b22f77720c0e0219724aa8e7983582cebdca9ad3da1b33dbe1866996de",
+            "bytes": 16697
+          },
+          {
+            "type": "amazon_incentive_invoice",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/INV-VVDX0I-0000000831.pdf",
+            "sha256": "1cedc75c7dca840f3899fdabfb35d26e137cedb12ae83099ba288e157abbe33e",
+            "bytes": 7322
+          },
+          {
+            "type": "amazon_wst_summary",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/wst/wst-summary.json",
+            "sha256": "1be7917746a171feddd1141c5a6e6c6dff7130e3f85267953a7a4eb84d96d671",
+            "bytes": 1478
+          },
+          {
+            "type": "reconciliation_outcome_email_archive",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/email_inbox/owner/2026-09-17/jason@jeclogs.com.json",
+            "sha256": "f848a82d3812a5e605921f5804801abd1c7772974bfd20284c82e859f0d011fa",
+            "bytes": 123303
+          }
+        ],
+        "sourcePath": "data/payment_reconciliation/2026-wk37/week37-module-case.json"
+      },
+      "verifiedRoutes": null
+    },
+    {
+      "id": "fif_reimbursements",
+      "displayName": "FIF Reimbursement Review",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.fif-reimbursements",
+      "implementationStatus": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for approved-claims and reimbursement-invoice exports.",
+      "runner": "scripts/reconcile_fif_reimbursements.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "On import",
+      "caseCount": 0,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": null,
+      "verifiedRoutes": null
+    },
+    {
+      "id": "fifth_day_overtime",
+      "displayName": "Fifth-Day Overtime Support",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.fifth-day-overtime",
+      "implementationStatus": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for route detail and payroll detail.",
+      "runner": "scripts/reconcile_fifth_day_overtime.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "On import",
+      "caseCount": 0,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": null,
+      "verifiedRoutes": null
+    },
+    {
+      "id": "program_adjustments",
+      "displayName": "Meals, Awards, and Adjustments",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.program-adjustments",
+      "implementationStatus": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for program support and invoice-adjustment exports.",
+      "runner": "scripts/reconcile_program_adjustments.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "On import",
+      "caseCount": 0,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": null,
+      "verifiedRoutes": null
+    },
+    {
+      "id": "next_mile_tuition",
+      "displayName": "Next Mile Tuition Reconciliation",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.next-mile-tuition",
+      "implementationStatus": "ready_for_import",
+      "state": "ready_for_import",
+      "headline": "Reconciler ready",
+      "detail": "Waiting for InStride and payroll reimbursement exports.",
+      "runner": "scripts/reconcile_next_mile_tuition.py",
+      "runnerExists": true,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "On import",
+      "caseCount": 0,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": null,
+      "verifiedRoutes": null
+    },
+    {
+      "id": "data_integrations",
+      "displayName": "Secure Data Integrations",
+      "description": null,
+      "goHqFunction": null,
+      "billingSku": "platform.data-integrations",
+      "implementationStatus": "in_development",
+      "state": "foundation",
+      "headline": "Vault contract implemented",
+      "detail": "Production OIDC, database, and cloud secret infrastructure remain deployment work.",
+      "runner": null,
+      "runnerExists": false,
+      "requiredInputs": [],
+      "hasSubmissionAdapter": false,
+      "schedule": "On import",
+      "caseCount": 0,
+      "openCaseCount": 0,
+      "recoveredValue": 0,
+      "latestCase": null,
+      "verifiedRoutes": null
+    }
+  ],
+  "cases": [
+    {
+      "moduleId": "weekly_payments",
+      "externalKey": "2026-W37",
+      "status": "closed",
+      "disposition": "recovery_confirmed",
+      "createdAt": "2026-09-19T00:31:43.762694+00:00",
+      "candidateCount": 0,
+      "recoveredRoutes": 1.0,
+      "recoveredValue": 327.0,
+      "blockingEvidence": [],
+      "externalActionAuthorized": false,
+      "approvalStatus": null,
+      "approvedBy": null,
+      "submissionStatus": null,
+      "submissionConfirmation": null,
+      "findings": [
+        {
+          "check": "Reported WST recovery outcome",
+          "status": "recovered",
+          "detail": "Outcome evidence confirms 1 route(s) added through a WST request; $327.00 recovered.",
+          "direction": "recovered_before_review",
+          "dispute_candidate": false,
+          "recovered_routes": 1,
+          "recovered_amount": 327.0
+        },
+        {
+          "check": "Our Data: 10-hour route blocks",
+          "status": "pass",
+          "detail": "WST 220; Amazon invoice 220.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 220.0,
+          "amazon_value": 220.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: 9-hour route blocks",
+          "status": "pass",
+          "detail": "WST 1; Amazon invoice 1.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 1.0,
+          "amazon_value": 1.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: 8-hour route blocks",
+          "status": "pass",
+          "detail": "WST 1; Amazon invoice 1.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 1.0,
+          "amazon_value": 1.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: 10-hour ORE blocks",
+          "status": "pass",
+          "detail": "WST 3; Amazon invoice 3.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 3.0,
+          "amazon_value": 3.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: Training days",
+          "status": "pass",
+          "detail": "WST 4; Amazon invoice 4.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 4.0,
+          "amazon_value": 4.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: Eligible delivered packages",
+          "status": "review",
+          "detail": "WST 68,177; Amazon invoice 68,195.",
+          "direction": "amazon_above_wst",
+          "dispute_candidate": false,
+          "our_value": 68177.0,
+          "amazon_value": 68195.0,
+          "difference": 18.0
+        },
+        {
+          "check": "Our Data: Eligible pickup packages",
+          "status": "pass",
+          "detail": "WST 3; Amazon invoice 3.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 3.0,
+          "amazon_value": 3.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Delivered package quantity",
+          "status": "pass",
+          "detail": "Variable invoice 68,195; incentive invoice 68,195.",
+          "direction": "none",
+          "dispute_candidate": false
+        },
+        {
+          "check": "Pickup incentive quantity at matching rate",
+          "status": "pass",
+          "detail": "Variable invoice has 3 pickup package(s) at $0.05; incentive invoice pays 3.",
+          "direction": "none",
+          "dispute_candidate": false
+        },
+        {
+          "check": "Incentive invoice arithmetic",
+          "status": "pass",
+          "detail": "Line items total $10,229.40; invoice total $10,229.40.",
+          "direction": "none",
+          "dispute_candidate": false
+        }
+      ],
+      "evidence": [
+        {
+          "type": "weekly_reconciliation",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/week37-invoice-reconciliation.json",
+          "sha256": "93142f7aef4038ae22ca7256e576a7823231c0f5298c388a8fd7171f7e2ca2f8"
+        },
+        {
+          "type": "amazon_variable_invoice",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/INV-VVDX0I-0000000830.pdf",
+          "sha256": "2848a4b22f77720c0e0219724aa8e7983582cebdca9ad3da1b33dbe1866996de",
+          "bytes": 16697
+        },
+        {
+          "type": "amazon_incentive_invoice",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/INV-VVDX0I-0000000831.pdf",
+          "sha256": "1cedc75c7dca840f3899fdabfb35d26e137cedb12ae83099ba288e157abbe33e",
+          "bytes": 7322
+        },
+        {
+          "type": "amazon_wst_summary",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/wst/wst-summary.json",
+          "sha256": "1be7917746a171feddd1141c5a6e6c6dff7130e3f85267953a7a4eb84d96d671",
+          "bytes": 1478
+        },
+        {
+          "type": "reconciliation_outcome_email_archive",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/email_inbox/owner/2026-09-17/jason@jeclogs.com.json",
+          "sha256": "f848a82d3812a5e605921f5804801abd1c7772974bfd20284c82e859f0d011fa",
+          "bytes": 123303
+        }
+      ],
+      "sourcePath": "data/payment_reconciliation/2026-wk37/week37-module-case.json"
+    },
+    {
+      "moduleId": "capacity_reliability",
+      "externalKey": "2026-W36",
+      "status": "closed",
+      "disposition": "reconciled",
+      "createdAt": "2026-09-16T23:46:10.996504+00:00",
+      "candidateCount": 0,
+      "recoveredRoutes": null,
+      "recoveredValue": null,
+      "blockingEvidence": [],
+      "externalActionAuthorized": false,
+      "approvalStatus": null,
+      "approvedBy": null,
+      "submissionStatus": null,
+      "submissionConfirmation": null,
+      "findings": [
+        {
+          "date": "2026-08-30",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 33,
+          "completed_routes": 33,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 33,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 33,
+          "excluded_work_orders": 15,
+          "service_types": [
+            "Nursery Route Level 1",
+            "Nursery Route Level 2 - Electric Vehicle",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel Electric - Rivian MEDIUM"
+          ]
+        },
+        {
+          "date": "2026-08-31",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 36,
+          "completed_routes": 36,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 36,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 36,
+          "excluded_work_orders": 19,
+          "service_types": [
+            "Nursery Route Level 1",
+            "Nursery Route Level 2",
+            "Nursery Route Level 3",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel - On-Road Experience: Driver",
+            "Standard Parcel Electric - Rivian MEDIUM",
+            "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+          ]
+        },
+        {
+          "date": "2026-09-01",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 35,
+          "completed_routes": 35,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 35,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 35,
+          "excluded_work_orders": 14,
+          "service_types": [
+            "Nursery Route Level 1",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel Electric - Rivian MEDIUM",
+            "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+          ]
+        },
+        {
+          "date": "2026-09-02",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 35,
+          "completed_routes": 35,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 35,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 35,
+          "excluded_work_orders": 16,
+          "service_types": [
+            "Nursery Route Level 1",
+            "Nursery Route Level 2",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel - On-Road Experience: Driver",
+            "Standard Parcel Electric - Rivian MEDIUM"
+          ]
+        },
+        {
+          "date": "2026-09-03",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 35,
+          "completed_routes": 36,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 35,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 36,
+          "excluded_work_orders": 14,
+          "service_types": [
+            "Nursery Route Level 2",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel - On-Road Experience: Driver",
+            "Standard Parcel Electric - Rivian MEDIUM",
+            "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+          ]
+        },
+        {
+          "date": "2026-09-04",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 36,
+          "completed_routes": 36,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 36,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 36,
+          "excluded_work_orders": 15,
+          "service_types": [
+            "Nursery Route Level 1",
+            "Nursery Route Level 2",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel Electric - Rivian MEDIUM",
+            "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+          ]
+        },
+        {
+          "date": "2026-09-05",
+          "status": "pass",
+          "direction": "matched",
+          "difference": 0,
+          "dispute_candidate": false,
+          "final_scheduled": 34,
+          "completed_routes": 34,
+          "amazon_paid_cancels": 0,
+          "reliability_target": 34,
+          "dsp_dropped_routes": 0,
+          "wst_completed_routes": 34,
+          "excluded_work_orders": 26,
+          "service_types": [
+            "Nursery Route Level 1",
+            "Nursery Route Level 1 - Electric Vehicle",
+            "Nursery Route Level 2 - Electric Vehicle",
+            "Nursery Route Level 3 - Electric Vehicle",
+            "Standard Parcel - Custom Delivery Van 14ft",
+            "Standard Parcel - Custom Delivery Van 16ft",
+            "Standard Parcel - Extra Large Van - US",
+            "Standard Parcel - On-Road Experience: Driver",
+            "Standard Parcel Electric - Rivian MEDIUM",
+            "Standard Parcel Electric - Rivian MEDIUM - Recycle"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "type": "amazon_capacity_reliability",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/scorecard_data/2026-wk36/US-JECS-DFH7-Week36-2026-Capacity-Reliability.xlsx",
+          "sha256": "5bcc2a40e888091a3d168b1361bfd5e81c5fb566ea409320f12fde409e7a23d0",
+          "bytes": 11913
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-08-30-worksheets.json",
+          "sha256": "cce9a33f1b8ce443ebe2aa3b978810302485051ec31d6a9b0f2f796be3a29199",
+          "bytes": 131966
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-08-31-worksheets.json",
+          "sha256": "29e0f0147ae0bb70ec0f4c7fa6eb308e553cb49184b3782999f27cc86a177d18",
+          "bytes": 139716
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-01-worksheets.json",
+          "sha256": "ca9b724728e8809bff187b74b988d572f2cdce6466c7ff7d76a05b7b931d82a8",
+          "bytes": 128184
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-02-worksheets.json",
+          "sha256": "e9087ece213701e320855ff1ab56aa7ece87b965efb053d6b28885fce901a959",
+          "bytes": 133765
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-03-worksheets.json",
+          "sha256": "cfe7b48a527d02257e0e79b3c34105d90a2f962c1313ca06f2d7caef21a5cfc4",
+          "bytes": 133891
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-04-worksheets.json",
+          "sha256": "819c2dfce90361098f47002f39809b9437f83988f567d6c2747e47f657ec206f",
+          "bytes": 136678
+        },
+        {
+          "type": "wst_daily_worksheets",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk36/wst/2026-09-05-worksheets.json",
+          "sha256": "073cfb2ebc84e6563340a9175a672e08edd1ff712bf14d760a8864bc67147831",
+          "bytes": 155721
+        }
+      ],
+      "sourcePath": "data/payment_reconciliation/2026-wk36/week36-capacity-reliability-case.json"
+    },
+    {
+      "moduleId": "fixed_monthly",
+      "externalKey": "FM-0I0000000827-7068E2F524",
+      "status": "submitted",
+      "disposition": "submitted",
+      "createdAt": "2026-09-16T21:11:55.786003+00:00",
+      "candidateCount": 1,
+      "recoveredRoutes": null,
+      "recoveredValue": 260.64,
+      "blockingEvidence": [],
+      "externalActionAuthorized": true,
+      "approvalStatus": "YES",
+      "approvedBy": "jason@jeclogs.com",
+      "submissionStatus": "submitted",
+      "submissionConfirmation": "Reconciliation",
+      "findings": [
+        {
+          "label": "Invoice",
+          "value": "INV-USVVDX0I-0000000827",
+          "detail": "August 2026 - 2026-08-01 to 2026-08-31"
+        },
+        {
+          "label": "Candidate",
+          "value": "FIXED-MONTHLY-FLEET-ENTITLEMENT",
+          "detail": "Please review Fixed Monthly invoice INV-USVVDX0I-0000000827 for W36. Amazon's verified Cargo Van AFS exceeded the paid fleet by up to 2 vehicle(s) on 2026-08-30, 2026-08-31. The attached evidence identifies the affected dates and paid fleet mix. Please reconcile the missing eligible LMR entitlement."
+        },
+        {
+          "label": "Fact",
+          "value": null,
+          "detail": {
+            "week": 36,
+            "afs_target": 39,
+            "minimum_paid_total": 37,
+            "maximum_daily_shortage": 2,
+            "shortage_dates": [
+              "2026-08-30",
+              "2026-08-31"
+            ],
+            "estimated_lmr_due": "260.64",
+            "date_targets": [
+              {
+                "date": "2026-08-30",
+                "amazon_lmr_paid": 12,
+                "amazon_lmr_final_quantity": 14
+              },
+              {
+                "date": "2026-08-31",
+                "amazon_lmr_paid": 12,
+                "amazon_lmr_final_quantity": 14
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "label": "report",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/fleet_reviews/fixed-monthly/2026-08/fixed-monthly-entitlement-review.json",
+          "sha256": "7068e2f524113b80126d330fda04d327dc15112bf8dfccb3fa21287deea0611c"
+        },
+        {
+          "label": "pdf",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/fleet_reviews/fixed-monthly/2026-08/fixed-monthly-entitlement-review.pdf",
+          "sha256": "76bc6a16ef2a662223b7eda0436113e4d9a4fbb781d6cf1e794e07f081b57dd9"
+        },
+        {
+          "label": "source_invoice",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/email_inbox/owner/2026-09-15/jason@jeclogs.com/attachments/e3bb9d0b3a5ca3c3ef4b-JECS_September_2026.pdf",
+          "sha256": "5d05964365b57f2c3c430b421e721ed858c1b6ac35e5513ec9046c4e7ecbc17e"
+        }
+      ],
+      "sourcePath": "data/fleet_reviews/fixed-monthly/approval-queue/FM-0I0000000827-7068E2F524/approval.json"
+    }
+  ],
+  "schedules": [
+    {
+      "id": "1914db4c",
+      "name": "Fixed Monthly Invoice Review",
+      "cadence": "Daily 10:00 ET"
+    },
+    {
+      "id": "7554813f",
+      "name": "Fixed Monthly Approval Processor",
+      "cadence": "Every 15 min"
+    },
+    {
+      "id": "539fdf4d",
+      "name": "Payment Reconciliation Review Cycle",
+      "cadence": "Daily 11:00 ET"
+    },
+    {
+      "id": "c4871993",
+      "name": "Reconciliation Module Approval Monitor",
+      "cadence": "Every 15 min"
+    }
+  ]
+}

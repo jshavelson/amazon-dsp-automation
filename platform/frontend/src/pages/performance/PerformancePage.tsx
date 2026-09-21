@@ -270,8 +270,37 @@ const PerformancePage: React.FC = () => {
       },
     ];
 
-    setDrivers(mockDrivers);
-    setTeams(mockTeams);
+    const normalizedDrivers = mockDrivers.map((driver, index) => {
+      const legacy = driver as unknown as {
+        week: string; score: number; grade: string; onTimeDeliveryRate: number;
+        packagesPerHour: number; safetyIncidents: number; customerComplaints: number;
+        routeCompletionRate: number; fuelEfficiency: number;
+      };
+      return {
+        ...driver,
+        period: legacy.week,
+        metrics: [],
+        overallScore: legacy.score,
+        deliveryScore: legacy.onTimeDeliveryRate,
+        safetyScore: Math.max(0, 100 - legacy.safetyIncidents * 15),
+        efficiencyScore: Math.min(100, legacy.packagesPerHour * 2),
+        qualityScore: Math.max(0, 100 - legacy.customerComplaints * 8),
+        costScore: Math.min(100, legacy.fuelEfficiency * 4),
+        complianceScore: legacy.routeCompletionRate,
+        rank: index + 1,
+        percentile: Math.round((mockDrivers.length - index) / mockDrivers.length * 100),
+        trend: 'stable' as const,
+      } as DriverPerformanceScore & { grade: string; onTimeDeliveryRate: number; safetyIncidents: number; customerComplaints: number };
+    });
+    const normalizedById = new Map(normalizedDrivers.map((driver) => [driver.driverId, driver]));
+    const normalizedTeams = mockTeams.map((team) => ({
+      ...team,
+      topPerformers: team.topPerformers.map((driver) => normalizedById.get(driver.driverId) || driver),
+      bottomPerformers: team.bottomPerformers.map((driver) => normalizedById.get(driver.driverId) || driver),
+    }));
+
+    setDrivers(normalizedDrivers);
+    setTeams(normalizedTeams);
     setDspPerformance(mockDspPerformance);
     setAlerts(mockAlerts);
   }, []);
@@ -355,7 +384,7 @@ const PerformancePage: React.FC = () => {
       width: '80px',
       render: (value) => (
         <Badge
-          variant={
+          variant={{
             A: 'success',
             B: 'primary',
             C: 'warning',
@@ -454,7 +483,7 @@ const PerformancePage: React.FC = () => {
   // Loading state
   if (isDashboardLoading || isDriverLoading || isTeamLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading performance data..." />
       </div>
     );
@@ -463,7 +492,7 @@ const PerformancePage: React.FC = () => {
   // Error state
   if (dashboardError || driverError || teamError) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <p className="text-danger-600 mb-4">Failed to load performance data</p>
           <Button onClick={() => {
@@ -608,7 +637,7 @@ const PerformancePage: React.FC = () => {
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-500">On-Time %</p>
-            <p className="text-xl font-bold text-gray-900">{dspPerformance?.onTimeDeliveryRate.toFixed(1) || '0'}%</p>
+            <p className="text-xl font-bold text-gray-900">{Number(dspPerformance?.onTimeDeliveryRate ?? 0).toFixed(1)}%</p>
           </div>
         </div>
       </motion.div>
@@ -641,7 +670,7 @@ const PerformancePage: React.FC = () => {
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-semibold text-gray-900">{team.teamName}</h4>
                 <Badge
-                  variant={
+                  variant={{
                     improving: 'success',
                     stable: 'primary',
                     declining: 'danger',
@@ -674,7 +703,7 @@ const PerformancePage: React.FC = () => {
                   {team.topPerformers.slice(0, 2).map((driver) => (
                     <div key={driver.driverId} className="flex items-center justify-between">
                       <span className="text-xs text-gray-600 truncate">{driver.driverName}</span>
-                      <span className="text-xs font-medium text-gray-900">{driver.overallScore.toFixed(1)}</span>
+                      <span className="text-xs font-medium text-gray-900">{Number(driver.overallScore ?? (driver as unknown as { score?: number }).score ?? 0).toFixed(1)}</span>
                     </div>
                   ))}
                 </div>
@@ -733,7 +762,7 @@ const PerformancePage: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Badge
-                  variant={
+                  variant={{
                     high: 'danger',
                     critical: 'danger',
                     medium: 'warning',
@@ -790,6 +819,7 @@ const PerformancePage: React.FC = () => {
         <Table
           columns={driverColumns}
           data={sortedDrivers}
+          keyExtractor={(driver) => driver.driverId}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSort={handleSort}

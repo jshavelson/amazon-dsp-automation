@@ -2,7 +2,8 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import { ApiError } from '@/types/common';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Use relative path for Vite dev server proxy to work
+const API_BASE_URL = '/api';
 const API_TIMEOUT = 30000;
 
 // Create axios instance
@@ -17,9 +18,10 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('dsp-platform-id-token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+      config.headers['x-tenant-id'] = 'jecs';
     }
     return config;
   },
@@ -41,7 +43,9 @@ apiClient.interceptors.response.use(
           // Unauthorized - clear token and redirect to login
           localStorage.removeItem('auth_token');
           localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          sessionStorage.removeItem('dsp-platform-id-token');
+          sessionStorage.removeItem('dsp-platform-token-expiry');
+          window.location.href = import.meta.env.PROD ? '/' : '/login';
           break;
         case 403:
           // Forbidden - user doesn't have permission
@@ -79,7 +83,13 @@ export const api = {
   },
 
   post: async <T>(url: string, data?: unknown, config?: Record<string, unknown>): Promise<T> => {
-    const response = await apiClient.post<T>(url, data, config);
+    // FormData must keep the browser-generated multipart boundary, so the
+    // instance-level JSON content type is removed for file uploads.
+    const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+    const requestConfig = isFormData
+      ? { ...config, headers: { ...(config?.headers as Record<string, string> | undefined), 'Content-Type': undefined } }
+      : config;
+    const response = await apiClient.post<T>(url, data, requestConfig);
     return response.data;
   },
 
@@ -242,7 +252,7 @@ export const performanceApi = {
 
 // Fleet Costs API endpoints
 export const fleetCostApi = {
-  getAll: (params?: Record<string, unknown>) => api.get<unknown>('/fleet-costs', params),
+  getAll: (params?: Record<string, unknown>) => api.get<unknown>('/fleet-costs/records', params),
   getById: (id: string) => api.get<unknown>(`/fleet-costs/${id}`),
   create: (data: unknown) => api.post<unknown>('/fleet-costs', data),
   update: (id: string, data: unknown) => api.put<unknown>(`/fleet-costs/${id}`, data),

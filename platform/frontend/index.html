@@ -2,21 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Amazon DSP Operations Dashboard - Manage your delivery operations efficiently" />
     <meta name="theme-color" content="#2563eb" />
     
-    <!-- Preconnect to external resources -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    
     <!-- PWA manifest -->
-    <link rel="manifest" href="/manifest.json" />
-    
-    <!-- Apple touch icon -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="%BASE_URL%manifest.json" />
     
     <title>Amazon DSP Dashboard</title>
     
@@ -24,9 +16,9 @@
     <script type="module">
       // Set global environment variables
       window.__ENV__ = {
-        API_BASE_URL: import.meta.env.VITE_API_BASE_URL || '/api',
-        APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
-        APP_NAME: import.meta.env.VITE_APP_NAME || 'Amazon DSP Dashboard',
+        API_BASE_URL: '/api',
+        APP_VERSION: '1.0.0',
+        APP_NAME: 'Amazon DSP Dashboard',
       };
     </script>
   </head>

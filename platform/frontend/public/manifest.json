@@ -1,0 +1,17 @@
+{
+  "name": "Amazon DSP Dashboard",
+  "short_name": "DSP Dashboard",
+  "description": "Amazon DSP Operations Dashboard",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/app/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

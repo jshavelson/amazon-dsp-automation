@@ -1,1341 +1,160 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Filter, Download, MoreVertical, Edit, Trash2, Eye, Search } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { DataTable } from '@/components/shared/DataTable';
-import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DatePickerWithRange } from '@/components/ui/date-range-picker';
-import { BarChart, LineChart, PieChart } from '@/components/charts';
-import { Modal, ConfirmModal } from '@/components/modals';
-import { Form, FormInput, FormSelect } from '@/components/forms';
-import { fleetCostApi } from '@/services/api';
-import {
-  FleetCost,
-  FleetCostSummary,
-  CostTrend,
-  CostBudget,
-  CostForecast,
-  FuelCostAnalysis,
-  MaintenanceCostAnalysis,
-  CostType,
-  CostCategory,
-  CostStatus,
-  AllocationTarget,
-  AllocationMethod,
-  PaymentMethod,
-} from '@/types/fleet-costs';
-import { PaginatedResponse, FilterParams, SelectOption } from '@/types/common';
-import { toast } from 'sonner';
+import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Building2, Download, FileSpreadsheet, RefreshCw, Scale, Truck } from 'lucide-react';
+import { api } from '@/services/api';
 
-// Query keys for React Query
-const FLEET_COSTS_QUERY_KEYS = {
-  ALL: ['fleet-costs'] as const,
-  LIST: (params?: FilterParams) => ['fleet-costs', 'list', params] as const,
-  SUMMARY: (period?: string) => ['fleet-costs', 'summary', period] as const,
-  FUEL_ANALYSIS: (period?: string) => ['fleet-costs', 'fuel-analysis', period] as const,
-  MAINTENANCE_ANALYSIS: (period?: string) => ['fleet-costs', 'maintenance-analysis', period] as const,
-  TRENDS: (period?: string) => ['fleet-costs', 'trends', period] as const,
-  BUDGETS: (period?: string) => ['fleet-costs', 'budgets', period] as const,
-  FORECASTS: (period?: string) => ['fleet-costs', 'forecasts', period] as const,
+type MonthRow = { month: string; status: string; invoiceBasis: string; includedCost: number; amazonCoverage: number; difference: number; coverageRate: number | null; thirdPartyRentalCost: number; rentalLeaseCoverage: number; rentalLeaseBalance: number; lmrCost: number; lmrCoverage: number; lmrBalance: number; elementCost: number; acuraExcluded: number; rawExportTotal: number; fullAmazonCoverage: number };
+type Vendor = { vendor: string; monthly: number[]; total: number; coverageClass: string };
+type AmazonClass = { category: string; coverage: number[]; vehicleDays: number[]; perVehicleDay: (number | null)[]; group: 'lmr' | 'rental_lease' | 'branded' };
+type Bridge = { period: string; finalGross: number | null; priorAdvanceDeducted: number | null; netReconciliation: number | null; invoiceIssued: string; note: string | null };
+type Charge = { month: string; datePosted: string | null; vendor: string; account: string; netCharge: number; treatment: string; memo: string; vin: string | null; invoice: string | null };
+type Payload = {
+  period: string; asOf: string; source: string; tenant?: string; needsData?: boolean;
+  dataSources?: { side: string; label: string; kind: string; reference: string | null; asOf: string | null; contentSha256?: string; uploadedBy?: string }[];
+  summary: { threeMonthIncludedCost: number; threeMonthAmazonCoverage: number; threeMonthDifference: number; coverageRate: number; augustDifference: number; thirdPartyRentalCost: number; rentalLeaseCoverage: number; lmrCost: number; lmrCoverage: number; elementCost: number; acuraExcluded: number; fullAmazonCoverage: number; includedTransactions: number; excludedTransactions: number; unmatchedVinCharges: number };
+  months: MonthRow[]; vendors: Vendor[]; amazonClasses: AmazonClass[]; invoiceBridge: Bridge[]; charges: Charge[]; notes: { topic: string; detail: string }[]; caveats: string[];
 };
 
-// Cost type options
-const COST_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'fixed', label: 'Fixed' },
-  { value: 'variable', label: 'Variable' },
-  { value: 'capital', label: 'Capital' },
-  { value: 'operating', label: 'Operating' },
-  { value: 'maintenance', label: 'Maintenance' },
-  { value: 'insurance', label: 'Insurance' },
-  { value: 'fuel', label: 'Fuel' },
-  { value: 'labor', label: 'Labor' },
-];
+const usd = (v: number | null | undefined, digits = 0) => v == null ? '—' : v.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
+const signed = (v: number, digits = 0) => (v >= 0 ? '+' : '−') + usd(Math.abs(v), digits);
+const tone = (v: number) => v >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300';
 
-// Cost category options
-const COST_CATEGORY_OPTIONS: SelectOption[] = [
-  { value: 'fuel', label: 'Fuel' },
-  { value: 'maintenance', label: 'Maintenance' },
-  { value: 'insurance', label: 'Insurance' },
-  { value: 'leasing', label: 'Leasing' },
-  { value: 'depreciation', label: 'Depreciation' },
-  { value: 'tolls', label: 'Tolls' },
-  { value: 'parking', label: 'Parking' },
-  { value: 'tires', label: 'Tires' },
-  { value: 'batteries', label: 'Batteries' },
-  { value: 'repairs', label: 'Repairs' },
-  { value: 'washes', label: 'Washes' },
-  { value: 'inspections', label: 'Inspections' },
-  { value: 'registrations', label: 'Registrations' },
-  { value: 'taxes', label: 'Taxes' },
-  { value: 'financing', label: 'Financing' },
-  { value: 'storage', label: 'Storage' },
-  { value: 'equipment', label: 'Equipment' },
-  { value: 'software', label: 'Software' },
-  { value: 'training', label: 'Training' },
-  { value: 'safety', label: 'Safety' },
-  { value: 'other', label: 'Other' },
-];
+const PairedBars: React.FC<{ title: string; subtitle: string; rows: { label: string; a: number; b: number }[]; aLabel: string; bLabel: string; masked: boolean }> = ({ title, subtitle, rows, aLabel, bLabel, masked }) => {
+  const max = Math.max(...rows.flatMap((r) => [r.a, r.b]), 1);
+  return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3><p className="text-xs text-gray-500 dark:text-slate-400">{subtitle}</p></div>
+      <div className="flex gap-3 text-xs text-gray-500 dark:text-slate-400"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-red-500" />{aLabel}</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-blue-500" />{bLabel}</span></div></div>
+    <div className="mt-4 space-y-4">{rows.map((r) => { const diff = r.b - r.a; return <div key={r.label}>
+      <div className="mb-1 flex items-center justify-between text-xs"><span className="font-medium text-gray-700 dark:text-slate-200">{r.label}</span><span className={'font-semibold tabular-nums ' + tone(diff)}>{masked ? '•••' : signed(diff)}</span></div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2"><div className="h-3 flex-1 rounded bg-gray-100 dark:bg-slate-800"><div className="h-3 rounded bg-red-500" style={{ width: (r.a / max * 100) + '%' }} /></div><span className="w-24 text-right text-xs tabular-nums text-gray-600 dark:text-slate-300">{masked ? '•••' : usd(r.a)}</span></div>
+        <div className="flex items-center gap-2"><div className="h-3 flex-1 rounded bg-gray-100 dark:bg-slate-800"><div className="h-3 rounded bg-blue-500" style={{ width: (r.b / max * 100) + '%' }} /></div><span className="w-24 text-right text-xs tabular-nums text-gray-600 dark:text-slate-300">{masked ? '•••' : usd(r.b)}</span></div>
+      </div></div>; })}</div>
+  </article>;
+};
 
-// Status options
-const STATUS_OPTIONS: SelectOption[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'reimbursed', label: 'Reimbursed' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
+const Kpi: React.FC<{ label: string; value: string; detail: string; valueClass?: string; icon: React.ReactNode }> = ({ label, value, detail, valueClass, icon }) => (
+  <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{label}</p><p className={'mt-2 text-2xl font-bold tabular-nums ' + (valueClass || 'text-gray-900 dark:text-white')}>{value}</p><p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{detail}</p></div><span className="rounded-lg bg-gray-100 p-2 text-gray-600 dark:bg-slate-800 dark:text-slate-300">{icon}</span></div></article>
+);
 
-// Allocation target options
-const ALLOCATION_TARGET_OPTIONS: SelectOption[] = [
-  { value: 'dsp', label: 'DSP' },
-  { value: 'van', label: 'Van' },
-  { value: 'driver', label: 'Driver' },
-  { value: 'route', label: 'Route' },
-  { value: 'team', label: 'Team' },
-];
-
-// Allocation method options
-const ALLOCATION_METHOD_OPTIONS: SelectOption[] = [
-  { value: 'direct', label: 'Direct' },
-  { value: 'per_mile', label: 'Per Mile' },
-  { value: 'per_hour', label: 'Per Hour' },
-  { value: 'per_route', label: 'Per Route' },
-  { value: 'per_van', label: 'Per Van' },
-  { value: 'per_driver', label: 'Per Driver' },
-  { value: 'percentage', label: 'Percentage' },
-];
-
-// Payment method options
-const PAYMENT_METHOD_OPTIONS: SelectOption[] = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'credit_card', label: 'Credit Card' },
-  { value: 'debit_card', label: 'Debit Card' },
-  { value: 'check', label: 'Check' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'company_card', label: 'Company Card' },
-  { value: 'reimbursement', label: 'Reimbursement' },
-];
-
-// FleetCostsPage component
 const FleetCostsPage: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<FilterParams>({});
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date } | undefined>();
-  const [selectedCostType, setSelectedCostType] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('current-month');
-  
-  // Modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedCost, setSelectedCost] = useState<FleetCost | null>(null);
-  const [deleteCostId, setDeleteCostId] = useState<string>('');
+  const [masked, setMasked] = useState(() => localStorage.getItem('jec-mask-financial') === '1');
+  const [chargeMonth, setChargeMonth] = useState('all');
+  const [chargeVendor, setChargeVendor] = useState('all');
+  const { data, isLoading, error, refetch, isFetching } = useQuery<Payload>({ queryKey: ['fleet-costs-reconciliation'], queryFn: () => api.get<Payload>('/fleet-costs'), staleTime: 5 * 60 * 1000 });
+  const m = (v: number | null | undefined, d = 0) => masked ? '•••' : usd(v, d);
+  const ms = (v: number, d = 0) => masked ? '•••' : signed(v, d);
+  const toggleMask = () => setMasked((c) => { localStorage.setItem('jec-mask-financial', c ? '0' : '1'); return !c; });
 
-  // Fetch fleet costs
-  const {
-    data: fleetCostsData,
-    isLoading: isLoadingCosts,
-    error: costsError,
-  } = useQuery<PaginatedResponse<FleetCost>>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.LIST(filters),
-    queryFn: async () => {
-      const params: Record<string, unknown> = { ...filters };
-      if (searchQuery) params.search = searchQuery;
-      if (selectedCostType) params.costType = selectedCostType;
-      if (selectedCategory) params.costCategory = selectedCategory;
-      if (selectedStatus) params.status = selectedStatus;
-      if (dateRange) {
-        params.startDate = dateRange.from.toISOString().split('T')[0];
-        params.endDate = dateRange.to.toISOString().split('T')[0];
-      }
-      return fleetCostApi.getAll(params);
-    },
-  });
+  const charges = useMemo(() => (data?.charges || []).filter((c) => (chargeMonth === 'all' || c.month === chargeMonth) && (chargeVendor === 'all' || c.vendor === chargeVendor)), [data, chargeMonth, chargeVendor]);
+  const chargeTotal = useMemo(() => charges.filter((c) => c.treatment === 'INCLUDE').reduce((s, c) => s + c.netCharge, 0), [charges]);
 
-  // Fetch fleet cost summary
-  const {
-    data: summaryData,
-    isLoading: isLoadingSummary,
-    error: summaryError,
-  } = useQuery<FleetCostSummary>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.SUMMARY(selectedPeriod),
-    queryFn: () => fleetCostApi.getSummary({ period: selectedPeriod }),
-  });
+  const exportCsv = () => {
+    if (!data) return;
+    const head = ['Month', 'Status', 'Included fleet cost', 'Amazon coverage', 'Difference', 'Coverage %', 'Enterprise+Hertz cost', 'Rental/lease coverage', 'MerchAuto LMR cost', 'LMR coverage', 'Element', 'Acura excluded', 'Full Amazon fleet coverage'];
+    const rows = data.months.map((r) => [r.month, r.status, r.includedCost, r.amazonCoverage, r.difference, r.coverageRate ?? '', r.thirdPartyRentalCost, r.rentalLeaseCoverage, r.lmrCost, r.lmrCoverage, r.elementCost, r.acuraExcluded, r.fullAmazonCoverage]);
+    const csv = [head, ...rows].map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = 'fleet-cost-reconciliation-jun-aug-2026.csv'; a.click(); URL.revokeObjectURL(url);
+  };
 
-  // Fetch fuel analysis
-  const {
-    data: fuelAnalysisData,
-    isLoading: isLoadingFuelAnalysis,
-  } = useQuery<FuelCostAnalysis>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.FUEL_ANALYSIS(selectedPeriod),
-    queryFn: () => fleetCostApi.getFuelAnalysis({ period: selectedPeriod }),
-  });
+  if (isLoading) return <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">Loading fleet cost reconciliation…</div>;
+  if (error || !data) return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"><strong>Fleet cost reconciliation could not be loaded.</strong><button onClick={() => refetch()} className="ml-3 underline">Retry</button></div>;
 
-  // Fetch maintenance analysis
-  const {
-    data: maintenanceAnalysisData,
-    isLoading: isLoadingMaintenanceAnalysis,
-  } = useQuery<MaintenanceCostAnalysis>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.MAINTENANCE_ANALYSIS(selectedPeriod),
-    queryFn: () => fleetCostApi.getMaintenanceAnalysis({ period: selectedPeriod }),
-  });
+  // A workspace with no confirmed Digits upload has nothing to reconcile yet.
+  if (data.needsData) return <div className="space-y-6 pb-10">
+    <section><p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Fleet finance</p><h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Fleet Costs</h1></section>
+    <section className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900">
+      <FileSpreadsheet className="mx-auto text-gray-400" size={32} />
+      <h2 className="mt-3 text-lg font-semibold text-gray-900 dark:text-white">No fleet charges uploaded yet</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-slate-400">Upload your Digits export on the Connections screen to compare what you paid for rentals against what Amazon reimbursed.</p>
+      <a href="/connections" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Go to Connections</a>
+    </section>
+  </div>;
 
-  // Fetch cost trends
-  const {
-    data: trendsData,
-    isLoading: isLoadingTrends,
-  } = useQuery<CostTrend[]>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.TRENDS(selectedPeriod),
-    queryFn: () => fleetCostApi.getTrends({ period: selectedPeriod }),
-  });
+  const s = data.summary;
+  const months = data.months;
+  const vendorsList = ['all', ...new Set(data.charges.map((c) => c.vendor))];
 
-  // Fetch budgets
-  const {
-    data: budgetsData,
-    isLoading: isLoadingBudgets,
-  } = useQuery<CostBudget[]>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.BUDGETS(selectedPeriod),
-    queryFn: () => fleetCostApi.getBudgets({ period: selectedPeriod }),
-  });
-
-  // Fetch forecasts
-  const {
-    data: forecastsData,
-    isLoading: isLoadingForecasts,
-  } = useQuery<CostForecast[]>({
-    queryKey: FLEET_COSTS_QUERY_KEYS.FORECASTS(selectedPeriod),
-    queryFn: () => fleetCostApi.getForecasts({ period: selectedPeriod }),
-  });
-
-  // Create fleet cost mutation
-  const createFleetCostMutation = useMutation({
-    mutationFn: fleetCostApi.create,
-    onSuccess: () => {
-      toast.success('Fleet cost created successfully');
-      queryClient.invalidateQueries({ queryKey: FLEET_COSTS_QUERY_KEYS.ALL });
-      setIsAddModalOpen(false);
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to create fleet cost: ${error.message}`);
-    },
-  });
-
-  // Update fleet cost mutation
-  const updateFleetCostMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<FleetCost> }) =>
-      fleetCostApi.update(id, data),
-    onSuccess: () => {
-      toast.success('Fleet cost updated successfully');
-      queryClient.invalidateQueries({ queryKey: FLEET_COSTS_QUERY_KEYS.ALL });
-      setIsEditModalOpen(false);
-      setSelectedCost(null);
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update fleet cost: ${error.message}`);
-    },
-  });
-
-  // Delete fleet cost mutation
-  const deleteFleetCostMutation = useMutation({
-    mutationFn: fleetCostApi.delete,
-    onSuccess: () => {
-      toast.success('Fleet cost deleted successfully');
-      queryClient.invalidateQueries({ queryKey: FLEET_COSTS_QUERY_KEYS.ALL });
-      setIsDeleteModalOpen(false);
-      setDeleteCostId('');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete fleet cost: ${error.message}`);
-    },
-  });
-
-  // Handle filter changes
-  const handleFilterChange = useCallback((newFilters: FilterParams) => {
-    setFilters(newFilters);
-  }, []);
-
-  // Handle search
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-  }, []);
-
-  // Handle date range change
-  const handleDateRangeChange = useCallback((range: { from: Date; to: Date } | undefined) => {
-    setDateRange(range);
-  }, []);
-
-  // Handle period change
-  const handlePeriodChange = useCallback((period: string) => {
-    setSelectedPeriod(period);
-  }, []);
-
-  // Handle add new cost
-  const handleAddCost = useCallback((data: Partial<FleetCost>) => {
-    createFleetCostMutation.mutate(data as FleetCost);
-  }, [createFleetCostMutation]);
-
-  // Handle edit cost
-  const handleEditCost = useCallback((data: Partial<FleetCost>) => {
-    if (selectedCost) {
-      updateFleetCostMutation.mutate({ id: selectedCost.id, data });
-    }
-  }, [selectedCost, updateFleetCostMutation]);
-
-  // Handle delete cost
-  const handleDeleteCost = useCallback(() => {
-    if (deleteCostId) {
-      deleteFleetCostMutation.mutate(deleteCostId);
-    }
-  }, [deleteCostId, deleteFleetCostMutation]);
-
-  // Handle view cost
-  const handleViewCost = useCallback((cost: FleetCost) => {
-    setSelectedCost(cost);
-    setIsViewModalOpen(true);
-  }, []);
-
-  // Handle edit modal open
-  const handleEditModalOpen = useCallback((cost: FleetCost) => {
-    setSelectedCost(cost);
-    setIsEditModalOpen(true);
-  }, []);
-
-  // Handle delete modal open
-  const handleDeleteModalOpen = useCallback((costId: string) => {
-    setDeleteCostId(costId);
-    setIsDeleteModalOpen(true);
-  }, []);
-
-  // Get status badge variant
-  const getStatusBadgeVariant = useCallback((status: CostStatus) => {
-    switch (status) {
-      case 'paid':
-        return 'success';
-      case 'approved':
-        return 'info';
-      case 'pending':
-        return 'warning';
-      case 'rejected':
-      case 'cancelled':
-        return 'destructive';
-      case 'reimbursed':
-        return 'secondary';
-      default:
-        return 'default';
-    }
-  }, []);
-
-  // Format currency
-  const formatCurrency = useCallback((amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  }, []);
-
-  // Format date
-  const formatDate = useCallback((dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }, []);
-
-  // Columns for data table
-  const columns = [
-    {
-      key: 'date',
-      header: 'Date',
-      sortable: true,
-      render: (value: string) => formatDate(value),
-    },
-    {
-      key: 'costType',
-      header: 'Type',
-      sortable: true,
-      render: (value: CostType) => (
-        <Badge variant="outline" className="capitalize">
-          {value.replace('_', ' ')}
-        </Badge>
-      ),
-    },
-    {
-      key: 'costCategory',
-      header: 'Category',
-      sortable: true,
-      render: (value: CostCategory) => (
-        <Badge variant="outline" className="capitalize">
-          {value.replace('_', ' ')}
-        </Badge>
-      ),
-    },
-    {
-      key: 'description',
-      header: 'Description',
-      sortable: true,
-    },
-    {
-      key: 'amount',
-      header: 'Amount',
-      sortable: true,
-      render: (value: number) => formatCurrency(value),
-      className: 'text-right',
-    },
-    {
-      key: 'totalAmount',
-      header: 'Total',
-      sortable: true,
-      render: (value: number) => formatCurrency(value),
-      className: 'text-right',
-    },
-    {
-      key: 'vendor',
-      header: 'Vendor',
-      sortable: true,
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      render: (value: CostStatus) => (
-        <Badge variant={getStatusBadgeVariant(value)} className="capitalize">
-          {value.replace('_', ' ')}
-        </Badge>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (_: unknown, row: FleetCost) => (
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleViewCost(row)}
-            className="h-8 w-8 p-0"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleEditModalOpen(row)}
-            className="h-8 w-8 p-0"
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleDeleteModalOpen(row.id)}
-            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
-  // Data for the table
-  const tableData = fleetCostsData?.data || [];
-
-  // Loading state
-  const isLoading = isLoadingCosts || isLoadingSummary;
-
-  // Error state
-  const error = costsError || summaryError;
-
-  // Prepare chart data
-  const costByCategoryData = summaryData?.costByCategory
-    ? Object.entries(summaryData.costByCategory).map(([category, amount]) => ({
-        name: category.replace('_', ' '),
-        value: amount,
-      }))
-    : [];
-
-  const costTrendsData = trendsData?.map((trend) => ({
-    period: trend.period,
-    totalCost: trend.totalCost,
-    costPerMile: trend.costPerMile,
-    costPerDelivery: trend.costPerDelivery,
-  })) || [];
-
-  const budgetData = budgetsData?.map((budget) => ({
-    category: budget.category.replace('_', ' '),
-    budgeted: budget.budgetedAmount,
-    actual: budget.actualAmount,
-    variance: budget.variance,
-  })) || [];
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Fleet Costs</h1>
-          <p className="text-muted-foreground">
-            Manage and track all fleet-related expenses
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => {}}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button onClick={() => setIsAddModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Cost
-          </Button>
-        </div>
+  return <div className="space-y-6 pb-10">
+    <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div><p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Fleet finance · {data.period}</p><h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Fleet Costs — what Amazon pays vs what I pay</h1><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-slate-400">Rental and LMR invoices I paid (Digits) against the Amazon vehicle coverage posted on the monthly reconciliation invoices. June/July final, August advance.</p></div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={toggleMask} aria-pressed={masked} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">{masked ? 'Show financial data' : 'Mask financial data'}</button>
+        <button onClick={() => refetch()} disabled={isFetching} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />Refresh</button>
+        <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Download size={15} />Export months</button>
       </div>
+    </section>
 
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="costs">All Costs</TabsTrigger>
-          <TabsTrigger value="fuel">Fuel Analysis</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          <TabsTrigger value="budgets">Budgets</TabsTrigger>
-          <TabsTrigger value="forecasts">Forecasts</TabsTrigger>
-        </TabsList>
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Kpi label="3-month I paid (included)" value={m(s.threeMonthIncludedCost, 2)} detail={'Enterprise, Hertz, MerchAuto LMR, Element · Acura ' + m(s.acuraExcluded) + ' excluded'} icon={<Building2 size={20} />} />
+      <Kpi label="3-month Amazon paid me (rental + LMR + lease classes)" value={m(s.threeMonthAmazonCoverage, 2)} detail="June/July final invoices + August advance" icon={<Truck size={20} />} />
+      <Kpi label="3-month difference" value={ms(s.threeMonthDifference, 2)} valueClass={tone(s.threeMonthDifference)} detail={'Coverage rate ' + (masked ? '•••' : s.coverageRate.toFixed(1) + '%') + ' · posting-period, not net profit'} icon={s.threeMonthDifference >= 0 ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />} />
+      <Kpi label="August difference" value={ms(s.augustDifference, 2)} valueClass={tone(s.augustDifference)} detail="Provisional — August final reconciliation not yet posted" icon={<AlertTriangle size={20} />} />
+    </section>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
-          {isLoadingSummary ? (
-            <LoadingSpinner />
-          ) : summaryData ? (
-            <>
-              {/* Summary Cards */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      className="h-4 w-4 text-muted-foreground"
-                    >
-                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                    </svg>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summaryData.totalCost)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {summaryData.period}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Fixed Cost</CardTitle>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      className="h-4 w-4 text-muted-foreground"
-                    >
-                      <rect width="20" height="14" x="2" y="5" rx="2" />
-                      <path d="M2 10h20" />
-                    </svg>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summaryData.totalFixedCost)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Fixed expenses
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Variable Cost</CardTitle>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      className="h-4 w-4 text-muted-foreground"
-                    >
-                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                    </svg>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summaryData.totalVariableCost)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Variable expenses
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Cost Per Mile</CardTitle>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      className="h-4 w-4 text-muted-foreground"
-                    >
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summaryData.costPerMile)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Per mile
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+    {data.dataSources && <section className="grid gap-3 sm:grid-cols-2">{data.dataSources.map((src) => (
+      <article key={src.side} className={'rounded-xl border p-4 ' + (src.kind === 'tenant_upload' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900')}>
+        <div className="flex items-start justify-between gap-2">
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{src.side}</p><p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">{src.label}</p></div>
+          <span className={'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ' + (src.kind === 'tenant_upload' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300')}>{src.kind === 'tenant_upload' ? 'Your upload' : 'Reference'}</span>
+        </div>
+        <p className="mt-1 font-mono text-[11px] text-gray-500 dark:text-slate-400">{src.reference}{src.contentSha256 ? ' · sha256 ' + src.contentSha256.slice(0, 12) : ''}</p>
+        <p className="mt-1 text-[11px] text-gray-500 dark:text-slate-400">As of {src.asOf ? new Date(src.asOf).toLocaleDateString('en-US', { dateStyle: 'medium' }) : 'unknown'}{src.uploadedBy ? ' · uploaded by ' + src.uploadedBy : ''}</p>
+      </article>))}</section>}
 
-              {/* Charts */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Cost by Category</CardTitle>
-                    <CardDescription>
-                      Distribution of fleet costs by category
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <PieChart
-                      data={costByCategoryData}
-                      height={300}
-                    />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Cost Trends</CardTitle>
-                    <CardDescription>
-                      Historical cost trends over time
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <LineChart
-                      data={costTrendsData}
-                      xKey="period"
-                      yKeys={['totalCost', 'costPerMile', 'costPerDelivery']}
-                      height={300}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          ) : null}
-        </TabsContent>
+    <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200"><strong>Where the gap is:</strong> Enterprise/Hertz cost me {m(s.thirdPartyRentalCost)} over three months while Amazon's Rental Van + DSP Leased Van classes paid {m(s.rentalLeaseCoverage)} ({ms(s.rentalLeaseCoverage - s.thirdPartyRentalCost)}). MerchAuto LMR cost {m(s.lmrCost)} against {m(s.lmrCoverage)} LMR coverage ({ms(s.lmrCoverage - s.lmrCost)}). The LMR surplus has been covering the third-party rental shortfall; it stopped covering it in August.</section>
 
-        {/* All Costs Tab */}
-        <TabsContent value="costs" className="space-y-4">
-          {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Filters</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search costs..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Cost Type</label>
-                <Select
-                  value={selectedCostType}
-                  onValueChange={setSelectedCostType}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All types</SelectItem>
-                    {COST_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
-                <Select
-                  value={selectedCategory}
-                  onValueChange={setSelectedCategory}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All categories</SelectItem>
-                    {COST_CATEGORY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <Select
-                  value={selectedStatus}
-                  onValueChange={setSelectedStatus}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All statuses</SelectItem>
-                    {STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">Date Range</label>
-                <DatePickerWithRange
-                  dateRange={dateRange}
-                  onDateRangeChange={handleDateRangeChange}
-                />
-              </div>
-            </CardContent>
-          </Card>
+    <section className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Monthly reconciliation</h2><p className="text-xs text-gray-500 dark:text-slate-400">Included fleet expense vs Amazon rental/LMR/lease coverage</p></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Month</th><th className="px-4 py-3">Basis</th><th className="px-4 py-3 text-right">I paid</th><th className="px-4 py-3 text-right">Amazon paid</th><th className="px-4 py-3 text-right">Difference</th><th className="px-4 py-3 text-right">Coverage</th><th className="px-4 py-3 text-right">Ent/Hertz vs rental cov.</th><th className="px-4 py-3 text-right">LMR vs LMR cov.</th><th className="px-4 py-3 text-right">Full Amazon fleet pay</th></tr></thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{months.map((r) => <tr key={r.month} className="text-gray-700 dark:text-slate-200">
+          <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{r.month}<span className={'ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ' + (r.status === 'final' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200')}>{r.status}</span></td>
+          <td className="px-4 py-3 text-xs text-gray-500 dark:text-slate-400">{r.invoiceBasis}</td>
+          <td className="px-4 py-3 text-right tabular-nums">{m(r.includedCost, 2)}</td><td className="px-4 py-3 text-right tabular-nums">{m(r.amazonCoverage, 2)}</td>
+          <td className={'px-4 py-3 text-right font-semibold tabular-nums ' + tone(r.difference)}>{ms(r.difference, 2)}</td>
+          <td className="px-4 py-3 text-right tabular-nums">{masked || r.coverageRate == null ? '•••' : r.coverageRate.toFixed(1) + '%'}</td>
+          <td className={'px-4 py-3 text-right tabular-nums ' + tone(r.rentalLeaseBalance)}>{ms(r.rentalLeaseBalance)}<span className="block text-[11px] font-normal text-gray-500 dark:text-slate-400">{m(r.thirdPartyRentalCost)} vs {m(r.rentalLeaseCoverage)}</span></td>
+          <td className={'px-4 py-3 text-right tabular-nums ' + tone(r.lmrBalance)}>{ms(r.lmrBalance)}<span className="block text-[11px] font-normal text-gray-500 dark:text-slate-400">{m(r.lmrCost)} vs {m(r.lmrCoverage)}</span></td>
+          <td className="px-4 py-3 text-right tabular-nums text-gray-500 dark:text-slate-400">{m(r.fullAmazonCoverage, 2)}</td></tr>)}
+          <tr className="bg-gray-50 font-semibold text-gray-900 dark:bg-slate-950 dark:text-white"><td className="px-5 py-3">3-month total</td><td /><td className="px-4 py-3 text-right tabular-nums">{m(s.threeMonthIncludedCost, 2)}</td><td className="px-4 py-3 text-right tabular-nums">{m(s.threeMonthAmazonCoverage, 2)}</td><td className={'px-4 py-3 text-right tabular-nums ' + tone(s.threeMonthDifference)}>{ms(s.threeMonthDifference, 2)}</td><td className="px-4 py-3 text-right tabular-nums">{masked ? '•••' : s.coverageRate.toFixed(1) + '%'}</td><td className={'px-4 py-3 text-right tabular-nums ' + tone(s.rentalLeaseCoverage - s.thirdPartyRentalCost)}>{ms(s.rentalLeaseCoverage - s.thirdPartyRentalCost)}</td><td className={'px-4 py-3 text-right tabular-nums ' + tone(s.lmrCoverage - s.lmrCost)}>{ms(s.lmrCoverage - s.lmrCost)}</td><td className="px-4 py-3 text-right tabular-nums">{m(s.fullAmazonCoverage, 2)}</td></tr>
+        </tbody></table></div>
+    </section>
 
-          {/* Data Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Fleet Costs</CardTitle>
-              <CardDescription>
-                {tableData.length} costs found
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingCosts ? (
-                <LoadingSpinner />
-              ) : error ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>
-                    Failed to load fleet costs. Please try again.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <DataTable
-                  columns={columns}
-                  data={tableData}
-                  pagination={fleetCostsData?.meta}
-                  onPageChange={(page) => handleFilterChange({ ...filters, page })}
-                  onSortChange={(sortBy, sortOrder) => handleFilterChange({ ...filters, sortBy, sortOrder })}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+    <section className="grid gap-4 xl:grid-cols-3">
+      <PairedBars masked={masked} title="Included fleet expense vs Amazon coverage" subtitle="All included vendors vs rental + LMR + lease classes" aLabel="I paid" bLabel="Amazon paid" rows={months.map((r) => ({ label: r.month + ' · ' + r.status, a: r.includedCost, b: r.amazonCoverage }))} />
+      <PairedBars masked={masked} title="Third-party rental vs rental/lease coverage" subtitle="Enterprise + Hertz vs Rental Van + DSP Leased Van classes" aLabel="Rental cost" bLabel="Rental coverage" rows={months.map((r) => ({ label: r.month, a: r.thirdPartyRentalCost, b: r.rentalLeaseCoverage }))} />
+      <PairedBars masked={masked} title="LMR cost vs LMR coverage" subtitle="MerchAuto9150 vs Branded Last Mile Rental Van class" aLabel="MerchAuto LMR" bLabel="Amazon LMR" rows={months.map((r) => ({ label: r.month, a: r.lmrCost, b: r.lmrCoverage }))} />
+    </section>
 
-        {/* Fuel Analysis Tab */}
-        <TabsContent value="fuel" className="space-y-4">
-          {isLoadingFuelAnalysis ? (
-            <LoadingSpinner />
-          ) : fuelAnalysisData ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Fuel Cost Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4">
-                    <div className="flex justify-between">
-                      <span>Total Fuel Cost</span>
-                      <span className="font-semibold">{formatCurrency(fuelAnalysisData.totalFuelCost)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Gallons</span>
-                      <span className="font-semibold">{fuelAnalysisData.totalGallons.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Average Price Per Gallon</span>
-                      <span className="font-semibold">{formatCurrency(fuelAnalysisData.averagePricePerGallon)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Miles</span>
-                      <span className="font-semibold">{fuelAnalysisData.totalMiles.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Fuel Efficiency</span>
-                      <span className="font-semibold">{fuelAnalysisData.fuelEfficiency.toFixed(2)} mpg</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Cost Per Mile</span>
-                      <span className="font-semibold">{formatCurrency(fuelAnalysisData.costPerMile)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Fuel Efficiency by Van</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <BarChart
-                    data={fuelAnalysisData.byVan.map((van) => ({
-                      vanId: van.vanId,
-                      vanLicensePlate: van.vanLicensePlate,
-                      fuelEfficiency: van.fuelEfficiency,
-                      costPerMile: van.costPerMile,
-                    }))}
-                    xKey="vanLicensePlate"
-                    yKeys={['fuelEfficiency', 'costPerMile']}
-                    height={300}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
-        </TabsContent>
+    <section className="grid gap-4 xl:grid-cols-2">
+      <article className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Vendors I paid</h2><p className="text-xs text-gray-500 dark:text-slate-400">Digits charges, mapped to the Amazon class that reimburses them</p></div>
+        <table className="w-full text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Vendor</th><th className="px-3 py-3 text-right">Jun</th><th className="px-3 py-3 text-right">Jul</th><th className="px-3 py-3 text-right">Aug</th><th className="px-3 py-3 text-right">Total</th><th className="px-4 py-3">Reimbursed by</th></tr></thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{data.vendors.map((v) => <tr key={v.vendor} className="text-gray-700 dark:text-slate-200"><td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{v.vendor}</td>{v.monthly.map((x, i) => <td key={i} className="px-3 py-3 text-right tabular-nums">{m(x)}</td>)}<td className="px-3 py-3 text-right font-semibold tabular-nums">{m(v.total)}</td><td className="px-4 py-3 text-xs text-gray-500 dark:text-slate-400">{v.coverageClass}</td></tr>)}</tbody></table></article>
+      <article className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Invoice bridge</h2><p className="text-xs text-gray-500 dark:text-slate-400">Amazon final gross less prior advance = net reconciliation payment</p></div>
+        <table className="w-full text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Period</th><th className="px-3 py-3 text-right">Final gross</th><th className="px-3 py-3 text-right">Advance deducted</th><th className="px-3 py-3 text-right">Net paid</th><th className="px-4 py-3">Issued</th></tr></thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{data.invoiceBridge.map((b) => <tr key={b.period} className="text-gray-700 dark:text-slate-200"><td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{b.period}</td><td className="px-3 py-3 text-right tabular-nums">{b.finalGross == null ? <span className="text-xs text-amber-700 dark:text-amber-300">{b.note}</span> : m(b.finalGross, 2)}</td><td className="px-3 py-3 text-right tabular-nums">{m(b.priorAdvanceDeducted, 2)}</td><td className="px-3 py-3 text-right font-semibold tabular-nums">{b.netReconciliation == null ? '—' : m(b.netReconciliation, 2)}</td><td className="px-4 py-3 text-xs text-gray-500 dark:text-slate-400">{b.invoiceIssued}</td></tr>)}</tbody></table>
+        <p className="px-5 py-3 text-xs text-gray-500 dark:text-slate-400">Full Amazon fleet coverage includes branded Amazon-owned classes that are excluded from the rental-only comparison above.</p></article>
+    </section>
 
-        {/* Maintenance Analysis Tab */}
-        <TabsContent value="maintenance" className="space-y-4">
-          {isLoadingMaintenanceAnalysis ? (
-            <LoadingSpinner />
-          ) : maintenanceAnalysisData ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Maintenance Cost Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4">
-                    <div className="flex justify-between">
-                      <span>Total Maintenance Cost</span>
-                      <span className="font-semibold">{formatCurrency(maintenanceAnalysisData.totalMaintenanceCost)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Average Cost Per Mile</span>
-                      <span className="font-semibold">{formatCurrency(maintenanceAnalysisData.averageCostPerMile)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Average Cost Per Van</span>
-                      <span className="font-semibold">{formatCurrency(maintenanceAnalysisData.averageCostPerVan)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Maintenance Cost by Category</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <PieChart
-                    data={Object.entries(maintenanceAnalysisData.byCategory).map(([category, cost]) => ({
-                      name: category.replace('_', ' '),
-                      value: cost,
-                    }))}
-                    height={300}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
-        </TabsContent>
+    <section className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Amazon vehicle classes — what each class pays</h2><p className="text-xs text-gray-500 dark:text-slate-400">Coverage and vehicle-days by class; per vehicle-day shows the effective daily rate Amazon paid</p></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Class</th><th className="px-3 py-3">Group</th>{['Jun', 'Jul', 'Aug'].map((h) => <th key={h} className="px-3 py-3 text-right">{h} coverage</th>)}{['Jun', 'Jul', 'Aug'].map((h) => <th key={h + 'd'} className="px-3 py-3 text-right">{h} veh-days</th>)}<th className="px-3 py-3 text-right">$/veh-day (Aug)</th></tr></thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{data.amazonClasses.map((c) => <tr key={c.category} className={'text-gray-700 dark:text-slate-200 ' + (c.group === 'branded' ? 'opacity-70' : '')}><td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{c.category}</td><td className="px-3 py-3"><span className={'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ' + (c.group === 'lmr' ? 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200' : c.group === 'rental_lease' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200' : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300')}>{c.group === 'lmr' ? 'LMR' : c.group === 'rental_lease' ? 'Rental / lease' : 'Branded (excluded)'}</span></td>{c.coverage.map((x, i) => <td key={i} className="px-3 py-3 text-right tabular-nums">{m(x)}</td>)}{c.vehicleDays.map((x, i) => <td key={'d' + i} className="px-3 py-3 text-right tabular-nums">{x}</td>)}<td className="px-3 py-3 text-right tabular-nums">{c.perVehicleDay[2] == null ? '—' : m(c.perVehicleDay[2], 2)}</td></tr>)}</tbody></table></div>
+    </section>
 
-        {/* Budgets Tab */}
-        <TabsContent value="budgets" className="space-y-4">
-          {isLoadingBudgets ? (
-            <LoadingSpinner />
-          ) : budgetsData && budgetsData.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Cost Budgets</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <BarChart
-                  data={budgetData}
-                  xKey="category"
-                  yKeys={['budgeted', 'actual', 'variance']}
-                  height={400}
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <Alert variant="info">
-              <AlertTitle>No budgets found</AlertTitle>
-              <AlertDescription>
-                No budget data available for the selected period.
-              </AlertDescription>
-            </Alert>
-          )}
-        </TabsContent>
+    <section className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-end sm:justify-between dark:border-slate-800"><div><h2 className="font-semibold text-gray-900 dark:text-white">Every charge I paid</h2><p className="text-xs text-gray-500 dark:text-slate-400">{charges.length} transactions · included total {m(chargeTotal, 2)} · {s.unmatchedVinCharges} charges still need VIN / service-period matching</p></div>
+        <div className="flex gap-2"><select value={chargeMonth} onChange={(e) => setChargeMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="all">All months</option>{months.map((r) => <option key={r.month} value={r.month}>{r.month}</option>)}</select><select value={chargeVendor} onChange={(e) => setChargeVendor(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">{vendorsList.map((v) => <option key={v} value={v}>{v === 'all' ? 'All vendors' : v}</option>)}</select></div></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Posted</th><th className="px-3 py-3">Vendor</th><th className="px-3 py-3">Account</th><th className="px-3 py-3 text-right">Charge</th><th className="px-3 py-3">Treatment</th><th className="px-3 py-3">VIN</th><th className="px-3 py-3">Memo</th></tr></thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{charges.map((c, i) => <tr key={i} className={'text-gray-700 dark:text-slate-200 ' + (c.treatment !== 'INCLUDE' ? 'opacity-60' : '')}><td className="px-5 py-2.5 tabular-nums">{c.datePosted}</td><td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">{c.vendor}</td><td className="px-3 py-2.5 text-xs text-gray-500 dark:text-slate-400">{c.account}</td><td className="px-3 py-2.5 text-right tabular-nums">{m(c.netCharge, 2)}</td><td className="px-3 py-2.5"><span className={'rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (c.treatment === 'INCLUDE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200')}>{c.treatment}</span></td><td className="px-3 py-2.5 font-mono text-xs">{c.vin || <span className="text-amber-700 dark:text-amber-300">unmatched</span>}</td><td className="px-3 py-2.5 text-xs text-gray-500 dark:text-slate-400">{c.memo}</td></tr>)}</tbody></table></div>
+    </section>
 
-        {/* Forecasts Tab */}
-        <TabsContent value="forecasts" className="space-y-4">
-          {isLoadingForecasts ? (
-            <LoadingSpinner />
-          ) : forecastsData && forecastsData.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Cost Forecasts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <LineChart
-                  data={forecastsData.map((forecast) => ({
-                    period: forecast.period,
-                    forecastedCost: forecast.forecastedCost,
-                    confidenceLevel: forecast.confidenceLevel,
-                  }))}
-                  xKey="period"
-                  yKeys={['forecastedCost', 'confidenceLevel']}
-                  height={400}
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <Alert variant="info">
-              <AlertTitle>No forecasts found</AlertTitle>
-              <AlertDescription>
-                No forecast data available for the selected period.
-              </AlertDescription>
-            </Alert>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Add Cost Modal */}
-      <Modal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Add Fleet Cost"
-        size="lg"
-      >
-        <Form onSubmit={handleAddCost}>
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormSelect
-                name="costType"
-                label="Cost Type"
-                required
-                options={COST_TYPE_OPTIONS}
-              />
-              <FormSelect
-                name="costCategory"
-                label="Category"
-                required
-                options={COST_CATEGORY_OPTIONS}
-              />
-            </div>
-            <FormInput
-              name="description"
-              label="Description"
-              required
-              placeholder="Enter description"
-            />
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInput
-                name="amount"
-                label="Amount"
-                type="number"
-                required
-                placeholder="0.00"
-              />
-              <FormInput
-                name="taxAmount"
-                label="Tax Amount"
-                type="number"
-                placeholder="0.00"
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInput
-                name="date"
-                label="Date"
-                type="date"
-                required
-              />
-              <FormInput
-                name="period"
-                label="Period"
-                placeholder="e.g., 2024-Q1"
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormSelect
-                name="vendor"
-                label="Vendor"
-                options={[
-                  { value: 'amazon', label: 'Amazon' },
-                  { value: 'fleetio', label: 'Fleetio' },
-                  { value: 'local_vendor', label: 'Local Vendor' },
-                ]}
-              />
-              <FormInput
-                name="invoiceNumber"
-                label="Invoice Number"
-                placeholder="INV-001"
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormSelect
-                name="paymentMethod"
-                label="Payment Method"
-                options={PAYMENT_METHOD_OPTIONS}
-              />
-              <FormSelect
-                name="status"
-                label="Status"
-                options={STATUS_OPTIONS}
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormSelect
-                name="allocatedTo"
-                label="Allocated To"
-                options={ALLOCATION_TARGET_OPTIONS}
-              />
-              <FormSelect
-                name="allocationMethod"
-                label="Allocation Method"
-                options={ALLOCATION_METHOD_OPTIONS}
-              />
-            </div>
-            <FormInput
-              name="notes"
-              label="Notes"
-              placeholder="Additional notes"
-            />
-          </div>
-          <div className="flex gap-2 justify-end mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAddModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={createFleetCostMutation.isPending}>
-              Save
-            </Button>
-          </div>
-        </Form>
-      </Modal>
-
-      {/* Edit Cost Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedCost(null);
-        }}
-        title="Edit Fleet Cost"
-        size="lg"
-      >
-        {selectedCost && (
-          <Form onSubmit={handleEditCost}>
-            <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormSelect
-                  name="costType"
-                  label="Cost Type"
-                  required
-                  options={COST_TYPE_OPTIONS}
-                />
-                <FormSelect
-                  name="costCategory"
-                  label="Category"
-                  required
-                  options={COST_CATEGORY_OPTIONS}
-                />
-              </div>
-              <FormInput
-                name="description"
-                label="Description"
-                required
-                placeholder="Enter description"
-              />
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormInput
-                  name="amount"
-                  label="Amount"
-                  type="number"
-                  required
-                  placeholder="0.00"
-                />
-                <FormInput
-                  name="taxAmount"
-                  label="Tax Amount"
-                  type="number"
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormInput
-                  name="date"
-                  label="Date"
-                  type="date"
-                  required
-                />
-                <FormInput
-                  name="period"
-                  label="Period"
-                  placeholder="e.g., 2024-Q1"
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormSelect
-                  name="vendor"
-                  label="Vendor"
-                  options={[
-                    { value: 'amazon', label: 'Amazon' },
-                    { value: 'fleetio', label: 'Fleetio' },
-                    { value: 'local_vendor', label: 'Local Vendor' },
-                  ]}
-                />
-                <FormInput
-                  name="invoiceNumber"
-                  label="Invoice Number"
-                  placeholder="INV-001"
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormSelect
-                  name="paymentMethod"
-                  label="Payment Method"
-                  options={PAYMENT_METHOD_OPTIONS}
-                />
-                <FormSelect
-                  name="status"
-                  label="Status"
-                  options={STATUS_OPTIONS}
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormSelect
-                  name="allocatedTo"
-                  label="Allocated To"
-                  options={ALLOCATION_TARGET_OPTIONS}
-                />
-                <FormSelect
-                  name="allocationMethod"
-                  label="Allocation Method"
-                  options={ALLOCATION_METHOD_OPTIONS}
-                />
-              </div>
-              <FormInput
-                name="notes"
-                label="Notes"
-                placeholder="Additional notes"
-              />
-            </div>
-            <div className="flex gap-2 justify-end mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                  setSelectedCost(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" loading={updateFleetCostMutation.isPending}>
-                Update
-              </Button>
-            </div>
-          </Form>
-        )}
-      </Modal>
-
-      {/* View Cost Modal */}
-      <Modal
-        isOpen={isViewModalOpen}
-        onClose={() => {
-          setIsViewModalOpen(false);
-          setSelectedCost(null);
-        }}
-        title="Fleet Cost Details"
-        size="lg"
-      >
-        {selectedCost && (
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Cost Type
-                </label>
-                <Badge variant="outline" className="capitalize">
-                  {selectedCost.costType.replace('_', ' ')}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Category
-                </label>
-                <Badge variant="outline" className="capitalize">
-                  {selectedCost.costCategory.replace('_', ' ')}
-                </Badge>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                Description
-              </label>
-              <p>{selectedCost.description}</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Amount
-                </label>
-                <p className="font-semibold">{formatCurrency(selectedCost.amount)}</p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Total Amount
-                </label>
-                <p className="font-semibold">{formatCurrency(selectedCost.totalAmount)}</p>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Date
-                </label>
-                <p>{formatDate(selectedCost.date)}</p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Period
-                </label>
-                <p>{selectedCost.period}</p>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Vendor
-                </label>
-                <p>{selectedCost.vendor}</p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Invoice Number
-                </label>
-                <p>{selectedCost.invoiceNumber || 'N/A'}</p>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Payment Method
-                </label>
-                <Badge variant="outline" className="capitalize">
-                  {selectedCost.paymentMethod.replace('_', ' ')}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Status
-                </label>
-                <Badge variant={getStatusBadgeVariant(selectedCost.status)} className="capitalize">
-                  {selectedCost.status.replace('_', ' ')}
-                </Badge>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Allocated To
-                </label>
-                <Badge variant="outline" className="capitalize">
-                  {selectedCost.allocatedTo.replace('_', ' ')}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Allocation Method
-                </label>
-                <Badge variant="outline" className="capitalize">
-                  {selectedCost.allocationMethod.replace('_', ' ')}
-                </Badge>
-              </div>
-            </div>
-            {selectedCost.notes && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Notes
-                </label>
-                <p>{selectedCost.notes}</p>
-              </div>
-            )}
-            <div className="flex gap-2 justify-end pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsViewModalOpen(false);
-                  setSelectedCost(null);
-                }}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => {
-          setIsDeleteModalOpen(false);
-          setDeleteCostId('');
-        }}
-        title="Delete Fleet Cost"
-        description="Are you sure you want to delete this fleet cost? This action cannot be undone."
-        confirmText="Delete"
-        confirmVariant="destructive"
-        onConfirm={handleDeleteCost}
-        loading={deleteFleetCostMutation.isPending}
-      />
-    </div>
-  );
+    <section className="grid gap-4 lg:grid-cols-2">
+      <article className="rounded-xl border border-blue-100 bg-blue-50 p-5 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"><h3 className="flex items-center gap-2 font-semibold"><Scale size={16} />How to read this</h3><ul className="mt-2 list-disc space-y-1 pl-5">{data.caveats.map((c) => <li key={c}>{c}</li>)}</ul></article>
+      <article className="rounded-xl border border-gray-200 bg-white p-5 text-sm dark:border-slate-800 dark:bg-slate-900"><h3 className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white"><FileSpreadsheet size={16} />Source</h3><p className="mt-2 font-mono text-xs text-gray-600 dark:text-slate-300">{data.source}</p><p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Reviewed {data.asOf} · {s.includedTransactions} included / {s.excludedTransactions} excluded Digits transactions. Update the workbook and press Refresh; this page reads it live.</p>
+        <details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-gray-700 dark:text-slate-200">Reconciliation notes ({data.notes.length})</summary><dl className="mt-2 space-y-2 text-xs">{data.notes.map((n) => <div key={n.topic}><dt className="font-semibold text-gray-800 dark:text-slate-100">{n.topic}</dt><dd className="text-gray-600 dark:text-slate-300">{n.detail}</dd></div>)}</dl></details></article>
+    </section>
+  </div>;
 };
 
 export default FleetCostsPage;

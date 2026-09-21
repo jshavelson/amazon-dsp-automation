@@ -149,3 +149,19 @@ export const useGeneratePayrollReport = () => {
     },
   });
 };
+
+// Hook to delete a payroll period
+export const useDeletePayrollPeriod = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (periodId: string) => payrollApi.deletePeriod(periodId),
+    onSuccess: (_, periodId) => {
+      queryClient.invalidateQueries({ queryKey: PAYROLL_KEYS.periods });
+      queryClient.invalidateQueries({ queryKey: PAYROLL_KEYS.periodDetail(periodId) });
+    },
+    onError: (error) => {
+      console.error('Delete payroll period failed:', error);
+    },
+  });
+};
