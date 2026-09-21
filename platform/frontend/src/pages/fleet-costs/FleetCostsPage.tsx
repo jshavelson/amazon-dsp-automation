@@ -122,8 +122,8 @@ const FleetCostsPage: React.FC = () => {
 
     <section className="grid gap-4 xl:grid-cols-3">
       <PairedBars masked={masked} title="Included fleet expense vs Amazon coverage" subtitle="All included vendors vs rental + LMR + lease classes" aLabel="I paid" bLabel="Amazon paid" rows={months.map((r) => ({ label: r.month + ' · ' + r.status, a: r.includedCost, b: r.amazonCoverage }))} />
-      <PairedBars masked={masked} title="Third-party rental vs rental/lease coverage" subtitle="Enterprise + Hertz vs Rental Van + DSP Leased Van classes" aLabel="Rental cost" bLabel="Rental coverage" rows={months.map((r) => ({ label: r.month, a: r.thirdPartyRentalCost, b: r.rentalLeaseCoverage }))} />
       <PairedBars masked={masked} title="LMR cost vs LMR coverage" subtitle="MerchAuto9150 vs Branded Last Mile Rental Van class" aLabel="MerchAuto LMR" bLabel="Amazon LMR" rows={months.map((r) => ({ label: r.month, a: r.lmrCost, b: r.lmrCoverage }))} />
+      <PairedBars masked={masked} title="Third-party rental vs rental/lease coverage" subtitle="Enterprise + Hertz vs Rental Van + DSP Leased Van classes" aLabel="Rental cost" bLabel="Rental coverage" rows={months.map((r) => ({ label: r.month, a: r.thirdPartyRentalCost, b: r.rentalLeaseCoverage }))} />
     </section>
 
     <section className="grid gap-4 xl:grid-cols-2">
