@@ -474,6 +474,59 @@ export class PostgresRepository {
     });
   }
 
+  async listDispatchRouteAssignments(context, deliveryDate) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const result = await client.query(
+        `select delivery_date::text as "deliveryDate", route_id as "routeId", transporter_id as "transporterId",
+                driver_id as "driverId", driver_name as "driverName", van_id as "vanId",
+                van_label as "vanLabel", vin, phone_id as "phoneId", phone_label as "phoneLabel",
+                updated_by as "updatedBy", updated_at as "updatedAt"
+           from app.dispatch_route_assignments
+          where tenant_id = $1 and delivery_date = $2::date`,
+        [context.principal.tenantDbId, deliveryDate]
+      );
+      return result.rows;
+    });
+  }
+
+  async saveDispatchRouteAssignment(context, assignment) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const route = await client.query(
+        `select 1 from app.live_routes
+          where tenant_id = $1 and delivery_date = $2::date and route_id = $3 and transporter_id = $4`,
+        [context.principal.tenantDbId, assignment.deliveryDate, assignment.routeId, assignment.transporterId || '']
+      );
+      if (route.rowCount !== 1) throw new Error('route is not present in the selected Cortex operating day');
+      if (!assignment.driverId && !assignment.vanId && !assignment.phoneId) {
+        await client.query(
+          `delete from app.dispatch_route_assignments
+            where tenant_id = $1 and delivery_date = $2::date and route_id = $3 and transporter_id = $4`,
+          [context.principal.tenantDbId, assignment.deliveryDate, assignment.routeId, assignment.transporterId || '']
+        );
+        return null;
+      }
+      const result = await client.query(
+        `insert into app.dispatch_route_assignments
+          (tenant_id, delivery_date, route_id, transporter_id, driver_id, driver_name, van_id, van_label, vin,
+           phone_id, phone_label, updated_by)
+         values ($1,$2::date,$3,$4,nullif($5,''),nullif($6,''),nullif($7,''),nullif($8,''),nullif($9,''),
+                 nullif($10,''),nullif($11,''),$12)
+         on conflict (tenant_id, delivery_date, route_id, transporter_id) do update set
+           driver_id=excluded.driver_id, driver_name=excluded.driver_name, van_id=excluded.van_id,
+           van_label=excluded.van_label, vin=excluded.vin, phone_id=excluded.phone_id,
+           phone_label=excluded.phone_label, updated_by=excluded.updated_by, updated_at=now()
+         returning delivery_date::text as "deliveryDate", route_id as "routeId", transporter_id as "transporterId",
+                   driver_id as "driverId", driver_name as "driverName", van_id as "vanId",
+                   van_label as "vanLabel", vin, phone_id as "phoneId", phone_label as "phoneLabel",
+                   updated_by as "updatedBy", updated_at as "updatedAt"`,
+        [context.principal.tenantDbId, assignment.deliveryDate, assignment.routeId, assignment.transporterId || '',
+         assignment.driverId || '', assignment.driverName || '', assignment.vanId || '', assignment.vanLabel || '',
+         assignment.vin || '', assignment.phoneId || '', assignment.phoneLabel || '', context.principal.userId]
+      );
+      return result.rows[0];
+    });
+  }
+
   async listRoutes(context, { date, limit = 100, skip = 0 } = {}) {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
       let query = `

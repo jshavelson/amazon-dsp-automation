@@ -486,6 +486,70 @@ def get_connection():
     return conn
 
 
+_DISPATCH_ASSIGNMENT_LOCK = threading.RLock()
+
+
+def _dispatch_assignment_path(tenant):
+    if not re.fullmatch(r'[a-z][a-z0-9-]{2,62}', tenant or ''):
+        raise ValueError('invalid tenant slug')
+    return ROOT / 'data' / 'tenants' / tenant / 'dispatch' / 'route-assignments.json'
+
+
+def _load_dispatch_assignments(tenant):
+    path = _dispatch_assignment_path(tenant)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text())
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_dispatch_assignments(tenant, assignments):
+    path = _dispatch_assignment_path(tenant)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(assignments, indent=2) + '\n')
+    os.replace(temporary, path)
+
+
+def _dispatch_catalog(tenant, route_payload=None):
+    """Return tenant-scoped driver, van, and delivery-device choices."""
+    drivers, vans = [], []
+    if tenant == DEFAULT_TENANT:
+        conn = get_connection()
+        try:
+            drivers = [dict(row) for row in conn.execute(
+                "SELECT id, name, status FROM drivers ORDER BY name")]
+            vans = [dict(row) for row in conn.execute(
+                "SELECT id, van_number, vin, status FROM vans ORDER BY van_number")]
+        finally:
+            conn.close()
+    known_driver_ids = {str(row.get('id')) for row in drivers}
+    for route in (route_payload or {}).get('routes', []):
+        driver_id = str(route.get('transporterId') or '')
+        driver_name = str(route.get('driverName') or '').strip()
+        if driver_id and driver_name and driver_id not in known_driver_ids:
+            drivers.append({'id': driver_id, 'name': driver_name, 'status': 'CORTEX'})
+            known_driver_ids.add(driver_id)
+    return {
+        'drivers': [{'id': str(row['id']), 'label': row.get('name') or str(row['id']),
+                     'status': row.get('status'),
+                     'source': 'Cortex' if row.get('status') == 'CORTEX' else 'Driver roster'}
+                    for row in drivers],
+        'vans': [{'id': str(row['id']), 'label': row.get('van_number') or row.get('vin') or str(row['id']),
+                  'vin': row.get('vin') or '', 'status': row.get('status') or 'UNKNOWN'}
+                 for row in vans],
+        'phones': [{'id': f'phone-{index:02d}', 'label': f'Phone {index}'}
+                   for index in range(1, 51)],
+    }
+
+
+def _route_assignment_key(route_id, transporter_id=''):
+    return f'{route_id}|{transporter_id or ""}'
+
+
 
 RENTAL_RECON_PATH = FLEET_REVIEW_DIR / "2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx"
 _FLEET_COST_CACHE = {}
@@ -1534,6 +1598,29 @@ _CONNECTION_REFRESH_LOCK = threading.Lock()
 _CONNECTION_REFRESH_JOBS = {}
 
 
+def sync_amazon_live_routes(tenant="jecs"):
+    """Capture today's Cortex / Delivery Execution route roster for one tenant."""
+    environment = os.environ.copy()
+    environment['DSP_TENANT'] = tenant
+    completed = subprocess.run(
+        ["node", str(ROOT / "scripts/amazon_live_routes.mjs")],
+        cwd=str(ROOT), env=environment, capture_output=True, text=True,
+        timeout=120, check=False)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or '').strip()
+        if 'requires sign-in or MFA' in detail:
+            raise PermissionError('Amazon Logistics session requires sign-in or MFA.')
+        raise RuntimeError('Amazon live-route refresh failed.')
+    output = json.loads(completed.stdout.strip())
+    stamp = output.get('capturedAt') or datetime.now(timezone.utc).isoformat(timespec='seconds')
+    connections_registry.set_connection_state(
+        tenant, 'amazon', status='healthy', lastSuccessAt=stamp,
+        lastCheckedAt=stamp, lastAutomatedSyncAt=stamp, lastError=None,
+        lastSyncSummary={'routes': output.get('routeCount', 0),
+                         'deliveryDate': output.get('deliveryDate')})
+    return output
+
+
 def refresh_all_connection_data(tenant="jecs"):
     """Refresh every configured source and retain the last good data on failure."""
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -1545,6 +1632,27 @@ def refresh_all_connection_data(tenant="jecs"):
             reconcile_saved_browser_sessions(tenant)
             current = {item["id"]: item for item in
                        connections_registry.list_connections(tenant, _latest_upload_index(tenant))}
+
+            amazon = current.get("amazon", {})
+            if amazon.get("configured"):
+                try:
+                    summary = sync_amazon_live_routes(tenant)
+                    results.append({"id": "amazon", "status": "healthy",
+                                    "message": f'{summary.get("routeCount", 0)} Cortex routes refreshed'})
+                except PermissionError:
+                    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    connections_registry.set_connection_state(
+                        tenant, "amazon", status="needs_reauth", lastCheckedAt=stamp,
+                        lastError="Amazon Logistics session requires sign-in or MFA.")
+                    results.append({"id": "amazon", "status": "needs_reauth",
+                                    "message": "Reconnect Amazon to refresh Cortex routes"})
+                except Exception:
+                    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    connections_registry.set_connection_state(
+                        tenant, "amazon", status="degraded", lastCheckedAt=stamp,
+                        lastError="Cortex route refresh failed; saved routes remain available.")
+                    results.append({"id": "amazon", "status": "degraded",
+                                    "message": "Route refresh failed; retained saved routes"})
 
             pave = current.get("pave", {})
             if pave.get("configured"):
@@ -1597,6 +1705,23 @@ def run_connection_scheduler(tenant="jecs"):
     reconcile_saved_browser_sessions(tenant)
     while True:
         connections = {item['id']: item for item in connections_registry.list_connections(tenant, _latest_upload_index(tenant))}
+        amazon = connections.get('amazon', {})
+        eastern_hour = datetime.now(ZoneInfo('America/New_York')).hour
+        if (5 <= eastern_hour < 23 and amazon.get('status') == 'healthy'
+                and _due(amazon.get('lastAutomatedSyncAt'), timedelta(minutes=5))):
+            try:
+                with _CONNECTION_REFRESH_LOCK:
+                    sync_amazon_live_routes(tenant)
+            except PermissionError:
+                now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                connections_registry.set_connection_state(
+                    tenant, 'amazon', status='needs_reauth', lastCheckedAt=now,
+                    lastError='Amazon Logistics session requires sign-in or MFA.')
+            except Exception:
+                now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                connections_registry.set_connection_state(
+                    tenant, 'amazon', status='degraded', lastCheckedAt=now,
+                    lastError='Scheduled Cortex route refresh failed; saved routes remain available.')
         pave = connections.get('pave', {})
         if pave.get('status') == 'healthy' and _due(pave.get('lastAutomatedSyncAt'), timedelta(days=1)):
             try:
@@ -1934,6 +2059,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_put_connection_credentials(path.split('/')[3])
             elif path == '/api/assistant/config':
                 self.handle_put_assistant_config()
+            elif path == '/api/route-monitor/assignments':
+                self.handle_put_route_assignment()
             elif path.startswith('/api/features/'):
                 self.handle_put_feature(path.split('/')[3])
             elif path.startswith('/api/members/'):
@@ -2520,9 +2647,78 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             eastern_today = datetime.now(ZoneInfo('America/New_York')).date().isoformat()
             payload['stale'] = payload.get('period') != eastern_today or datetime.now(timezone.utc) - captured > timedelta(minutes=15)
             payload['live'] = not payload['stale']
+            connection = next((item for item in connections_registry.list_connections(
+                tenant, _latest_upload_index(tenant)) if item['id'] == 'amazon'), {})
+            payload['needsReauth'] = connection.get('status') == 'needs_reauth'
+            if payload['needsReauth']:
+                payload['message'] = 'Cortex refresh requires Amazon sign-in or MFA. Saved route data is shown.'
+            elif payload['stale']:
+                payload['message'] = 'Saved Cortex route data is stale. Refresh pulls today’s routes and drivers from Amazon Delivery Execution.'
+            period_assignments = _load_dispatch_assignments(tenant).get(payload.get('period'), {})
+            for route in payload.get('routes', []):
+                route['dispatchAssignment'] = period_assignments.get(
+                    _route_assignment_key(route.get('routeId'), route.get('transporterId')), {})
+            payload['assignmentOptions'] = _dispatch_catalog(tenant, payload)
             self.send_json(payload)
         except (OSError, ValueError, KeyError) as error:
             self.send_json({'error': f'Live route snapshot is invalid: {error}'}, status=500)
+
+    def handle_put_route_assignment(self):
+        """Save a dispatcher-owned driver, van, and phone selection for one Cortex route."""
+        tenant = _tenant_from_headers(self.headers)
+        body = json.loads(self._read_body() or b'{}')
+        delivery_date = str(body.get('deliveryDate') or '')
+        route_id = str(body.get('routeId') or '')
+        transporter_id = str(body.get('transporterId') or '')
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', delivery_date) or not route_id:
+            raise ValueError('deliveryDate and routeId are required')
+        snapshot_path = ROOT / 'data' / 'tenants' / tenant / 'amazon' / 'live-routes' / 'latest.json'
+        if not snapshot_path.exists():
+            raise ValueError('no Cortex route snapshot is available')
+        route_payload = json.loads(snapshot_path.read_text())
+        route = next((row for row in route_payload.get('routes', [])
+                      if str(row.get('routeId')) == route_id
+                      and str(row.get('transporterId') or '') == transporter_id
+                      and str(row.get('deliveryDate')) == delivery_date), None)
+        if not route:
+            raise ValueError('route is not present in the selected Cortex operating day')
+        catalog = _dispatch_catalog(tenant, route_payload)
+        allowed = {kind: {item['id']: item for item in catalog[kind]}
+                   for kind in ('drivers', 'vans', 'phones')}
+        selected = {}
+        for field, kind in (('driverId', 'drivers'), ('vanId', 'vans'), ('phoneId', 'phones')):
+            value = str(body.get(field) or '')
+            if value and value not in allowed[kind]:
+                raise ValueError(f'invalid {field}')
+            selected[field] = value
+        assignment = {
+            **selected,
+            'driverName': allowed['drivers'].get(selected['driverId'], {}).get('label', ''),
+            'vanLabel': allowed['vans'].get(selected['vanId'], {}).get('label', ''),
+            'vin': allowed['vans'].get(selected['vanId'], {}).get('vin', ''),
+            'phoneLabel': allowed['phones'].get(selected['phoneId'], {}).get('label', ''),
+            'updatedAt': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+            'updatedBy': 'local-dispatcher',
+        }
+        key = _route_assignment_key(route_id, transporter_id)
+        with _DISPATCH_ASSIGNMENT_LOCK:
+            assignments = _load_dispatch_assignments(tenant)
+            operating_day = assignments.setdefault(delivery_date, {})
+            for other_key, other in operating_day.items():
+                if other_key == key:
+                    continue
+                if selected['vanId'] and other.get('vanId') == selected['vanId']:
+                    raise ValueError(f'{assignment["vanLabel"]} is already assigned to another route')
+                if selected['phoneId'] and other.get('phoneId') == selected['phoneId']:
+                    raise ValueError(f'{assignment["phoneLabel"]} is already assigned to another route')
+            if any(selected.values()):
+                operating_day[key] = assignment
+            else:
+                operating_day.pop(key, None)
+            _save_dispatch_assignments(tenant, assignments)
+        self.send_json_status(200, {'deliveryDate': delivery_date, 'routeId': route_id,
+                                    'transporterId': transporter_id,
+                                    'assignment': assignment if any(selected.values()) else {}})
     
     def handle_get_route_monitor(self, query):
         """Return weekly scorecard route performance history."""

@@ -215,6 +215,34 @@ test('live route monitor returns only same-day execution data with freshness and
   assert.equal(payload.source, 'Amazon Delivery Execution');
   assert.equal(payload.summary.behind, 1);
   assert.equal(payload.needsData, false);
+  assert.equal(payload.assignmentOptions.phones.length, 50);
+  assert.deepEqual(payload.routes[0].dispatchAssignment, {});
+});
+
+test('dispatcher can persist a tenant-scoped driver, van, and phone assignment', async (t) => {
+  let saved;
+  const dispatchRepository = {
+    ...repository,
+    async listDrivers() { return { items: [{ id: 'driver-1', name: 'Example Driver', status: 'active' }], total: 1 }; },
+    async listVans() { return { items: [{ id: 'van-1', vin: 'VIN123', licensePlate: 'EDV 1', status: 'operational' }], total: 1 }; },
+    async listDispatchRouteAssignments() { return saved ? [saved] : []; },
+    async saveDispatchRouteAssignment(context, assignment) {
+      assert.equal(context.principal.tenantId, 'jec-logistics');
+      saved = { ...assignment, updatedBy: context.principal.userId, updatedAt: new Date().toISOString() };
+      return saved;
+    },
+  };
+  const app = await createApp({ authenticator, repository: dispatchRepository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'PUT', url: '/api/route-monitor/assignments',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' },
+    payload: { deliveryDate: '2026-09-22', routeId: 'route-1', transporterId: 'A123', driverId: 'driver-1', vanId: 'van-1', phoneId: 'phone-01' },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().assignment.driverName, 'Example Driver');
+  assert.equal(response.json().assignment.vanLabel, 'EDV 1');
+  assert.equal(response.json().assignment.phoneLabel, 'Phone 1');
 });
 
 test('weekly route performance remains available on a separately named endpoint', async (t) => {
