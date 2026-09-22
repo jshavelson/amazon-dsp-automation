@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Building2, Download, FileSpreadsheet, RefreshCw, Scale, Truck } from 'lucide-react';
 import { api } from '@/services/api';
+import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 type MonthRow = { month: string; status: string; invoiceBasis: string; includedCost: number; amazonCoverage: number; difference: number; coverageRate: number | null; thirdPartyRentalCost: number; rentalLeaseCoverage: number; rentalLeaseBalance: number; lmrCost: number; lmrCoverage: number; lmrBalance: number; elementCost: number; acuraExcluded: number; rawExportTotal: number; fullAmazonCoverage: number };
 type Vendor = { vendor: string; monthly: number[]; total: number; coverageClass: string };
@@ -42,7 +43,8 @@ const FleetCostsPage: React.FC = () => {
   const [masked, setMasked] = useState(() => localStorage.getItem('jec-mask-financial') === '1');
   const [chargeMonth, setChargeMonth] = useState('all');
   const [chargeVendor, setChargeVendor] = useState('all');
-  const { data, isLoading, error, refetch, isFetching } = useQuery<Payload>({ queryKey: ['fleet-costs-reconciliation'], queryFn: () => api.get<Payload>('/fleet-costs'), staleTime: 5 * 60 * 1000 });
+  const { data, isLoading, error, refetch } = useQuery<Payload>({ queryKey: ['fleet-costs-reconciliation'], queryFn: () => api.get<Payload>('/fleet-costs'), staleTime: 5 * 60 * 1000 });
+  const { refresh, isRefreshing } = useDataRefresh();
   const m = (v: number | null | undefined, d = 0) => masked ? '•••' : usd(v, d);
   const ms = (v: number, d = 0) => masked ? '•••' : signed(v, d);
   const toggleMask = () => setMasked((c) => { localStorage.setItem('jec-mask-financial', c ? '0' : '1'); return !c; });
@@ -81,7 +83,7 @@ const FleetCostsPage: React.FC = () => {
       <div><p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Fleet finance · {data.period}</p><h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Fleet Costs — what Amazon pays vs what I pay</h1><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-slate-400">Rental and LMR invoices I paid (Digits) against the Amazon vehicle coverage posted on the monthly reconciliation invoices. June/July final, August advance.</p></div>
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={toggleMask} aria-pressed={masked} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">{masked ? 'Show financial data' : 'Mask financial data'}</button>
-        <button onClick={() => refetch()} disabled={isFetching} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />Refresh</button>
+        <button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />{isRefreshing ? 'Refreshing…' : 'Refresh'}</button>
         <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Download size={15} />Export months</button>
       </div>
     </section>

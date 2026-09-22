@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock3, Database, FileCheck2, Landmark, RefreshCw, Send, ShieldCheck, Upload } from 'lucide-react';
 import { api } from '@/services/api';
+import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 type Finding = { label?: string; value?: string | number | null; detail?: string; [k: string]: unknown };
 type Evidence = { label?: string; path?: string; sha256?: string; source?: string; name?: string; [k: string]: unknown };
@@ -22,7 +23,8 @@ const caseCls = (c: ModuleCase) => c.submissionStatus ? 'bg-blue-100 text-blue-8
 const ReimbursementReviewPage: React.FC = () => {
   const [moduleFilter, setModuleFilter] = useState('all');
   const [open, setOpen] = useState<string | null>(null);
-  const { data, isLoading, error, refetch, isFetching } = useQuery<Payload>({ queryKey: ['reimbursement-review'], queryFn: () => api.get<Payload>('/modules'), staleTime: 60000 });
+  const { data, isLoading, error, refetch } = useQuery<Payload>({ queryKey: ['reimbursement-review'], queryFn: () => api.get<Payload>('/modules'), staleTime: 60000 });
+  const { refresh, isRefreshing } = useDataRefresh();
   const cases = useMemo(() => (data?.cases || []).filter((c) => moduleFilter === 'all' || c.moduleId === moduleFilter), [data, moduleFilter]);
   const nameOf = (id: string) => data?.modules.find((m) => m.id === id)?.displayName || id;
 
@@ -44,7 +46,7 @@ const ReimbursementReviewPage: React.FC = () => {
   return <div className="space-y-6 pb-10">
     <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div><p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Payment and reimbursement modules</p><h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Reimbursement Review</h1><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-slate-400">Every Amazon payment lane checked against our own evidence. Findings become cases; cases need an explicit owner approval before anything is filed with Amazon.</p></div>
-      <div className="flex flex-wrap items-center gap-2"><span className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Status feed {when(data.generatedAt)}</span><button onClick={() => refetch()} disabled={isFetching} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />Refresh</button></div>
+      <div className="flex flex-wrap items-center gap-2"><span className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Status feed {when(data.generatedAt)}</span><button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />{isRefreshing ? 'Refreshing…' : 'Refresh'}</button></div>
     </section>
 
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{kpis.map((k) => <article key={k.l} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{k.l}</p><p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{k.v}</p><p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{k.d}</p></div><span className="rounded-lg bg-gray-100 p-2 text-gray-600 dark:bg-slate-800 dark:text-slate-300">{k.i}</span></div></article>)}</section>

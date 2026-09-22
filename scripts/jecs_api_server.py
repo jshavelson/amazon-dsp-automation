@@ -3129,6 +3129,7 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(content))
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Cache-Control', 'no-store')
         self.end_headers()
         self.wfile.write(content)
 
@@ -3576,6 +3577,7 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(content))
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Cache-Control', 'no-store')
         self.end_headers()
         self.wfile.write(content)
 

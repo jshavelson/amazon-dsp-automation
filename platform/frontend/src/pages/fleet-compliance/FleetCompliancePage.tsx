@@ -17,6 +17,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { api } from '@/services/api';
+import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 type Severity = 'critical' | 'warning' | 'info';
 type ComplianceStatus = 'grounded' | 'action_required' | 'monitor' | 'evidence_gap' | 'ready';
@@ -159,6 +160,7 @@ const statusMeta: Record<ComplianceStatus, { label: string; classes: string }> =
 const pretty = (value?: string) => (value || 'Unknown').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 
 const FleetCompliancePage: React.FC = () => {
+  const { refresh, isRefreshing } = useDataRefresh();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<'all' | ComplianceStatus>('all');
   const [ownership, setOwnership] = useState('all');
@@ -170,7 +172,7 @@ const FleetCompliancePage: React.FC = () => {
     try { return JSON.parse(localStorage.getItem('fleet-wear-actions-reviewed') || '[]'); } catch { return []; }
   });
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery<CompliancePayload>({
+  const { data, isLoading, error, refetch } = useQuery<CompliancePayload>({
     queryKey: ['fleet-compliance'],
     queryFn: () => api.get<CompliancePayload>('/fleet-compliance'),
     staleTime: 5 * 60 * 1000,
@@ -245,7 +247,7 @@ const FleetCompliancePage: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Readiness as of {data.asOf}</span>
-          <button onClick={() => refetch()} disabled={isFetching} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />Refresh</button>
+          <button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />{isRefreshing ? 'Refreshing…' : 'Refresh'}</button>
           <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Download size={15} />Export queue</button>
         </div>
       </section>

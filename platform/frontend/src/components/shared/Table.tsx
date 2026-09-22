@@ -11,6 +11,7 @@ import {
   Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 interface Column<T> {
   key: keyof T | string;
@@ -79,6 +80,7 @@ function Table<T>({
   filterable = false,
   pagination,
 }: TableProps<T>) {
+  const { refresh, isRefreshing } = useDataRefresh();
   const [searchQuery, setSearchQuery] = useState('');
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
 
@@ -366,10 +368,14 @@ function Table<T>({
           <div className="flex items-center space-x-2">
             {actions}
             <button
-              onClick={() => window.location.reload()}
-              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isRefreshing}
+              aria-label="Refresh data"
+              title={isRefreshing ? 'Refreshing data…' : 'Refresh data'}
+              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg disabled:cursor-wait disabled:opacity-50"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
             </button>
             <button
               onClick={() => {}}
