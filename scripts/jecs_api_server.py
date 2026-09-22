@@ -160,8 +160,19 @@ def build_fleet_compliance_payload(tenant="jecs"):
         return {
             'tenant': tenant, 'asOf': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
             'needsData': True, 'message': 'No tenant-scoped fleet source has been ingested',
-            'summary': {'registeredFleet': 0, 'operational': 0, 'grounded': 0, 'ready': 0},
-            'vehicles': [], 'rows': [],
+            'summary': {
+                'registeredFleet': 0, 'operational': 0, 'grounded': 0, 'ready': 0,
+                'readinessRate': 0, 'pmDue': 0, 'pmDueSoon': 0,
+                'pmSourceIssues': 0, 'pmUnmatchedVehicles': 0,
+                'inspectionVehicles': 0, 'inspectionCoverageRate': 0,
+                'openMaintenanceIssues': 0, 'statusCounts': {}, 'ownershipCounts': {},
+            },
+            'vehicles': [], 'rows': [], 'unmatchedPmIssues': [],
+            'wearAndTear': None, 'paveAssessments': None, 'sources': [],
+            'reconciliation': {
+                'currentRosterVinCount': 0, 'portalVinCount': 0,
+                'vinSetsMatch': None, 'note': 'Tenant fleet data has not been ingested',
+            },
         }
     roster_path = FLEET_REVIEW_DIR / "2026-09-07/vehicles-1.json"
     inspection_path = FLEET_REVIEW_DIR / "2026-09-07/inspection-stats-1.json"
@@ -1924,6 +1935,14 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     
     def handle_get_drivers(self):
         """Return list of all drivers."""
+        tenant = _tenant_from_headers(self.headers)
+        if tenant != DEFAULT_TENANT:
+            self.send_json({
+                'data': [], 'needsData': True,
+                'message': 'No tenant-scoped driver roster has been ingested',
+                'pagination': {'page': 1, 'limit': 0, 'total': 0, 'totalPages': 0},
+            })
+            return
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, status FROM drivers ORDER BY name")
@@ -1933,6 +1952,13 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     
     def handle_get_vans(self):
         """Return list of all vans."""
+        tenant = _tenant_from_headers(self.headers)
+        if tenant != DEFAULT_TENANT:
+            self.send_json({
+                'data': [], 'needsData': True,
+                'message': 'No tenant-scoped vehicle roster has been ingested',
+            })
+            return
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, van_number, vin, make, model, year, status, ownership FROM vans ORDER BY van_number")
@@ -2849,6 +2875,17 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
 
     def handle_get_time_attendance_exceptions(self):
         """Return real ADP exceptions, reconciled against daily Amazon assignments."""
+        tenant = _tenant_from_headers(self.headers)
+        if tenant != DEFAULT_TENANT:
+            self.send_json({
+                'tenant': tenant, 'source': None, 'sourcePeriod': None,
+                'capturedAt': None, 'needsData': True,
+                'message': 'No tenant-scoped ADP timecards have been ingested',
+                'coverage': {'employees': 0, 'dailyAssignments': 0,
+                             'routeReconciliationAvailable': False},
+                'exceptions': [],
+            })
+            return
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM driver_route_assignments")

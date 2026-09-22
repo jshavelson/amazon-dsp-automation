@@ -6,7 +6,7 @@ import { MetricCard, OperationalSourceBanner } from '@/components/shared/Operati
 
 type Van = { id: string; van_number: string; vin: string; make: string; model: string; year: number; status: string; ownership: string };
 type VanApiRow = Partial<Van> & { licensePlate?: string; unit?: string; operationalStatus?: string };
-type VanApiResponse = VanApiRow[] | { data?: VanApiRow[]; items?: VanApiRow[] };
+type VanApiResponse = VanApiRow[] | { data?: VanApiRow[]; items?: VanApiRow[]; needsData?: boolean; message?: string };
 
 export const normalizeVans = (response: VanApiResponse): Van[] => {
   const rows = Array.isArray(response) ? response : response.data || response.items || [];
@@ -25,10 +25,12 @@ export const normalizeVans = (response: VanApiResponse): Van[] => {
 const VansPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [ownership, setOwnership] = useState('all');
-  const { data = [], isLoading, error, refetch } = useQuery<Van[]>({
+  const { data: payload, isLoading, error, refetch } = useQuery<VanApiResponse>({
     queryKey: ['operational-vans'],
-    queryFn: async () => normalizeVans(await api.get<VanApiResponse>('/vans')),
+    queryFn: () => api.get<VanApiResponse>('/vans'),
   });
+  const data = normalizeVans(payload || []);
+  const needsData = !Array.isArray(payload) && payload?.needsData;
   const ownerships = useMemo(() => [...new Set(data.map(v => v.ownership))].sort(), [data]);
   const rows = useMemo(() => data.filter(v => {
     const q = search.toLowerCase();
@@ -38,6 +40,7 @@ const VansPage: React.FC = () => {
   const amazonOwned = data.filter(v => v.ownership === 'AMAZON_OWNED').length;
   if (isLoading) return <div className="rounded-xl border bg-white p-8">Loading fleet…</div>;
   if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">Fleet could not be loaded. <button className="underline" onClick={() => refetch()}>Retry</button></div>;
+  if (needsData) return <div className="space-y-6"><header><h1 className="text-2xl font-bold dark:text-white">Vans</h1><p className="text-sm text-gray-500 dark:text-slate-400">Operational vehicle roster with ownership and readiness status.</p></header><section className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"><Truck className="mx-auto mb-3" size={28}/><strong>No vehicle roster for this tenant.</strong><p className="mt-2 text-sm">{payload?.message}</p></section></div>;
   return <div className="space-y-6">
     <header><h1 className="text-2xl font-bold dark:text-white">Vans</h1><p className="text-sm text-gray-500 dark:text-slate-400">Operational vehicle roster with ownership and readiness status.</p></header>
     <OperationalSourceBanner source="Amazon Fleet Portal + PAVE" detail="Amazon supplies the roster and ownership data. PAVE is a separate connection for assessments, inspections, and wear-and-tear evidence." />

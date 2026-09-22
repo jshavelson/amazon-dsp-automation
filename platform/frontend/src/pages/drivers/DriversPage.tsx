@@ -8,6 +8,7 @@ import {
   Edit,
   Trash2,
   Eye,
+  Users,
 } from 'lucide-react';
 import { useDrivers, useDeleteDriver } from '@/hooks/useDrivers';
 import { Driver, DriverStatus, EmploymentType } from '@/types/driver';
@@ -52,8 +53,9 @@ const DriversPage: React.FC = () => {
   // The local operational API returns a compact driver roster while the
   // production API returns a paginated Driver payload. Normalize both shapes
   // here so local navigation displays the real roster instead of an empty table.
-  const driverPayload = driversData as unknown as { data?: Array<Partial<Driver> & { name?: string; status?: string }> } | Array<Partial<Driver> & { name?: string; status?: string }> | undefined;
+  const driverPayload = driversData as unknown as { data?: Array<Partial<Driver> & { name?: string; status?: string }>; needsData?: boolean; message?: string } | Array<Partial<Driver> & { name?: string; status?: string }> | undefined;
   const driverRows = (Array.isArray(driverPayload) ? driverPayload : driverPayload?.data || []);
+  const needsData = !Array.isArray(driverPayload) && driverPayload?.needsData;
   const drivers: Driver[] = driverRows.map((row, index) => {
     if (row.firstName || row.lastName) return row as Driver;
     const parts = (row.name || 'Unknown Driver').trim().split(/\s+/);
@@ -287,6 +289,17 @@ const DriversPage: React.FC = () => {
           <p className="text-danger-600 mb-4">Failed to load drivers</p>
           <Button onClick={() => refetch()}>Retry</Button>
         </div>
+      </div>
+    );
+  }
+
+  if (needsData) {
+    return (
+      <div className="space-y-6">
+        <header><h1 className="text-2xl font-bold text-gray-900 dark:text-white">Drivers</h1><p className="mt-1 text-gray-500 dark:text-slate-400">Manage your driver team.</p></header>
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <Users className="mx-auto mb-3" size={28}/><strong>No driver roster for this tenant.</strong><p className="mt-2 text-sm">{driverPayload?.message}</p>
+        </section>
       </div>
     );
   }
