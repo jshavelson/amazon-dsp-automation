@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Clock3, RefreshCw, Search, Truck } from 'lucide-react';
 import { api } from '@/services/api';
@@ -12,8 +12,10 @@ const time=(value:string|null)=>value?new Date(value).toLocaleTimeString([],{hou
 
 const RoutesPage:React.FC=()=>{
   const [search,setSearch]=useState(''); const [risk,setRisk]=useState<'all'|Risk>('all');
-  const {data,isLoading,error,refetch,isFetching}=useQuery<Payload>({queryKey:['route-monitor-live'],queryFn:()=>api.get<Payload>('/route-monitor'),refetchInterval:5*60*1000});
-  const rows=useMemo(()=>(data?.routes||[]).filter(r=>(risk==='all'||r.risk===risk)&&`${r.driverName} ${r.transporterId} ${r.routeCode} ${r.vin}`.toLowerCase().includes(search.toLowerCase())),[data,risk,search]);
+  const deferredSearch=useDeferredValue(search.trim().toLowerCase());
+  const {data,isLoading,error,refetch,isFetching}=useQuery<Payload>({queryKey:['route-monitor-live'],queryFn:()=>api.get<Payload>('/route-monitor'),refetchInterval:5*60*1000,staleTime:4*60*1000});
+  const searchableRoutes=useMemo(()=>(data?.routes||[]).map(route=>({route,searchText:`${route.driverName} ${route.transporterId} ${route.routeCode} ${route.vin}`.toLowerCase()})),[data?.routes]);
+  const rows=useMemo(()=>searchableRoutes.filter(({route,searchText})=>(risk==='all'||route.risk===risk)&&searchText.includes(deferredSearch)).map(({route})=>route),[searchableRoutes,risk,deferredSearch]);
   if(isLoading)return <div className="rounded-xl border bg-white p-8">Loading live routes…</div>;
   if(error)return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">Live routes could not be loaded. <button className="underline" onClick={()=>refetch()}>Retry</button></div>;
   const age=data?.capturedAt?Math.max(0,Math.round((Date.now()-Date.parse(data.capturedAt))/60000)):null;

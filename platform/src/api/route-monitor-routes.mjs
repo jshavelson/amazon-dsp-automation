@@ -19,18 +19,23 @@ export function routeMonitorRoutes(app, { repository, logger }) {
       });
       if (!result.items?.length) return reply.send(emptyLivePayload('No same-day route execution snapshot has been ingested for this tenant.'));
       const routes = result.items;
-      const capturedAt = routes.reduce((latest, row) => !latest || row.capturedAt > latest ? row.capturedAt : latest, null);
+      let capturedAt = null;
+      const summary = { assigned: 0, inProgress: 0, completed: 0, behind: 0, stalled: 0, lateDepartures: 0, multiRoute: 0 };
+      for (const row of routes) {
+        if (!capturedAt || row.capturedAt > capturedAt) capturedAt = row.capturedAt;
+        if (row.status === 'assigned') summary.assigned += 1;
+        else if (row.status === 'in_progress') summary.inProgress += 1;
+        else if (row.status === 'completed') summary.completed += 1;
+        if (row.risk === 'behind') summary.behind += 1;
+        else if (row.risk === 'stalled') summary.stalled += 1;
+        else if (row.risk === 'late_departure') summary.lateDepartures += 1;
+        if (row.isMultiRoute) summary.multiRoute += 1;
+      }
       const stale = Date.now() - Date.parse(capturedAt) > 15 * 60 * 1000;
-      const count = (predicate) => routes.filter(predicate).length;
       return reply.send({
         period: routes[0].deliveryDate, capturedAt, source: 'Amazon Delivery Execution', live: !stale, stale,
         needsData: false, needsReauth: false, routeCount: routes.length,
-        summary: {
-          assigned: count((row) => row.status === 'assigned'), inProgress: count((row) => row.status === 'in_progress'),
-          completed: count((row) => row.status === 'completed'), behind: count((row) => row.risk === 'behind'),
-          stalled: count((row) => row.risk === 'stalled'), lateDepartures: count((row) => row.risk === 'late_departure'),
-          multiRoute: count((row) => row.isMultiRoute),
-        },
+        summary,
         routes,
       });
     } catch (error) {

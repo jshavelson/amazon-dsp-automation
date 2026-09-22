@@ -17,17 +17,17 @@ const browser = await chromium.launch({ headless: true });
 try {
   const context = await browser.newContext({ storageState });
   const page = await context.newPage();
-  let summaries = null;
-  page.on('response', async (response) => {
-    if (response.status() === 200 && response.url().includes('/operations/execution/api/route-summaries?')) {
-      try { summaries = JSON.parse(await response.text()); } catch { summaries = null; }
-    }
-  });
   const url = `https://logistics.amazon.com/operations/execution/dv/routes?provider=ALL_DRIVERS&selectedDay=${deliveryDate}&serviceAreaId=${config.executionServiceAreaId}&historicalDay=${deliveryDate !== new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())}`;
-  await page.goto(url, { waitUntil: 'networkidle', timeout: config.navigationTimeoutMs || 45_000 });
+  const responsePromise = page.waitForResponse(
+    (response) => response.status() === 200 && response.url().includes('/operations/execution/api/route-summaries?'),
+    { timeout: config.navigationTimeoutMs || 45_000 },
+  ).catch(() => null);
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs || 45_000 });
   if (page.url().includes('/ap/signin')) throw new Error('Amazon session requires sign-in or MFA. Run npm run amazon:login.');
-  await page.waitForTimeout(2000);
-  if (!summaries) throw new Error('Amazon Delivery Execution did not return route summaries.');
+  const response = await responsePromise;
+  if (!response) throw new Error('Amazon Delivery Execution did not return route summaries.');
+  const summaries = await response.json().catch(() => null);
+  if (!summaries) throw new Error('Amazon Delivery Execution returned invalid route summaries.');
   const capturedAt = new Date().toISOString();
   const normalized = normalizeRouteSummaries(summaries, { tenant, capturedAt, deliveryDate });
   const bytes = `${JSON.stringify(normalized, null, 2)}\n`;

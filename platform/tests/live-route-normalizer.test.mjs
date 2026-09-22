@@ -17,5 +17,7 @@ test('normalizes Delivery Execution progress and flags stalled multi-route work'
   assert.equal(payload.routes[0].completionPct, 40);
   assert.equal(payload.routes[0].risk, 'stalled');
   assert.equal(payload.routes[0].isMultiRoute, true);
+  assert.equal(payload.summary.inProgress, 1);
   assert.equal(payload.summary.stalled, 1);
+  assert.equal(payload.summary.multiRoute, 1);
 });

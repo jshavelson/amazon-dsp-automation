@@ -73,7 +73,16 @@ export function normalizeRouteSummaries(payload, { tenant = 'jecs', capturedAt =
     }
   }
   const unique = [...new Map(rows.map((row) => [`${row.routeId}|${row.transporterId}`, row])).values()];
-  const counts = (name) => unique.filter((row) => row[name]).length;
+  const summary = { assigned: 0, inProgress: 0, completed: 0, behind: 0, stalled: 0, lateDepartures: 0, multiRoute: 0 };
+  for (const row of unique) {
+    if (row.status === 'assigned') summary.assigned += 1;
+    else if (row.status === 'in_progress') summary.inProgress += 1;
+    else if (row.status === 'completed') summary.completed += 1;
+    if (row.risk === 'behind') summary.behind += 1;
+    else if (row.risk === 'stalled') summary.stalled += 1;
+    else if (row.risk === 'late_departure') summary.lateDepartures += 1;
+    if (row.isMultiRoute) summary.multiRoute += 1;
+  }
   const easternToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
   return {
     period: deliveryDate || unique[0]?.deliveryDate || null,
@@ -86,15 +95,7 @@ export function normalizeRouteSummaries(payload, { tenant = 'jecs', capturedAt =
     message: unique.length === 0 ? 'Amazon is connected, but no routes have been published for this operating day yet.' : null,
     needsReauth: false,
     routeCount: unique.length,
-    summary: {
-      assigned: unique.filter((row) => row.status === 'assigned').length,
-      inProgress: unique.filter((row) => row.status === 'in_progress').length,
-      completed: unique.filter((row) => row.status === 'completed').length,
-      behind: unique.filter((row) => row.risk === 'behind').length,
-      stalled: unique.filter((row) => row.risk === 'stalled').length,
-      lateDepartures: unique.filter((row) => row.risk === 'late_departure').length,
-      multiRoute: counts('isMultiRoute'),
-    },
+    summary,
     routes: unique,
   };
 }

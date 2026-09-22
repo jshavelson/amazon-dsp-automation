@@ -435,10 +435,13 @@ export class PostgresRepository {
   // Route methods
   async listLiveRoutes(context, { date, limit = 250 } = {}) {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
-      const selected = date || (await client.query(`select max(delivery_date)::text as date from app.live_routes where tenant_id = $1`, [context.principal.tenantDbId])).rows[0]?.date;
-      if (!selected) return { items: [], total: 0 };
       const result = await client.query(
-        `select route_id as "routeId", route_code as "routeCode", delivery_date::text as "deliveryDate",
+        `with selected_day as (
+           select coalesce($2::date, max(delivery_date)) as delivery_date
+             from app.live_routes
+            where tenant_id = $1
+         )
+         select route_id as "routeId", route_code as "routeCode", delivery_date::text as "deliveryDate",
                 transporter_id as "transporterId", driver_name as "driverName", vin, status, risk,
                 planned_departure_at as "plannedDepartureAt", actual_departure_at as "actualDepartureAt",
                 projected_completion_at as "projectedCompletionAt", scheduled_end_at as "scheduledEndAt",
@@ -451,9 +454,11 @@ export class PostgresRepository {
                 projected_late_minutes as "projectedLateMinutes", inactive_minutes as "inactiveMinutes",
                 on_break as "onBreak", route_paused as "routePaused", rescue_count as "rescueCount",
                 associated_routes as "associatedRoutes", is_multi_route as "isMultiRoute", captured_at as "capturedAt"
-           from app.live_routes where tenant_id = $1 and delivery_date = $2::date
+           from app.live_routes
+           join selected_day using (delivery_date)
+          where tenant_id = $1
           order by case risk when 'stalled' then 1 when 'behind' then 2 when 'late_departure' then 3 else 4 end, route_code, transporter_id limit $3`,
-        [context.principal.tenantDbId, selected, limit]
+        [context.principal.tenantDbId, date || null, limit]
       );
       return { items: result.rows, total: result.rows.length };
     });
