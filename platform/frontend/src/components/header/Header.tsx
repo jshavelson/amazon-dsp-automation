@@ -5,12 +5,10 @@ import clsx from 'clsx';
 import {
   Menu,
   Bell,
-  Search,
   User,
   Settings,
   LogOut,
   ChevronDown,
-  X,
   Moon,
   Sun,
 } from 'lucide-react';
@@ -52,7 +50,6 @@ const Header: React.FC<HeaderProps> = ({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const { data: connectionHealth } = useQuery<ConnectionHealth>({
     queryKey: ['connection-health'],
     queryFn: () => api.get<ConnectionHealth>('/connections'),
@@ -368,31 +365,6 @@ const Header: React.FC<HeaderProps> = ({
           >
             {darkMode ? <Sun size={19} /> : <Moon size={19} />}
           </button>
-
-          {/* Search */}
-          <div className="hidden lg:flex items-center">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 pl-10 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:outline-none transition-colors"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          </div>
 
           {/* Notifications */}
           <div className="relative">

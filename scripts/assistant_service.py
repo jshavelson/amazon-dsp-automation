@@ -17,6 +17,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
+    from scripts import assistant_tools
+except ModuleNotFoundError:
+    import assistant_tools
+
+try:
     from scripts.secret_store import get_secret, has_secret
 except ModuleNotFoundError:  # Direct execution from scripts/jecs_api_server.py
     from secret_store import get_secret, has_secret
@@ -85,7 +90,9 @@ def status(tenant: str) -> dict:
         "configured": bool(configured),
         "model": (configured or {}).get("model") or os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini"),
         "voiceMode": "browser",
-        "readOnly": True,
+        "readOnly": False,
+        "capabilities": ["tenant-data-read", "scorecard-files", "weekly-evaluation", "dispute-preparation"],
+        "externalActionsRequireApproval": True,
         "tenant": tenant,
         "instructions": {
             "version": bundle["version"],
@@ -123,7 +130,39 @@ def _audit(tenant: str, actor: str, event: dict) -> None:
     os.chmod(path, 0o600)
 
 
-def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot: dict) -> dict:
+def _response_text(payload: dict) -> str:
+    answer = str(payload.get("output_text") or "").strip()
+    if answer:
+        return answer
+    return "".join(
+        str(content.get("text") or "")
+        for item in payload.get("output") or []
+        for content in item.get("content") or []
+        if content.get("type") == "output_text"
+    ).strip()
+
+
+def _provider_request(key: str, credential: dict, body: dict, timeout: int = 90) -> dict:
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(body).encode("utf-8"), method="POST",
+        headers={
+            "Authorization": f"Bearer {key}", "Content-Type": "application/json",
+            **({"OpenAI-Organization": credential["organization"]} if credential.get("organization") else {}),
+            **({"OpenAI-Project": credential["project"]} if credential.get("project") else {}),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"AI provider request failed ({error.code})") from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise RuntimeError("AI provider is temporarily unavailable") from error
+
+
+def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot: dict,
+        allow_workflows: bool = True) -> dict:
     question = str(message or "").strip()
     if not question or len(question) > MAX_MESSAGE:
         raise ValueError(f"message must contain 1-{MAX_MESSAGE} characters")
@@ -141,10 +180,12 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
     safety_id = hashlib.sha256(f"{tenant}:{actor}".encode()).hexdigest()
     bundle = project_instructions()
     instructions = (
-        "You are the read-only operations analyst inside a multi-tenant Amazon DSP platform. "
-        "Use only the supplied tenant snapshot; never claim access to another tenant or to data not present. "
+        "You are the operations agent inside a multi-tenant Amazon DSP platform. "
+        "Use the supplied tenant snapshot and tools; never claim access to another tenant or unavailable data. "
         "Do not invent metrics. If evidence is missing or stale, say so. Give concise, actionable operational advice. "
-        "Never submit disputes, change payroll, message people, or perform external actions. "
+        "You may run the weekly evaluation when the user asks. That workflow prepares summaries, PDFs, disputes, and evidence only. "
+        "Never submit disputes, change payroll, message people, deploy, or perform other external actions. "
+        "Before answering data questions, call the relevant tools instead of guessing from conversation history. "
         "Cite factual claims inline using the supplied source IDs exactly, for example [fleet-compliance]."
     )
     if bundle["text"]:
@@ -160,39 +201,32 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
         "role": "user",
         "content": f"Current application path: {current_path}\nTenant snapshot:\n{context_text}\n\nQuestion: {question}",
     })
-    body = json.dumps({
-        "model": model,
-        "input": input_items,
-        "max_output_tokens": 900,
-        "safety_identifier": safety_id,
-    }).encode("utf-8")
     started = time.monotonic()
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {key}", "Content-Type": "application/json",
-            **({"OpenAI-Organization": credential["organization"]} if credential.get("organization") else {}),
-            **({"OpenAI-Project": credential["project"]} if credential.get("project") else {}),
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=45) as response:
-            payload = json.loads(response.read())
-    except urllib.error.HTTPError as error:
-        # Never expose provider response bodies because they can include request details.
-        raise RuntimeError(f"AI provider request failed ({error.code})") from error
-    except (urllib.error.URLError, TimeoutError) as error:
-        raise RuntimeError("AI provider is temporarily unavailable") from error
-
-    answer = str(payload.get("output_text") or "").strip()
-    if not answer:
-        for item in payload.get("output") or []:
-            for content in item.get("content") or []:
-                if content.get("type") == "output_text":
-                    answer += content.get("text") or ""
-    answer = answer.strip() or "I could not produce an answer from the available tenant data."
+    tool_events = []
+    payload = {}
+    for _ in range(8):
+        payload = _provider_request(key, credential, {
+            "model": model, "input": input_items, "tools": assistant_tools.TOOLS,
+            "max_output_tokens": 1400, "safety_identifier": safety_id,
+        })
+        input_items.extend(payload.get("output") or [])
+        calls = [item for item in payload.get("output") or [] if item.get("type") == "function_call"]
+        if not calls:
+            break
+        for call in calls:
+            name = str(call.get("name") or "")
+            try:
+                arguments = json.loads(call.get("arguments") or "{}")
+                result = assistant_tools.execute(name, arguments, allow_workflows=allow_workflows)
+                output = {"ok": True, "result": result}
+            except Exception as error:
+                output = {"ok": False, "error": str(error)[:2000]}
+            tool_events.append({"name": name, "ok": output["ok"]})
+            input_items.append({
+                "type": "function_call_output", "call_id": call.get("call_id"),
+                "output": json.dumps(output, default=str),
+            })
+    answer = _response_text(payload) or "I could not produce an answer from the available tenant data."
     usage = payload.get("usage") or {}
     elapsed_ms = round((time.monotonic() - started) * 1000)
     citations = snapshot.get("citations") or []
@@ -208,6 +242,7 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
         "latencyMs": elapsed_ms,
         "instructionVersion": bundle["version"],
         "instructionFiles": bundle["files"],
+        "tools": tool_events,
     })
     return {
         "conversationId": conversation_id,
@@ -215,5 +250,7 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
         "citations": citations,
         "model": model,
         "usage": {"inputTokens": usage.get("input_tokens"), "outputTokens": usage.get("output_tokens")},
-        "readOnly": True,
+        "readOnly": False,
+        "toolsUsed": tool_events,
+        "externalActionsRequireApproval": True,
     }

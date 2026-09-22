@@ -1052,25 +1052,55 @@ def _scorecard_week(week):
     }
 
 
+_PERFORMANCE_DASHBOARD_CACHE = {'fingerprint': None, 'payload': None}
+
+
+def _performance_source_fingerprint(weeks):
+    """Cheaply detect scorecard source changes without reparsing every PDF."""
+    sources = []
+    for week in weeks:
+        week_dir = SCORECARD_DATA_DIR / week
+        for pattern in ('DSP_Overview_Dashboard_*.csv', '*.pdf'):
+            for path in week_dir.glob(pattern):
+                name = path.name.lower()
+                if pattern == '*.pdf' and 'dspscorecard' not in name:
+                    continue
+                stat = path.stat()
+                sources.append((str(path), stat.st_mtime_ns, stat.st_size))
+    return tuple(sorted(sources))
+
+
 def build_performance_dashboard_payload():
     weeks = sorted(
         item.name for item in SCORECARD_DATA_DIR.iterdir()
         if item.is_dir() and re.fullmatch(r'\d{4}-wk\d{2}', item.name)
     )[-13:]
+    fingerprint = _performance_source_fingerprint(weeks)
+    if (_PERFORMANCE_DASHBOARD_CACHE['fingerprint'] == fingerprint
+            and _PERFORMANCE_DASHBOARD_CACHE['payload'] is not None):
+        return _PERFORMANCE_DASHBOARD_CACHE['payload']
     history = [item for week in weeks if (item := _scorecard_week(week))]
     if not history:
-        return {'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
-                'source': None, 'drivers': [], 'history': [],
-                'dspPerformance': {'overallScore': 0, 'deliveryScore': 0, 'safetyScore': 0,
-                                   'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0}}
+        payload = {'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
+                   'source': None, 'drivers': [], 'history': [],
+                   'dspPerformance': {'overallScore': 0, 'deliveryScore': 0, 'safetyScore': 0,
+                                      'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0}}
+        _PERFORMANCE_DASHBOARD_CACHE.update(fingerprint=fingerprint, payload=payload)
+        return payload
     current = history[-1]
-    drivers = current.pop('drivers')
-    return {
+    drivers = current['drivers']
+    # Trend consumers need weekly aggregates, not a duplicate driver roster
+    # embedded in every historical point.
+    summarized_history = [
+        {key: value for key, value in item.items() if key != 'drivers'}
+        for item in history
+    ]
+    payload = {
         'period': current['period'],
         'generatedAt': datetime.now(timezone.utc).isoformat(),
         'source': f"Amazon DSP scorecard {current['period']}",
         'drivers': drivers,
-        'history': history,
+        'history': summarized_history,
         'dspPerformance': {
             'overallScore': current['overallScore'],
             'deliveryScore': current['dcr'],
@@ -1080,6 +1110,8 @@ def build_performance_dashboard_payload():
             'totalDeliveries': current['packages'],
         },
     }
+    _PERFORMANCE_DASHBOARD_CACHE.update(fingerprint=fingerprint, payload=payload)
+    return payload
 
 
 def build_route_monitor_payload(period=None):
@@ -1122,7 +1154,6 @@ def build_dashboard_operations_payload(tenant='jecs'):
     fleet = build_fleet_compliance_payload(tenant)
     costs = build_fleet_cost_reconciliation(tenant)
     connections = build_connections_payload(tenant)
-    modules = build_reimbursement_review_payload()
     sources = []
     for item in connections.get('connections', []):
         source_id = item.get('id')
@@ -1144,13 +1175,39 @@ def build_dashboard_operations_payload(tenant='jecs'):
             'status': status,
             'feeds': item.get('feeds') or [],
         })
+    # This endpoint is the dashboard's critical rendering path. Return only
+    # fields consumed by that screen instead of serializing full driver,
+    # vehicle, transaction, upload, and reconciliation records.
+    dashboard_performance = {
+        key: performance.get(key)
+        for key in ('period', 'generatedAt', 'source', 'drivers', 'history', 'dspPerformance')
+    }
+    dashboard_fleet = {
+        'asOf': fleet.get('asOf') or fleet.get('generatedAt'),
+        'summary': fleet.get('summary') or {},
+        'vehicles': [
+            {'status': item.get('status'), 'ownership': item.get('ownership')}
+            for item in (fleet.get('vehicles') or fleet.get('rows') or [])
+        ],
+    }
+    dashboard_costs = {
+        'asOf': costs.get('asOf'),
+        'needsData': costs.get('needsData', False),
+        'summary': costs.get('summary') or {},
+    }
+    dashboard_connections = {
+        'summary': connections.get('summary') or {},
+        'connections': [
+            {key: item.get(key) for key in ('id', 'name', 'displayName', 'status', 'lastSuccessAt', 'kind', 'authKind')}
+            for item in connections.get('connections', [])
+        ],
+    }
     return {
         'generatedAt': datetime.now(timezone.utc).isoformat(),
-        'performance': performance,
-        'fleet': fleet,
-        'costs': costs,
-        'connections': connections,
-        'modules': modules,
+        'performance': dashboard_performance,
+        'fleet': dashboard_fleet,
+        'costs': dashboard_costs,
+        'connections': dashboard_connections,
         'sources': sources,
     }
 
@@ -3254,6 +3311,9 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
 
 def run_server(port=8000):
     """Run the JECS API server."""
+    # Parse scorecards before accepting traffic so the first dashboard request
+    # uses the source-aware in-memory cache instead of blocking page render.
+    build_performance_dashboard_payload()
     server_address = ('', port)
     httpd = HTTPServer(server_address, JecsAPIHandler)
     print(f"JECS API server running on http://localhost:{port}")
