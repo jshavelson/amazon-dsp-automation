@@ -3,6 +3,7 @@ const TOKEN_KEY = 'dsp-platform-id-token';
 const EXPIRY_KEY = 'dsp-platform-token-expiry';
 const VERIFIER_KEY = 'dsp-platform-pkce-verifier';
 const STATE_KEY = 'dsp-platform-oauth-state';
+const PKCE_CREATED_KEY = 'dsp-platform-pkce-created-at';
 
 let authConfig;
 let tenantContext;
@@ -37,6 +38,13 @@ async function beginLogin() {
   const state = randomValue(32);
   sessionStorage.setItem(VERIFIER_KEY, verifier);
   sessionStorage.setItem(STATE_KEY, state);
+  sessionStorage.setItem(PKCE_CREATED_KEY, String(Date.now()));
+  // Some password-manager and managed-browser flows replace the browsing
+  // context on the Cognito round trip. Keep one short-lived same-origin
+  // fallback so the PKCE callback can still be completed safely.
+  localStorage.setItem(VERIFIER_KEY, verifier);
+  localStorage.setItem(STATE_KEY, state);
+  localStorage.setItem(PKCE_CREATED_KEY, String(Date.now()));
   const url = new URL(authConfig.authorizationUrl);
   url.search = new URLSearchParams({
     client_id: authConfig.clientId,
@@ -51,8 +59,12 @@ async function beginLogin() {
 }
 
 async function completeLogin(code, state) {
-  const verifier = sessionStorage.getItem(VERIFIER_KEY);
-  if (!verifier || state !== sessionStorage.getItem(STATE_KEY)) throw new Error('invalid sign-in state');
+  const createdAt = Number(sessionStorage.getItem(PKCE_CREATED_KEY) || localStorage.getItem(PKCE_CREATED_KEY) || 0);
+  const verifier = sessionStorage.getItem(VERIFIER_KEY) || localStorage.getItem(VERIFIER_KEY);
+  const expectedState = sessionStorage.getItem(STATE_KEY) || localStorage.getItem(STATE_KEY);
+  if (!verifier || state !== expectedState || Date.now() - createdAt > 10 * 60 * 1000) {
+    throw new Error('Sign-in session expired. Select Sign in and complete one login attempt.');
+  }
   const response = await fetch(authConfig.tokenUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -71,6 +83,10 @@ async function completeLogin(code, state) {
   sessionStorage.setItem(EXPIRY_KEY, String(Date.now() + Math.max(60, Number(tokens.expires_in || 3600) - 30) * 1000));
   sessionStorage.removeItem(VERIFIER_KEY);
   sessionStorage.removeItem(STATE_KEY);
+  sessionStorage.removeItem(PKCE_CREATED_KEY);
+  localStorage.removeItem(VERIFIER_KEY);
+  localStorage.removeItem(STATE_KEY);
+  localStorage.removeItem(PKCE_CREATED_KEY);
   history.replaceState({}, '', '/');
 }
 
@@ -145,6 +161,7 @@ documentRoot.getElementById('dashboard-button').addEventListener('click', () => 
 documentRoot.getElementById('pilot-dashboard-button').addEventListener('click', () => openDashboard());
 
 initialize().catch((error) => {
-  documentRoot.getElementById('status-time').textContent = error.message;
-  documentRoot.getElementById('session-status').textContent = 'Sign-in unavailable';
+  const message = error instanceof Error ? error.message : 'Unknown sign-in error';
+  documentRoot.getElementById('status-time').textContent = message;
+  documentRoot.getElementById('session-status').textContent = `Sign-in failed: ${message}`;
 });

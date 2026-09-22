@@ -77,14 +77,26 @@ function warnFallback(request, error, resource) {
 export function reactCompatRoutes(app, { repository, dashboardHtmlPath, includeConnectionSnapshot = true }) {
   app.get('/api/auth/me', async (request) => {
     const principal = request.tenantContext.principal;
+    const roleMap = {
+      platform_admin: 'super_admin',
+      owner: 'dsp_owner',
+      admin: 'operations_manager',
+      reviewer: 'viewer',
+      analyst: 'viewer',
+      viewer: 'viewer'
+    };
     const [firstName = '', ...lastNameParts] = (principal.email || 'DSP User').split('@')[0].split(/[._-]/);
     return {
       id: principal.userId,
-      email: principal.email,
+      email: principal.email || '',
       firstName: firstName || 'DSP',
       lastName: lastNameParts.join(' ') || 'User',
-      role: principal.role,
-      status: 'active'
+      role: roleMap[principal.role] || 'viewer',
+      status: 'active',
+      emailVerified: true,
+      mfaEnabled: true,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date().toISOString()
     };
   });
 

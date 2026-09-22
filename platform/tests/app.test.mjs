@@ -79,6 +79,19 @@ test('protected API requires bearer identity and explicit tenant', async (t) => 
   assert.equal((await app.inject({ method: 'GET', url: '/api/fleet-costs' })).statusCode, 401);
 });
 
+test('authenticated React session endpoint returns the current tenant user', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/auth/me',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().email, 'owner@example.com');
+  assert.equal(response.json().role, 'dsp_owner');
+});
+
 test('assistant is tenant-authenticated and fails closed when no platform model is configured', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());
