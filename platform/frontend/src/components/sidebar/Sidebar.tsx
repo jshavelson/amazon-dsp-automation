@@ -24,6 +24,7 @@ import {
   Landmark,
   Link2,
   Bot,
+  Building2,
 } from 'lucide-react';
 import { usePlatformContext } from '@/hooks/usePlatformContext';
 
@@ -80,6 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       ...(platform?.user.isPlatformAdmin
         ? [
           { label: 'Feature Management', href: '/admin/features', icon: <ShieldCheck size={20} />, featureId: 'feature_admin' },
+          { label: 'Tenant Administration', href: '/admin/tenants', icon: <Building2 size={20} />, featureId: 'super_admin' },
           { label: 'AI Assistant Setup', href: '/admin/ai', icon: <Bot size={20} />, featureId: 'ai_admin' },
         ]
         : []),

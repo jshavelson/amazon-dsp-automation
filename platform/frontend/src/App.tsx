@@ -34,6 +34,7 @@ import ConnectionsPage from './pages/connections/ConnectionsPage';
 import SystemPage from './pages/system/SystemPage';
 import { UsersRolesPage, FeatureAdminPage } from './pages/admin/AccessAdminPage';
 import AIAssistantAdminPage from './pages/admin/AIAssistantAdminPage';
+import SuperAdminPage from './pages/admin/SuperAdminPage';
 import { usePlatformContext } from './hooks/usePlatformContext';
 
 // Shared Components
@@ -151,6 +152,7 @@ const App: React.FC = () => {
               <Route path="/connections" element={<ConnectionsPage />} />
               <Route path="/users" element={<UsersRolesPage />} />
               <Route path="/admin/features" element={<FeatureAdminPage />} />
+              <Route path="/admin/tenants" element={<SuperAdminPage />} />
               <Route path="/admin/ai" element={<AIAssistantAdminPage />} />
 
               {/* Fleet Costs */}

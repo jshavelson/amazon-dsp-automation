@@ -337,6 +337,75 @@ test('platform admin support session assumes target visibility but remains read-
   assert.deepEqual(audits.map((item) => item.action), ['impersonation.start', 'impersonation.end']);
 });
 
+test('platform admin provisions tenants and secret-free connection metadata through bounded routes', async (t) => {
+  const calls = [];
+  const tenant = { id: 'tenant-2', slug: 'new-dsp', displayName: 'New DSP', status: 'active', createdAt: '2026-09-22T00:00:00Z' };
+  const adminRepository = {
+    ...repository,
+    async resolveContext({ tenantSlug, identity }) {
+      const context = await repository.resolveContext({ tenantSlug, identity });
+      return { ...context, principal: { ...context.principal, role: 'platform_admin', isPlatformAdmin: true } };
+    },
+    async listAllTenants() { return [tenant]; },
+    async getTenantBySlug(slug) { return slug === tenant.slug ? tenant : null; },
+    async provisionTenant(value) {
+      calls.push(['provision', value]);
+      return { tenant: { ...tenant, slug: value.slug, displayName: value.displayName }, owner: { email: value.ownerEmail, identitySubject: value.ownerIdentitySubject, role: 'owner', status: 'invited' } };
+    },
+    async listTenantFeatures() { return []; },
+    async listTenantConnections() { return []; },
+    async listTenantMembers() { return [{ identitySubject: 'tenant-owner', email: 'owner@new.example', role: 'owner', status: 'active' }]; },
+    async listAllMembers() { return { members: [], total: 0 }; },
+    async auditPlatformEvent(...value) { calls.push(['audit', value]); }
+  };
+  const memberProvisioner = {
+    async invite(value) { calls.push(['identity', value]); return { identitySubject: 'cognito-owner', invitationSent: true }; }
+  };
+  const app = await createApp({
+    authenticator, repository: adminRepository, registry, memberProvisioner,
+    impersonationService: new ImpersonationService('01234567890123456789012345678901')
+  });
+  t.after(() => app.close());
+  const headers = { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics', 'content-type': 'application/json' };
+  const listed = await app.inject({ method: 'GET', url: '/api/super-admin/tenants', headers });
+  assert.equal(listed.statusCode, 200);
+  assert.equal(listed.json().tenants[0].slug, 'new-dsp');
+  const created = await app.inject({
+    method: 'POST', url: '/api/super-admin/tenants', headers,
+    payload: { slug: 'second-dsp', displayName: 'Second DSP', ownerEmail: 'owner@second.example', ownerGivenName: 'New', ownerFamilyName: 'Owner', moduleIds: ['executive_dashboard'] }
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.json().owner.invitationSent, true);
+  assert.deepEqual(calls.slice(0, 2).map(([kind]) => kind), ['identity', 'provision']);
+  assert.equal(calls[1][1].ownerIdentitySubject, 'cognito-owner');
+  const secretRejected = await app.inject({
+    method: 'POST', url: '/api/super-admin/tenants/new-dsp/connections', headers,
+    payload: { integrationType: 'digits_api', displayName: 'Digits', authKind: 'api_credentials', config: { apiToken: 'must-not-pass' } }
+  });
+  assert.equal(secretRejected.statusCode, 400);
+  assert.match(secretRejected.json().error, /tenant vault/);
+  const support = await app.inject({
+    method: 'POST', url: '/api/super-admin/impersonate', headers,
+    payload: { tenantSlug: 'new-dsp', targetSubject: 'tenant-owner', reason: 'Reviewing tenant onboarding configuration' }
+  });
+  assert.equal(support.statusCode, 201);
+  assert.equal(support.json().target.tenantSlug, 'new-dsp');
+  assert.ok(support.json().token.split('.').length === 3);
+});
+
+test('super-admin migration keeps platform audit append-only without redefining admin identities', async () => {
+  const migration = await fs.readFile(
+    new URL('../db/migrations/010_super_admin_tenant_management.sql', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(migration, /create table if not exists app\.platform_audit_events/i);
+  assert.match(migration, /create trigger platform_audit_events_append_only/i);
+  assert.match(migration, /app\.prevent_platform_audit_mutation/i);
+  assert.doesNotMatch(migration, /create table if not exists app\.platform_admins/i);
+  assert.doesNotMatch(migration, /drop table/i);
+});
+
 test('dispute filing requires owner confirmation and delegates to the guarded adapter', async (t) => {
   const calls = [];
   const disputeSubmission = {

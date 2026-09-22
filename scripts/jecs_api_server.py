@@ -849,6 +849,7 @@ LOCAL_FEATURES = [
     ('notifications', 'Notifications', '/notifications', 'planned'),
     ('help', 'Help & Support', '/help', 'implemented'),
     ('feature_admin', 'Feature Management', '/admin/features', 'implemented'),
+    ('super_admin', 'Tenant Administration', '/admin/tenants', 'implemented'),
     ('ai_admin', 'AI Assistant Setup', '/admin/ai', 'implemented'),
 ]
 
@@ -908,6 +909,38 @@ def _save_local_members(tenant, members):
     path = _member_state_path(tenant)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(members, indent=2, sort_keys=True))
+
+
+def _local_tenant_state_path():
+    return TENANT_ROOT / '_platform' / 'tenants.json'
+
+
+def _local_tenants():
+    path = _local_tenant_state_path()
+    if path.exists():
+        try:
+            tenants = json.loads(path.read_text())
+            if isinstance(tenants, list):
+                return tenants
+        except (ValueError, OSError):
+            pass
+    return [{'id': 'local-jecs', 'slug': 'jecs', 'displayName': 'JEC Logistics Solutions',
+             'status': 'active', 'createdAt': '2026-09-21T00:00:00Z'}]
+
+
+def _save_local_tenants(tenants):
+    path = _local_tenant_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(tenants, indent=2, sort_keys=True))
+
+
+LOCAL_MODULES = [
+    {'id': 'executive_dashboard', 'displayName': 'Executive Operations Dashboard', 'status': 'in_development'},
+    {'id': 'data_integrations', 'displayName': 'Secure Data Integrations', 'status': 'in_development'},
+    {'id': 'fixed_monthly', 'displayName': 'Fixed Monthly Fleet Reconciliation', 'status': 'active'},
+    {'id': 'weekly_payments', 'displayName': 'Weekly Variable and Incentive Review', 'status': 'active'},
+]
+_LOCAL_SUPPORT_SESSIONS = {}
 
 
 def _valid_member_email(value):
@@ -1660,14 +1693,25 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.send_json(build_reimbursement_review_payload())
             elif path == '/api/context':
                 tenant = _tenant_from_headers(self.headers)
+                support = _LOCAL_SUPPORT_SESSIONS.get(self.headers.get('x-support-session'))
+                tenant_record = next((item for item in _local_tenants() if item['slug'] == tenant), None)
+                user = ({'id': support['identitySubject'], 'email': support['email'], 'role': support['role'],
+                         'tenantRole': support['role'], 'isPlatformAdmin': False}
+                        if support and support.get('tenantSlug') == tenant else
+                        {'id': 'dev-user', 'email': 'dev@example.com', 'role': 'platform_admin',
+                         'tenantRole': 'owner', 'isPlatformAdmin': True})
                 self.send_json({
-                    'tenant': {'id': 'jecs', 'name': 'JEC Logistics Solutions'},
-                    'user': {'id': 'dev-user', 'email': 'dev@example.com', 'role': 'platform_admin',
-                             'tenantRole': 'owner', 'isPlatformAdmin': True},
+                    'tenant': {'id': tenant, 'name': (tenant_record or {}).get('displayName', tenant)},
+                    'user': user,
                     'permissions': ['module.read', 'integration.manage', 'member.manage',
-                                    'feature.manage', 'impersonation.manage'],
+                                    'feature.manage', 'impersonation.manage', 'tenant.manage',
+                                    'tenant.provision', 'tenant.impersonate'],
                     'features': _public_features(tenant),
-                    'modules': [], 'impersonation': None,
+                    'modules': [],
+                    'impersonation': ({'active': True, 'actorEmail': 'dev@example.com',
+                                       'targetEmail': support['email'], 'targetRole': support['role'],
+                                       'reason': support['reason'], 'expiresAt': support['expiresAt']}
+                                      if support and support.get('tenantSlug') == tenant else None),
                 })
             elif path == '/api/assistant/status':
                 self.send_json(assistant_service.status(_tenant_from_headers(self.headers)))
@@ -1689,6 +1733,31 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             elif path == '/api/members':
                 self.send_json({'members': _local_members(_tenant_from_headers(self.headers)),
                                 'roles': ['owner', 'admin', 'reviewer', 'analyst', 'viewer']})
+            elif path == '/api/super-admin/tenants':
+                self.send_json({'tenants': _local_tenants(), 'modules': LOCAL_MODULES})
+            elif path == '/api/super-admin/members':
+                tenant_slug = (query.get('tenantSlug') or [None])[0]
+                tenants = [item for item in _local_tenants()
+                           if tenant_slug is None or item['slug'] == tenant_slug]
+                members = [{**member, 'tenantSlug': tenant['slug'], 'tenantName': tenant['displayName']}
+                           for tenant in tenants for member in _local_members(tenant['slug'])]
+                self.send_json({'members': members, 'total': len(members)})
+            elif path == '/api/super-admin/onboarding-checklist':
+                self.send_json({'checklist': {'credentialNotice': 'Credentials use the tenant vault only.'}})
+            elif path == '/api/super-admin/onboarding-checklist.pdf':
+                self.send_binary((ROOT / 'platform/docs/tenant-onboarding-checklist.pdf').read_bytes(),
+                                 'application/pdf', 'tenant-onboarding-checklist.pdf')
+            elif re.fullmatch(r'/api/super-admin/tenants/[a-z][a-z0-9-]{2,62}/features', path):
+                tenant_slug = path.split('/')[4]
+                self.send_json({'tenantSlug': tenant_slug, 'features': _public_features(tenant_slug)})
+            elif re.fullmatch(r'/api/super-admin/tenants/[a-z][a-z0-9-]{2,62}/connections', path):
+                tenant_slug = path.split('/')[4]
+                self.send_json({'tenantSlug': tenant_slug,
+                                'connections': build_connections_payload(tenant_slug).get('connections', [])})
+            elif re.fullmatch(r'/api/super-admin/tenants/[a-z][a-z0-9-]{2,62}', path):
+                tenant_slug = path.split('/')[4]
+                tenant = next((item for item in _local_tenants() if item['slug'] == tenant_slug), None)
+                self.send_json_status(200 if tenant else 404, {'tenant': tenant} if tenant else {'error': 'tenant not found'})
             elif path.startswith('/api/modules/') and path.endswith('/cases'):
                 module_id = path.split('/')[3]
                 self.send_json({'cases': [c for c in _load_module_cases() if c['moduleId'] == module_id]})
@@ -1761,6 +1830,13 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_post_assistant_config_test()
             elif path == '/api/members/invitations':
                 self.handle_post_member_invitation()
+            elif path == '/api/super-admin/tenants':
+                self.handle_post_super_admin_tenant()
+            elif path == '/api/super-admin/impersonate':
+                self.handle_post_super_admin_impersonation()
+            elif path == '/api/support/impersonation/end':
+                _LOCAL_SUPPORT_SESSIONS.pop(self.headers.get('x-support-session'), None)
+                self.send_json_status(200, {'ended': True})
             elif path.startswith('/api/connections/') and path.endswith('/reconnect'):
                 self.handle_post_connection_reconnect(path.split('/')[3])
             elif path == '/api/daily-entries':
@@ -1792,6 +1868,16 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_put_feature(path.split('/')[3])
             elif path.startswith('/api/members/'):
                 self.handle_put_member(urllib.parse.unquote(path.split('/')[3]))
+            elif re.fullmatch(r'/api/super-admin/tenants/[a-z][a-z0-9-]{2,62}/status', path):
+                self.handle_put_super_admin_status(path.split('/')[4])
+            elif re.fullmatch(r'/api/super-admin/tenants/[a-z][a-z0-9-]{2,62}/features/[a-z][a-z0-9_]{2,63}', path):
+                parts = path.split('/')
+                tenant_slug, feature_id = parts[4], parts[6]
+                body = json.loads(self._read_body() or b'{}')
+                if not isinstance(body.get('enabled'), bool):
+                    raise ValueError('enabled must be a boolean')
+                self.send_json_status(200, {'tenantSlug': tenant_slug,
+                                            'feature': _set_feature_override(tenant_slug, feature_id, body['enabled'])})
             else:
                 self.send_error(404, f"Not found: {path}")
         except KeyError as error:
@@ -3297,6 +3383,80 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         member.update({'role': role, 'status': status})
         _save_local_members(tenant, members)
         self.send_json_status(200, {'member': member})
+
+    def handle_post_super_admin_tenant(self):
+        body = json.loads(self._read_body() or b'{}')
+        slug = str(body.get('slug') or '').strip()
+        display_name = str(body.get('displayName') or '').strip()
+        owner_email = str(body.get('ownerEmail') or '').strip().lower()
+        if not re.fullmatch(r'[a-z][a-z0-9-]{2,62}', slug):
+            self.send_json_status(400, {'error': 'invalid tenant slug'})
+            return
+        if not display_name or not _valid_member_email(owner_email):
+            self.send_json_status(400, {'error': 'display name and valid owner email are required'})
+            return
+        tenants = _local_tenants()
+        if any(item['slug'] == slug for item in tenants):
+            self.send_json_status(409, {'error': 'tenant slug already exists'})
+            return
+        now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        tenant = {'id': f'local-{uuid.uuid4()}', 'slug': slug, 'displayName': display_name,
+                  'status': 'active', 'createdAt': now,
+                  'moduleIds': body.get('moduleIds') if isinstance(body.get('moduleIds'), list) else []}
+        tenants.append(tenant)
+        _save_local_tenants(tenants)
+        owner = {'identitySubject': f'invited:{uuid.uuid4()}', 'email': owner_email,
+                 'givenName': str(body.get('ownerGivenName') or '').strip(),
+                 'familyName': str(body.get('ownerFamilyName') or '').strip(),
+                 'role': 'owner', 'status': 'invited', 'createdAt': now}
+        _save_local_members(slug, [owner])
+        self.send_json_status(201, {'tenant': tenant, 'owner': {**owner, 'invitationSent': False}})
+
+    def handle_put_super_admin_status(self, tenant_slug):
+        body = json.loads(self._read_body() or b'{}')
+        status = str(body.get('status') or '')
+        if status not in {'active', 'suspended', 'closed'}:
+            self.send_json_status(400, {'error': 'invalid tenant status'})
+            return
+        tenants = _local_tenants()
+        tenant = next((item for item in tenants if item['slug'] == tenant_slug), None)
+        if not tenant:
+            self.send_json_status(404, {'error': 'tenant not found'})
+            return
+        tenant['status'] = status
+        tenant['updatedAt'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        _save_local_tenants(tenants)
+        self.send_json_status(200, {'tenant': tenant})
+
+    def handle_post_super_admin_impersonation(self):
+        body = json.loads(self._read_body() or b'{}')
+        tenant_slug = str(body.get('tenantSlug') or '')
+        target_subject = str(body.get('targetSubject') or '')
+        reason = str(body.get('reason') or '').strip()
+        target = next((item for item in _local_members(tenant_slug)
+                       if item.get('identitySubject') == target_subject and item.get('status') == 'active'), None)
+        if not target:
+            self.send_json_status(404, {'error': 'active target user not found in tenant'})
+            return
+        if not 10 <= len(reason) <= 500:
+            self.send_json_status(400, {'error': 'reason must be 10-500 characters'})
+            return
+        token = f'local-support-{uuid.uuid4()}'
+        _LOCAL_SUPPORT_SESSIONS[token] = {**target, 'tenantSlug': tenant_slug, 'reason': reason,
+                                          'expiresAt': int((datetime.now(timezone.utc).timestamp() + 900) * 1000)}
+        self.send_json_status(201, {'token': token, 'expiresInSeconds': 900,
+                                    'target': {'email': target['email'], 'role': target['role'],
+                                               'tenantSlug': tenant_slug}})
+
+    def send_binary(self, content, content_type, filename=None):
+        self.send_response(200)
+        self.send_header('Content-Type', content_type)
+        self.send_header('Content-Length', len(content))
+        if filename:
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(content)
 
     def send_json(self, data):
         """Send JSON response."""

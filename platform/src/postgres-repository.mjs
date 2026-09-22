@@ -508,4 +508,301 @@ export class PostgresRepository {
       return result.rows[0] || null;
     });
   }
+
+  // ============================================
+  // SUPER-ADMIN TENANT MANAGEMENT
+  // ============================================
+
+  /**
+   * List all tenants (super-admin only)
+   */
+  async listAllTenants() {
+    const result = await this.#pool.query(
+      `select id, slug, display_name as "displayName", status, created_at as "createdAt"
+         from app.tenants
+        order by display_name, created_at`
+    );
+    return result.rows;
+  }
+
+  /**
+   * Get tenant by slug
+   */
+  async getTenantBySlug(slug) {
+    const result = await this.#pool.query(
+      `select id, slug, display_name as "displayName", status, created_at as "createdAt"
+         from app.tenants
+        where slug = $1`,
+      [slug]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Create a new tenant
+   */
+  async createTenant({ slug, displayName, createdBy }) {
+    const result = await this.#pool.query(
+      `insert into app.tenants (slug, display_name, created_at)
+       values ($1, $2, now())
+       on conflict (slug) do nothing
+       returning id, slug, display_name as "displayName", status, created_at as "createdAt"`,
+      [slug, displayName]
+    );
+    if (result.rowCount === 0) {
+      throw new Error('tenant slug already exists');
+    }
+    return result.rows[0];
+  }
+
+  async provisionTenant({ slug, displayName, ownerEmail, ownerIdentitySubject, moduleIds, actor }) {
+    const client = await this.#pool.connect();
+    try {
+      await client.query('begin');
+      const tenantResult = await client.query(
+        `insert into app.tenants (slug, display_name)
+         values ($1, $2)
+         returning id, slug, display_name as "displayName", status,
+                   created_at as "createdAt", updated_at as "updatedAt"`,
+        [slug, displayName]
+      );
+      const tenant = tenantResult.rows[0];
+      await client.query("select set_config('app.current_tenant_id', $1, true)", [tenant.id]);
+      await client.query("select set_config('app.current_identity_subject', $1, true)", [actor.userId]);
+      const memberResult = await client.query(
+        `insert into app.tenant_memberships (tenant_id, identity_subject, email, role, status)
+         values ($1, coalesce($2, 'invited:' || gen_random_uuid()::text), lower($3), 'owner', 'invited')
+         returning identity_subject as "identitySubject", email, role, status, created_at as "createdAt"`,
+        [tenant.id, ownerIdentitySubject, ownerEmail]
+      );
+      if (moduleIds.length) await client.query(
+        `insert into app.tenant_entitlements (tenant_id, module_id, status)
+         select $1, unnest($2::text[]), 'trial'
+         on conflict (tenant_id, module_id) do nothing`,
+        [tenant.id, moduleIds]
+      );
+      await client.query(
+        `insert into app.platform_audit_events
+           (actor_subject, actor_email, action, resource_type, resource_id, metadata)
+         values ($1,$2,'tenant.create','tenant',$3,$4::jsonb)`,
+        [actor.userId, actor.email || null, slug, JSON.stringify({ displayName, ownerEmail, moduleIds })]
+      );
+      await client.query('commit');
+      return { tenant, owner: memberResult.rows[0] };
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Get tenant details with member count
+   */
+  async getTenantDetails(slug) {
+    const tenantResult = await this.#pool.query(
+      `select id, slug, display_name as "displayName", status, created_at as "createdAt"
+         from app.tenants
+        where slug = $1`,
+      [slug]
+    );
+    if (tenantResult.rowCount === 0) return null;
+
+    const tenant = tenantResult.rows[0];
+    return this.#transaction({ tenantDbId: tenant.id, subject: 'platform-admin' }, async (client) => {
+      const counts = await client.query(
+        `select
+           (select count(*) from app.tenant_memberships where tenant_id = $1) as "memberCount",
+           (select count(*) from app.integration_connections where tenant_id = $1) as "connectionCount",
+           (select count(*) from app.tenant_entitlements where tenant_id = $1) as "entitlementCount"`,
+        [tenant.id]
+      );
+      return Object.fromEntries(Object.entries({ ...tenant, ...counts.rows[0] }).map(([key, value]) =>
+        [key, key.endsWith('Count') ? Number(value) : value]
+      ));
+    });
+  }
+
+  /**
+   * Update tenant status
+   */
+  async updateTenantStatus(slug, status, actor) {
+    const result = await this.#pool.query(
+      `update app.tenants
+         set status = $2, updated_at = now()
+        where slug = $1
+        returning id, slug, display_name as "displayName", status, created_at as "createdAt", updated_at as "updatedAt"`,
+      [slug, status]
+    );
+    if (result.rowCount === 0) return null;
+    await this.auditPlatformEvent(actor, 'tenant.status_change', 'tenant', slug, { status });
+    return result.rows[0];
+  }
+
+  /**
+   * List all members for a tenant (super-admin view)
+   */
+  async listTenantMembers(tenantSlug) {
+    const tenant = await this.getTenantBySlug(tenantSlug);
+    if (!tenant) return [];
+
+    return this.#transaction({ tenantDbId: tenant.id, subject: 'platform-admin' }, async (client) => {
+      const result = await client.query(
+        `select identity_subject as "identitySubject", email, role, status, created_at as "createdAt"
+           from app.tenant_memberships
+          where tenant_id = $1
+          order by lower(email), created_at`,
+        [tenant.id]
+      );
+      return result.rows;
+    });
+  }
+
+  /**
+   * List all members across all tenants (super-admin only)
+   */
+  async listAllMembers({ tenantSlug, limit = 100, offset = 0 }) {
+    const tenants = tenantSlug
+      ? [await this.getTenantBySlug(tenantSlug)].filter(Boolean)
+      : await this.listAllTenants();
+    const memberSets = await Promise.all(tenants.map(async (tenant) =>
+      (await this.listTenantMembers(tenant.slug)).map((member) => ({
+        tenantSlug: tenant.slug, tenantName: tenant.displayName, ...member
+      }))
+    ));
+    const members = memberSets.flat().sort((a, b) =>
+      a.tenantName.localeCompare(b.tenantName) || a.email.localeCompare(b.email)
+    );
+    return { members: members.slice(offset, offset + limit), total: members.length };
+  }
+
+  /**
+   * List tenant connections (super-admin view)
+   */
+  async listTenantConnections(tenantSlug) {
+    const tenant = await this.getTenantBySlug(tenantSlug);
+    if (!tenant) return [];
+
+    return this.#transaction({ tenantDbId: tenant.id, subject: 'platform-admin' }, async (client) => {
+      const result = await client.query(
+        `select id, integration_type as "integrationType", display_name as "displayName",
+                secret_reference as "secretReference", config, status, auth_kind as "authKind",
+                schedule, last_checked_at as "lastCheckedAt", last_success_at as "lastSuccessAt",
+                last_error as "lastError", reauth_required_at as "reauthRequiredAt",
+                session_expires_at as "sessionExpiresAt", created_at as "createdAt"
+           from app.integration_connections
+          where tenant_id = $1
+          order by integration_type, display_name`,
+        [tenant.id]
+      );
+      return result.rows;
+    });
+  }
+
+  /**
+   * Create a connection for a tenant (super-admin)
+   */
+  async createTenantConnection(tenantSlug, connection, actor) {
+    const tenant = await this.getTenantBySlug(tenantSlug);
+    if (!tenant) throw new Error('tenant not found');
+
+    const connectionName = connection.displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'connection';
+    const result = await this.#transaction({ tenantDbId: tenant.id, subject: actor.userId }, async (client) => client.query(
+      `insert into app.integration_connections
+         (tenant_id, integration_type, display_name, secret_reference, config, status,
+          auth_kind, schedule, created_by, created_at)
+       values ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,now())
+       returning id, integration_type as "integrationType", display_name as "displayName",
+                 secret_reference as "secretReference", config, status, auth_kind as "authKind",
+                 schedule, created_at as "createdAt"`,
+      [tenant.id, connection.integrationType, connection.displayName,
+        `secret://${tenant.slug}/platform/${connection.integrationType}/${connectionName}`,
+        JSON.stringify(connection.config || {}), connection.status, connection.authKind,
+        connection.schedule || null, actor.userId]
+    ));
+    await this.auditPlatformEvent(actor, 'connection.create', 'connection', String(result.rows[0].id), {
+      tenantSlug, integrationType: connection.integrationType
+    });
+    return result.rows[0];
+  }
+
+  /**
+   * List tenant feature overrides
+   */
+  async listTenantFeatures(tenantSlug) {
+    const tenant = await this.getTenantBySlug(tenantSlug);
+    if (!tenant) return [];
+
+    return this.#transaction({ tenantDbId: tenant.id, subject: 'platform-admin' }, async (client) => {
+      const result = await client.query(
+        `select feature_id as "featureId", enabled, updated_by as "updatedBy", updated_at as "updatedAt"
+           from app.tenant_feature_overrides
+          where tenant_id = $1
+          order by feature_id`,
+        [tenant.id]
+      );
+      return result.rows;
+    });
+  }
+
+  /**
+   * Set feature override for a tenant
+   */
+  async setTenantFeatureOverride(tenantSlug, featureId, enabled, actor) {
+    const tenant = await this.getTenantBySlug(tenantSlug);
+    if (!tenant) return null;
+
+    const result = await this.#transaction({ tenantDbId: tenant.id, subject: actor.userId }, async (client) => client.query(
+      `insert into app.tenant_feature_overrides (tenant_id, feature_id, enabled, updated_by, updated_at)
+       values ($1, $2, $3, $4, now())
+       on conflict (tenant_id, feature_id) do update set
+         enabled = excluded.enabled,
+         updated_by = excluded.updated_by,
+         updated_at = now()
+       returning feature_id as "featureId", enabled, updated_by as "updatedBy", updated_at as "updatedAt"`,
+      [tenant.id, featureId, enabled, actor.userId]
+    ));
+    await this.auditPlatformEvent(actor, 'feature.override', 'feature', `${tenantSlug}:${featureId}`, { tenantSlug, featureId, enabled });
+    return result.rows[0];
+  }
+
+  async auditPlatformEvent(actor, action, resourceType, resourceId, metadata = {}) {
+    await this.#pool.query(
+      `insert into app.platform_audit_events
+         (actor_subject, actor_email, action, resource_type, resource_id, metadata)
+       values ($1,$2,$3,$4,$5,$6::jsonb)`,
+      [actor.userId, actor.email || null, action, resourceType, resourceId, JSON.stringify(metadata)]
+    );
+  }
+
+  /**
+   * Audit tenant creation
+   */
+  async auditTenantCreation(actor, tenant, details) {
+    return this.auditPlatformEvent(actor, 'tenant.create', 'tenant', tenant.slug, { displayName: tenant.displayName, ...details });
+  }
+
+  /**
+   * Audit tenant status change
+   */
+  async auditTenantStatusChange(actor, tenantSlug, details) {
+    return this.auditPlatformEvent(actor, 'tenant.status_change', 'tenant', tenantSlug, details);
+  }
+
+  /**
+   * Audit feature override
+   */
+  async auditFeatureOverride(actor, tenantSlug, featureId, enabled) {
+    return this.auditPlatformEvent(actor, 'feature.override', 'feature', `${tenantSlug}:${featureId}`, { tenantSlug, featureId, enabled });
+  }
+
+  /**
+   * Audit cross-tenant impersonation
+   */
+  async auditCrossTenantImpersonation(actor, tenantSlug, target, details) {
+    return this.auditPlatformEvent(actor, 'impersonation.cross_tenant', 'user', target.identitySubject, {
+      tenantSlug, targetEmail: target.email, targetRole: target.role, ...details
+    });
+  }
 }

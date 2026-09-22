@@ -23,6 +23,7 @@ const FEATURES = [
   ['notifications', 'Notifications', '/notifications', null, 'implemented'],
   ['help', 'Help & Support', '/help', null, 'implemented'],
   ['feature_admin', 'Feature Management', '/admin/features', null, 'implemented', 'feature.manage'],
+  ['super_admin', 'Tenant Administration', '/admin/tenants', null, 'implemented', 'tenant.manage'],
   ['ai_admin', 'AI Assistant Setup', '/admin/ai', null, 'implemented', 'ai.configure']
 ];
 

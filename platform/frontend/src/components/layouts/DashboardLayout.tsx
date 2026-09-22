@@ -28,8 +28,12 @@ const DashboardLayout: React.FC = () => {
   const exitImpersonation = async () => {
     try { await api.post('/support/impersonation/end', {}); } finally {
       sessionStorage.removeItem('dsp-support-session');
+      const previousTenant = sessionStorage.getItem('dsp-support-previous-tenant');
+      if (previousTenant) sessionStorage.setItem('dsp-active-tenant', previousTenant);
+      else sessionStorage.removeItem('dsp-active-tenant');
+      sessionStorage.removeItem('dsp-support-previous-tenant');
       queryClient.clear();
-      window.location.href = '/app/users';
+      window.location.href = import.meta.env.PROD ? '/app/admin/tenants' : '/admin/tenants';
     }
   };
 

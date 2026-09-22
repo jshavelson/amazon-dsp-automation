@@ -29,7 +29,7 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('auth_token') || sessionStorage.getItem('dsp-platform-id-token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
-      config.headers['x-tenant-id'] = 'jecs';
+      config.headers['x-tenant-id'] = sessionStorage.getItem('dsp-active-tenant') || 'jecs';
       const supportSession = sessionStorage.getItem('dsp-support-session');
       if (supportSession) config.headers['x-support-session'] = supportSession;
     }

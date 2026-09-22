@@ -21,6 +21,7 @@ import { ROLE_PERMISSIONS } from './authorization.mjs';
 import { ImpersonationService } from './impersonation-service.mjs';
 import { impersonationRoutes } from './api/impersonation-routes.mjs';
 import { assistantRoutes } from './api/assistant-routes.mjs';
+import { superAdminRoutes } from './api/super-admin-routes.mjs';
 
 const API_FEATURE_PREFIXES = Object.freeze([
   ['/api/connections', 'connections'], ['/api/uploads', 'connections'], ['/api/vendor-rules', 'connections'],
@@ -28,7 +29,7 @@ const API_FEATURE_PREFIXES = Object.freeze([
   ['/api/disputes', 'disputes'], ['/api/payroll', 'payroll'], ['/api/route-monitor', 'route_monitor'], ['/api/routes', 'route_monitor'],
   ['/api/time-attendance', 'time_attendance'],
   ['/api/drivers', 'drivers'], ['/api/pave', 'fleet_compliance'], ['/api/dashboard', 'dashboard']
-  ,['/api/assistant/config', 'ai_admin'], ['/api/assistant', 'dashboard']
+  ,['/api/assistant/config', 'ai_admin'], ['/api/assistant', 'dashboard'], ['/api/super-admin', 'super_admin']
 ]);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -260,6 +261,7 @@ export async function createApp({
   accessControlRoutes(app, { repository, registry, memberProvisioner });
   impersonationRoutes(app, { repository, impersonationService });
   assistantRoutes(app, { assistantService });
+  superAdminRoutes(app, { repository, memberProvisioner, impersonationService, registry });
 
   // Register PAVE routes
   paveRoutes(app, { repository, registry, logger });

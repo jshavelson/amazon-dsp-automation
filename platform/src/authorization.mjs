@@ -1,7 +1,12 @@
 import { moduleById } from './module-registry.mjs';
 
 export const ROLE_PERMISSIONS = Object.freeze({
-  platform_admin: Object.freeze(['module.read', 'workflow.run', 'approval.decide', 'submission.execute', 'integration.manage', 'member.manage', 'billing.manage', 'feature.manage', 'impersonation.manage', 'ai.configure']),
+  platform_admin: Object.freeze([
+    'module.read', 'workflow.run', 'approval.decide', 'submission.execute',
+    'integration.manage', 'member.manage', 'billing.manage',
+    'feature.manage', 'impersonation.manage', 'ai.configure',
+    'tenant.provision', 'tenant.manage', 'tenant.impersonate'
+  ]),
   owner: Object.freeze(['module.read', 'workflow.run', 'approval.decide', 'submission.execute', 'integration.manage', 'member.manage', 'billing.manage']),
   admin: Object.freeze(['module.read', 'workflow.run', 'approval.decide', 'submission.execute', 'integration.manage', 'member.manage']),
   reviewer: Object.freeze(['module.read', 'workflow.run', 'approval.decide']),
