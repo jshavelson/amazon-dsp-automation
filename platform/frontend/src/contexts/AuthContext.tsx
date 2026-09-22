@@ -4,6 +4,7 @@ import { authApi } from '@/services/api';
 
 // Create Auth Context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const DEVELOPMENT_LOGOUT_KEY = 'dsp-development-logged-out';
 
 const developmentUser: User = {
   id: 'dev-user',
@@ -37,7 +38,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const expiresAt = localStorage.getItem('token_expires_at');
         
         // If no token, auto-authenticate for development
-        if (!token && import.meta.env.DEV) {
+        if (!token && import.meta.env.DEV && sessionStorage.getItem(DEVELOPMENT_LOGOUT_KEY) !== 'true') {
           // Development mode: auto-authenticate
           setUser(developmentUser);
           setIsAuthenticated(true);
@@ -119,6 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response: LoginResponse = await authApi.login(credentials);
       
       // Store tokens
+      sessionStorage.removeItem(DEVELOPMENT_LOGOUT_KEY);
       localStorage.setItem('auth_token', response.token);
       localStorage.setItem('refresh_token', response.refreshToken);
       
@@ -142,22 +144,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Logout function
   const logout = useCallback(async () => {
+    // Update the client immediately. The application uses bearer tokens, so
+    // logout must not appear broken while an optional server notification is
+    // unavailable or timing out.
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('dsp-platform-id-token');
+    if (import.meta.env.DEV) sessionStorage.setItem(DEVELOPMENT_LOGOUT_KEY, 'true');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires_at');
+    sessionStorage.removeItem('dsp-platform-id-token');
+    sessionStorage.removeItem('dsp-platform-token-expiry');
+    sessionStorage.removeItem('dsp-support-session');
+    sessionStorage.removeItem('dsp-support-previous-tenant');
+
+    setUser(null);
+    setIsAuthenticated(false);
+    setError(null);
+
     try {
-      await authApi.logout();
+      // The production platform currently has no server-side session; the
+      // token is retained only long enough to notify deployments that expose
+      // a logout endpoint. Never block navigation on that best-effort call.
+      if (token) await Promise.race([
+        authApi.logout(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 1000)),
+      ]);
     } catch (err) {
       console.error('Logout API call failed:', err);
     } finally {
-      // Clear tokens regardless of API call success
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('token_expires_at');
-      sessionStorage.removeItem('dsp-platform-id-token');
-      sessionStorage.removeItem('dsp-platform-token-expiry');
-      
-      setUser(null);
-      setIsAuthenticated(false);
-      setError(null);
-      
       // Redirect to login
       window.location.href = import.meta.env.PROD ? '/' : '/login';
     }
