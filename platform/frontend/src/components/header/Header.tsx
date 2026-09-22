@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Moon,
   Sun,
+  ArrowLeft,
 } from 'lucide-react';
 import { User as UserType } from '@/types/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +29,7 @@ interface HeaderProps {
   onLogout?: () => Promise<void>;
   darkMode: boolean;
   onThemeToggle: () => void;
+  onReturnToRootTenant?: () => void;
 }
 
 interface Notification {
@@ -46,6 +48,7 @@ const Header: React.FC<HeaderProps> = ({
   onLogout,
   darkMode,
   onThemeToggle,
+  onReturnToRootTenant,
 }) => {
   const location = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -341,7 +344,7 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Breadcrumb */}
           <Breadcrumb />
-          {!isRootTenant(platform?.tenant) && (
+          {!isRootTenant(platform?.tenant) && <div className="flex items-center gap-2">
             <div
               className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
               aria-label={`Active tenant: ${platform?.tenant.name}`}
@@ -349,7 +352,16 @@ const Header: React.FC<HeaderProps> = ({
             >
               <span className="hidden sm:inline">Active tenant:&nbsp;</span>{platform?.tenant.name}
             </div>
-          )}
+            {platform?.user.isPlatformAdmin && onReturnToRootTenant && <button
+              type="button"
+              onClick={onReturnToRootTenant}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-200 dark:hover:bg-blue-900/60"
+              aria-label="Return to master tenant"
+              title="Return to JECS master tenant"
+            >
+              <ArrowLeft size={14}/><span className="hidden lg:inline">Return to master tenant</span>
+            </button>}
+          </div>}
         </div>
 
         {/* Right side */}

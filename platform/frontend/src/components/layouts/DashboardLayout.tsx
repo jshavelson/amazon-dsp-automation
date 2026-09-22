@@ -9,7 +9,7 @@ import clsx from 'clsx';
 import Sidebar from '../sidebar/Sidebar';
 import Header from '../header/Header';
 import LoadingSpinner from '../shared/LoadingSpinner';
-import { usePlatformContext } from '@/hooks/usePlatformContext';
+import { ROOT_TENANT_ID, usePlatformContext } from '@/hooks/usePlatformContext';
 import { api } from '@/services/api';
 import { useQueryClient } from '@tanstack/react-query';
 import AIAssistant from '../assistant/AIAssistant';
@@ -35,6 +35,13 @@ const DashboardLayout: React.FC = () => {
       queryClient.clear();
       window.location.href = import.meta.env.PROD ? '/app/admin/tenants' : '/admin/tenants';
     }
+  };
+  const returnToRootTenant = () => {
+    sessionStorage.setItem('dsp-active-tenant', ROOT_TENANT_ID);
+    sessionStorage.removeItem('dsp-support-session');
+    sessionStorage.removeItem('dsp-support-previous-tenant');
+    queryClient.clear();
+    window.location.href = import.meta.env.PROD ? '/app/dashboard' : '/dashboard';
   };
 
   // Check if mobile
@@ -141,6 +148,7 @@ const DashboardLayout: React.FC = () => {
         onLogout={handleLogout}
         darkMode={darkMode}
         onThemeToggle={() => setDarkMode((current) => !current)}
+        onReturnToRootTenant={returnToRootTenant}
       />
 
       {/* Main content */}
