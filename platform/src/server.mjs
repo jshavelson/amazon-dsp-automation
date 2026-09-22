@@ -41,7 +41,7 @@ const app = await createApp({
   dashboardHtmlPath: config.DASHBOARD_HTML_PATH,
   connectionService,
   assistantService,
-  exposeLegacyDashboard: config.NODE_ENV !== 'production'
+  exposeLegacyDashboard: true
 });
 
 const shutdown = async () => {
