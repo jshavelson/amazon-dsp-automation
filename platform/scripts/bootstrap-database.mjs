@@ -72,6 +72,11 @@ async function configureRuntimeRole() {
 async function seedTenant() {
   const ownerSubject = required('OWNER_SUBJECT');
   const ownerEmail = required('OWNER_EMAIL');
+  await client.query(
+    `insert into app.platform_admins (email, active) values (lower($1), true)
+     on conflict (email) do update set active = true`,
+    [ownerEmail]
+  );
   const tenantSlug = process.env.TENANT_SLUG || 'jecs';
   const tenantName = process.env.TENANT_NAME || 'JEC Logistics Solutions';
   const tenant = await client.query(

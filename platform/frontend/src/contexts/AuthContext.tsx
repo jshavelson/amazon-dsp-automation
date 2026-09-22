@@ -5,6 +5,19 @@ import { authApi } from '@/services/api';
 // Create Auth Context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const developmentUser: User = {
+  id: 'dev-user',
+  email: 'dev@example.com',
+  firstName: 'Developer',
+  lastName: 'User',
+  role: 'super_admin',
+  status: 'active',
+  emailVerified: true,
+  mfaEnabled: false,
+  createdAt: new Date(0).toISOString(),
+  updatedAt: new Date(0).toISOString(),
+};
+
 // Auth Provider Component
 interface AuthProviderProps {
   children: ReactNode;
@@ -26,13 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // If no token, auto-authenticate for development
         if (!token && import.meta.env.DEV) {
           // Development mode: auto-authenticate
-          setUser({
-            id: 'dev-user',
-            email: 'dev@example.com',
-            firstName: 'Developer',
-            lastName: 'User',
-            role: 'admin',
-          } as User);
+          setUser(developmentUser);
           setIsAuthenticated(true);
           setIsLoading(false);
           return;
@@ -84,13 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (userError) {
           if (import.meta.env.DEV) {
             console.warn('Failed to get current user, auto-authenticating for dev:', userError);
-            setUser({
-              id: 'dev-user',
-              email: 'dev@example.com',
-              firstName: 'Developer',
-              lastName: 'User',
-              role: 'admin',
-            } as User);
+            setUser(developmentUser);
             setIsAuthenticated(true);
           } else {
             setIsAuthenticated(false);
@@ -208,6 +209,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  const forgotPassword = useCallback(async (email: string) => {
+    await authApi.forgotPassword(email);
+  }, []);
+
+  const resetPassword = useCallback(async (data: { token: string; password: string; confirmPassword: string }) => {
+    await authApi.resetPassword(data);
+  }, []);
+
   // Clear error function
   const clearError = useCallback(() => {
     setError(null);
@@ -221,6 +230,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     register,
+    forgotPassword,
+    resetPassword,
     refreshToken,
     clearError,
   };

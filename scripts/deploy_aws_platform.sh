@@ -19,10 +19,27 @@ ensure_aws_session() {
   if aws_cmd sts get-caller-identity >/dev/null 2>&1; then
     return
   fi
+
+  local login_lock="/tmp/dsp-deploy-admin-aws-login.lock"
+  if ! mkdir "$login_lock" 2>/dev/null; then
+    print -u2 "AWS authentication is already in progress for $AWS_PROFILE_NAME."
+    print -u2 "Complete the existing browser prompt, then retry the deployment."
+    exit 1
+  fi
+
   print "AWS session is missing or expired."
-  print "Please run: aws sso login --profile $AWS_PROFILE_NAME --region $AWS_REGION_NAME"
-  print "Then retry the deployment."
-  exit 1
+  print "Opening one AWS login prompt for profile $AWS_PROFILE_NAME..."
+  if ! aws login --profile "$AWS_PROFILE_NAME" --region "$AWS_REGION_NAME"; then
+    rmdir "$login_lock"
+    print -u2 "AWS login failed."
+    exit 1
+  fi
+  rmdir "$login_lock"
+
+  if ! aws_cmd sts get-caller-identity >/dev/null 2>&1; then
+    print -u2 "AWS login completed, but the deploy-admin identity could not be verified."
+    exit 1
+  fi
 }
 
 stack_output() {

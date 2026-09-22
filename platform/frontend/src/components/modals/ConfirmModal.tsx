@@ -16,7 +16,7 @@ export interface ConfirmModalProps extends Omit<ModalProps, 'children' | 'footer
 }
 
 // Type for confirm modal methods
-interface ConfirmModalMethods {
+export interface ConfirmModalMethods {
   open: () => void;
   close: () => void;
   confirm: () => void;
@@ -86,7 +86,6 @@ const ConfirmModal = forwardRef<ConfirmModalMethods, ConfirmModalProps>(
           variant={confirmVariant}
           onClick={handleConfirm}
           disabled={confirmDisabled || isLoading}
-          loading={isLoading}
         >
           {confirmText}
         </Button>

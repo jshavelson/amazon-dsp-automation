@@ -58,8 +58,21 @@ if (!finalUrl.includes('/performance')) {
   process.exit(1);
 }
 
+console.log('Performance access confirmed. Verifying Payments in the same Amazon session...');
+await page.goto('https://logistics.amazon.com/flexpayments/simpson/flexpro/invoices', {
+  waitUntil: 'domcontentloaded',
+  timeout: 45_000,
+});
+if (page.url().includes('/ap/signin')) {
+  console.log('Amazon requested another challenge. Complete it in the same browser window.');
+}
+await page.waitForURL((url) => url.hostname === 'logistics.amazon.com' && !url.pathname.includes('/ap/signin'), {
+  timeout: 300_000,
+  waitUntil: 'domcontentloaded',
+});
+
 await context.storageState({ path: storageStatePath });
 await fs.chmod(storageStatePath, 0o600);
-console.log(`Saved session state to ${storageStatePath}`);
+console.log(`Saved shared Amazon DSP session state to ${storageStatePath}`);
 
 await browser.close();

@@ -1,4 +1,5 @@
 // Fleet Costs-related types
+import type { FilterParams } from './common';
 
 export interface FleetCost {
   id: string;

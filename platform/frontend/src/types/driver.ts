@@ -1,4 +1,5 @@
 // Driver-related types
+import type { Address, FilterParams } from './common';
 
 export interface Driver {
   id: string;

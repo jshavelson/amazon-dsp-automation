@@ -1,4 +1,5 @@
 // Van/Fleet-related types
+import type { FilterParams } from './common';
 
 export interface Van {
   id: string;
@@ -159,6 +160,10 @@ export interface VanCostAnalysis {
   costPerDay: number;
   utilizationRate: number;
 }
+
+export type FleetCostsResponse = Record<string, unknown>;
+export type VanCostResponse = Record<string, unknown>;
+export type VanStatsResponse = Record<string, unknown>;
 
 export interface VanFilterParams extends FilterParams {
   type?: VanType;

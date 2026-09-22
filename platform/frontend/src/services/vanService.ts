@@ -136,6 +136,18 @@ export const vanService = {
     const response = await api.patch<Van>(`${VAN_ENDPOINTS.BASE}/${vanId}`, { status });
     return response;
   },
+
+  async getFleetCosts(): Promise<import('@/types/van').FleetCostsResponse> {
+    return api.get<import('@/types/van').FleetCostsResponse>('/fleet-costs');
+  },
+
+  async getVanCosts(vanId: string, startDate?: string, endDate?: string): Promise<import('@/types/van').VanCostResponse> {
+    return api.get<import('@/types/van').VanCostResponse>(`/fleet-costs/${vanId}`, { startDate, endDate });
+  },
+
+  async getVanStats(): Promise<import('@/types/van').VanStatsResponse> {
+    return api.get<import('@/types/van').VanStatsResponse>('/vans/stats');
+  },
 };
 
 export default vanService;

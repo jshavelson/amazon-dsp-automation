@@ -43,9 +43,9 @@ async function main() {
   const args = parseArgs(process.argv);
   const outputRoot = path.resolve(ROOT, args['output-root'] || 'data/fleet_reviews/fixed-monthly/inbox');
   const config = JSON.parse(await fs.readFile(path.join(ROOT, 'scripts/amazon_logistics.config.json'), 'utf8'));
-  const storageState = path.resolve(ROOT, config.paymentsStorageStatePath || config.storageStatePath);
+  const storageState = path.resolve(ROOT, config.storageStatePath);
   await fs.access(storageState).catch(() => {
-    throw new Error('Saved Amazon Payments session is missing. Run node scripts/amazon_payments_login.mjs once.');
+    throw new Error('Saved Amazon DSP session is missing. Run node scripts/amazon_logistics_login.mjs once.');
   });
   const browser = await chromium.launch({ headless: true });
   try {
@@ -55,7 +55,7 @@ async function main() {
       waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs || 45_000,
     });
     if (page.url().includes('/ap/signin')) {
-      throw new Error('Amazon Payments requires a fresh handshake. Run node scripts/amazon_payments_login.mjs once.');
+      throw new Error('Amazon DSP session requires sign-in or MFA. Run node scripts/amazon_logistics_login.mjs once.');
     }
     await page.getByRole('heading', { name: 'All invoices' }).waitFor({ timeout: 45_000 });
     const station = page.getByRole('combobox', { name: 'Station' });

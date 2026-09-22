@@ -55,7 +55,7 @@ const PerformancePage: React.FC = () => {
   // Load mock data
   useEffect(() => {
     // Mock drivers
-    const mockDrivers: DriverPerformanceScore[] = [
+    const mockDrivers = [
       {
         driverId: '1',
         driverName: 'John Smith',
@@ -152,8 +152,8 @@ const PerformancePage: React.FC = () => {
         averageQualityScore: 93.5,
         averageCostScore: 89.7,
         averageComplianceScore: 95.2,
-        topPerformers: [mockDrivers[0], mockDrivers[3]],
-        bottomPerformers: [mockDrivers[4]],
+        topPerformers: [mockDrivers[0], mockDrivers[3]] as unknown as DriverPerformanceScore[],
+        bottomPerformers: [mockDrivers[4]] as unknown as DriverPerformanceScore[],
         trend: 'improving',
       },
       {
@@ -168,8 +168,8 @@ const PerformancePage: React.FC = () => {
         averageQualityScore: 89.1,
         averageCostScore: 86.3,
         averageComplianceScore: 91.8,
-        topPerformers: [mockDrivers[1]],
-        bottomPerformers: [mockDrivers[2]],
+        topPerformers: [mockDrivers[1]] as unknown as DriverPerformanceScore[],
+        bottomPerformers: [mockDrivers[2]] as unknown as DriverPerformanceScore[],
         trend: 'stable',
       },
       {
@@ -184,7 +184,7 @@ const PerformancePage: React.FC = () => {
         averageQualityScore: 95.3,
         averageCostScore: 92.7,
         averageComplianceScore: 96.4,
-        topPerformers: [mockDrivers[3]],
+        topPerformers: [mockDrivers[3]] as unknown as DriverPerformanceScore[],
         bottomPerformers: [],
         trend: 'improving',
       },
@@ -345,8 +345,8 @@ const PerformancePage: React.FC = () => {
 
   // Sort drivers
   const sortedDrivers = [...drivers].sort((a, b) => {
-    const aValue = (a as Record<string, unknown>)[sortBy];
-    const bValue = (b as Record<string, unknown>)[sortBy];
+    const aValue = (a as unknown as Record<string, unknown>)[sortBy];
+    const bValue = (b as unknown as Record<string, unknown>)[sortBy];
 
     if (aValue === undefined || bValue === undefined) return 0;
 
@@ -384,15 +384,15 @@ const PerformancePage: React.FC = () => {
       width: '80px',
       render: (value) => (
         <Badge
-          variant={{
+          variant={({
             A: 'success',
             B: 'primary',
             C: 'warning',
             D: 'danger',
             F: 'danger',
-          }[value as 'A' | 'B' | 'C' | 'D' | 'F'] || 'secondary'}
+          } as const)[value as 'A' | 'B' | 'C' | 'D' | 'F'] || 'secondary'}
         >
-          {value}
+          {String(value ?? '')}
         </Badge>
       ),
     },
@@ -670,12 +670,12 @@ const PerformancePage: React.FC = () => {
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-semibold text-gray-900">{team.teamName}</h4>
                 <Badge
-                  variant={{
+                  variant={({
                     improving: 'success',
                     stable: 'primary',
                     declining: 'danger',
                     new: 'info',
-                  }[team.trend] || 'secondary'}
+                  } as const)[team.trend] || 'secondary'}
                 >
                   {team.trend}
                 </Badge>
@@ -762,12 +762,12 @@ const PerformancePage: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Badge
-                  variant={{
+                  variant={({
                     high: 'danger',
                     critical: 'danger',
                     medium: 'warning',
                     low: 'info',
-                  }[alert.severity]}
+                  } as const)[alert.severity]}
                 >
                   {alert.severity}
                 </Badge>

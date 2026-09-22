@@ -31,7 +31,7 @@ async function main() {
   }
   const output = path.resolve(ROOT, args.output || 'data/fleet_reviews/fixed-monthly/portal-inspection.json');
   const config = JSON.parse(await fs.readFile(path.join(ROOT, 'scripts/amazon_logistics.config.json'), 'utf8'));
-  const storageState = path.resolve(ROOT, config.paymentsStorageStatePath || config.storageStatePath);
+  const storageState = path.resolve(ROOT, config.storageStatePath);
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ storageState, acceptDownloads: false });

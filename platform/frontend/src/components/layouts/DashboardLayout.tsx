@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, X, ChevronLeft, ChevronRight, Bell, Search, User, Settings, LogOut } from 'lucide-react';
@@ -9,6 +9,10 @@ import clsx from 'clsx';
 import Sidebar from '../sidebar/Sidebar';
 import Header from '../header/Header';
 import LoadingSpinner from '../shared/LoadingSpinner';
+import { usePlatformContext } from '@/hooks/usePlatformContext';
+import { api } from '@/services/api';
+import { useQueryClient } from '@tanstack/react-query';
+import AIAssistant from '../assistant/AIAssistant';
 
 const DashboardLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -18,8 +22,16 @@ const DashboardLayout: React.FC = () => {
     return savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
   const location = useLocation();
-  const navigate = useNavigate();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { data: platform } = usePlatformContext();
+  const queryClient = useQueryClient();
+  const exitImpersonation = async () => {
+    try { await api.post('/support/impersonation/end', {}); } finally {
+      sessionStorage.removeItem('dsp-support-session');
+      queryClient.clear();
+      window.location.href = '/app/users';
+    }
+  };
 
   // Check if mobile
   useEffect(() => {
@@ -64,8 +76,7 @@ const DashboardLayout: React.FC = () => {
 
   // If not authenticated and not loading, redirect to login
   if (!isAuthenticated && !isLoading) {
-    navigate('/login');
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   // Show loading spinner while checking auth
@@ -133,6 +144,7 @@ const DashboardLayout: React.FC = () => {
           }
         )}
       >
+        {platform?.impersonation && <div className="sticky top-16 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-950"><div><strong>Read-only support view:</strong> {platform.impersonation.targetEmail} ({platform.impersonation.targetRole})<span className="ml-2 text-xs">Reason: {platform.impersonation.reason}</span></div><button onClick={exitImpersonation} className="rounded bg-amber-900 px-3 py-1.5 font-semibold text-white">Exit support view</button></div>}
         <div className="p-4 md:p-6 lg:p-8">
           <Outlet />
         </div>
@@ -147,6 +159,7 @@ const DashboardLayout: React.FC = () => {
           <Menu size={24} />
         </button>
       )}
+      <AIAssistant />
     </div>
   );
 };

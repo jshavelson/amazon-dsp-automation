@@ -1,5 +1,13 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { ApiError } from '@/types/common';
+import type { PaginatedResponse } from '@/types/common';
+import type { Driver, DriverStats, DriverPerformance, DriverAvailability, DriverDocument } from '@/types/driver';
+import type { User } from '@/types/auth';
+import type { DriverPerformanceScore, TeamPerformance, DSPPerformance, PerformanceDashboard, PerformanceAlert, PerformanceComparison } from '@/types/performance';
+import type { Dispute } from '@/types/dispute';
+import type { PayrollPeriod, PayrollRecord, PayrollSummary } from '@/types/payroll';
+import type { Route } from '@/types/route';
+import type { Van, MaintenanceRecord } from '@/types/van';
 
 // API Configuration
 // Use relative path for Vite dev server proxy to work
@@ -22,6 +30,8 @@ apiClient.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
       config.headers['x-tenant-id'] = 'jecs';
+      const supportSession = sessionStorage.getItem('dsp-support-session');
+      if (supportSession) config.headers['x-support-session'] = supportSession;
     }
     return config;
   },
@@ -40,6 +50,25 @@ apiClient.interceptors.response.use(
       
       switch (status) {
         case 401:
+          // Local development has an intentional no-token fallback. A stale
+          // production/Cognito token must not cause a hard navigation loop
+          // between /login and /dashboard while the local API is starting or
+          // running without Cognito. AuthContext will establish the dev user.
+          if (import.meta.env.DEV) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('token_expires_at');
+            sessionStorage.removeItem('dsp-platform-id-token');
+            sessionStorage.removeItem('dsp-platform-token-expiry');
+            break;
+          }
+          // An expired or invalid support session must end impersonation without
+          // destroying the platform administrator's primary Cognito session.
+          if (sessionStorage.getItem('dsp-support-session')) {
+            sessionStorage.removeItem('dsp-support-session');
+            window.location.href = import.meta.env.PROD ? '/app/users' : '/users';
+            break;
+          }
           // Unauthorized - clear token and redirect to login
           localStorage.removeItem('auth_token');
           localStorage.removeItem('refresh_token');
@@ -77,7 +106,7 @@ apiClient.interceptors.response.use(
 
 // Generic API methods
 export const api = {
-  get: async <T>(url: string, params?: Record<string, unknown>, config?: Record<string, unknown>): Promise<T> => {
+  get: async <T>(url: string, params?: object, config?: Record<string, unknown>): Promise<T> => {
     const response = await apiClient.get<T>(url, { params, ...config });
     return response.data;
   },
@@ -112,19 +141,21 @@ export const api = {
 // Auth API endpoints
 export const authApi = {
   login: (credentials: { email: string; password: string; rememberMe?: boolean }) =>
-    api.post<{ user: unknown; token: string; refreshToken: string; expiresIn: number }>('/auth/login', credentials),
+    api.post<{ user: User; token: string; refreshToken: string; expiresIn: number }>('/auth/login', credentials),
 
   logout: () => api.post<void>('/auth/logout'),
 
   refreshToken: (refreshToken: string) =>
     api.post<{ token: string; refreshToken: string; expiresIn: number }>('/auth/refresh', { refreshToken }),
 
-  getCurrentUser: () => api.get<unknown>('/auth/me'),
+  getCurrentUser: () => api.get<User>('/auth/me'),
 
   forgotPassword: (email: string) => api.post<void>('/auth/forgot-password', { email }),
 
   resetPassword: (data: { token: string; password: string; confirmPassword: string }) =>
     api.post<void>('/auth/reset-password', data),
+
+  register: (data: unknown) => api.post<void>('/auth/register', data),
 
   changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
     api.post<void>('/auth/change-password', data),
@@ -132,19 +163,19 @@ export const authApi = {
 
 // Driver API endpoints
 export const driverApi = {
-  getAll: (params?: Record<string, unknown>) => api.get<unknown>('/drivers', params),
-  getById: (id: string) => api.get<unknown>(`/drivers/${id}`),
+  getAll: (params?: object) => api.get<PaginatedResponse<Driver>>('/drivers', params),
+  getById: (id: string) => api.get<Driver>(`/drivers/${id}`),
   create: (data: unknown) => api.post<unknown>('/drivers', data),
   update: (id: string, data: unknown) => api.put<unknown>(`/drivers/${id}`, data),
   delete: (id: string) => api.delete<unknown>(`/drivers/${id}`),
   getPerformance: (driverId: string, period?: string) => 
-    api.get<unknown>(`/drivers/${driverId}/performance`, { period }),
-  getStats: (driverId: string) => api.get<unknown>(`/drivers/${driverId}/stats`),
+    api.get<DriverPerformance>(`/drivers/${driverId}/performance`, { period }),
+  getStats: (driverId: string) => api.get<DriverStats>(`/drivers/${driverId}/stats`),
   getAvailability: (driverId: string, date?: string) => 
-    api.get<unknown>(`/drivers/${driverId}/availability`, { date }),
+    api.get<DriverAvailability>(`/drivers/${driverId}/availability`, { date }),
   updateAvailability: (driverId: string, data: unknown) => 
     api.put<unknown>(`/drivers/${driverId}/availability`, data),
-  getDocuments: (driverId: string) => api.get<unknown>(`/drivers/${driverId}/documents`),
+  getDocuments: (driverId: string) => api.get<DriverDocument[]>(`/drivers/${driverId}/documents`),
   uploadDocument: (driverId: string, file: File, documentType: string) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -157,16 +188,16 @@ export const driverApi = {
 
 // Van API endpoints
 export const vanApi = {
-  getAll: (params?: Record<string, unknown>) => api.get<unknown>('/vans', params),
-  getById: (id: string) => api.get<unknown>(`/vans/${id}`),
+  getAll: (params?: object) => api.get<PaginatedResponse<Van>>('/vans', params),
+  getById: (id: string) => api.get<Van>(`/vans/${id}`),
   create: (data: unknown) => api.post<unknown>('/vans', data),
   update: (id: string, data: unknown) => api.put<unknown>(`/vans/${id}`, data),
   delete: (id: string) => api.delete<unknown>(`/vans/${id}`),
-  getMaintenance: (vanId: string) => api.get<unknown>(`/vans/${vanId}/maintenance`),
+  getMaintenance: (vanId: string) => api.get<MaintenanceRecord[]>(`/vans/${vanId}/maintenance`),
   createMaintenance: (vanId: string, data: unknown) => 
     api.post<unknown>(`/vans/${vanId}/maintenance`, data),
-  getFuelLogs: (vanId: string, params?: Record<string, unknown>) => 
-    api.get<unknown>(`/vans/${vanId}/fuel-logs`, params),
+  getFuelLogs: (vanId: string, params?: object) =>
+    api.get<PaginatedResponse<unknown>>(`/vans/${vanId}/fuel-logs`, params),
   createFuelLog: (vanId: string, data: unknown) => 
     api.post<unknown>(`/vans/${vanId}/fuel-logs`, data),
   getLocation: (vanId: string) => api.get<unknown>(`/vans/${vanId}/location`),
@@ -176,8 +207,8 @@ export const vanApi = {
 
 // Dispute API endpoints
 export const disputeApi = {
-  getAll: (params?: Record<string, unknown>) => api.get<unknown>('/disputes', params),
-  getById: (id: string) => api.get<unknown>(`/disputes/${id}`),
+  getAll: (params?: object) => api.get<PaginatedResponse<Dispute>>('/disputes', params),
+  getById: (id: string) => api.get<Dispute>(`/disputes/${id}`),
   create: (data: unknown) => api.post<unknown>('/disputes', data),
   update: (id: string, data: unknown) => api.put<unknown>(`/disputes/${id}`, data),
   delete: (id: string) => api.delete<unknown>(`/disputes/${id}`),
@@ -196,27 +227,28 @@ export const disputeApi = {
 
 // Payroll API endpoints
 export const payrollApi = {
-  getPeriods: (params?: Record<string, unknown>) => api.get<unknown>('/payroll/periods', params),
-  getPeriodById: (id: string) => api.get<unknown>(`/payroll/periods/${id}`),
+  getPeriods: (params?: object) => api.get<PaginatedResponse<PayrollPeriod>>('/payroll/periods', params),
+  getPeriodById: (id: string) => api.get<PayrollPeriod>(`/payroll/periods/${id}`),
   createPeriod: (data: unknown) => api.post<unknown>('/payroll/periods', data),
   processPeriod: (id: string, force?: boolean) => 
     api.post<unknown>(`/payroll/periods/${id}/process`, { force }),
-  getRecords: (periodId: string, params?: Record<string, unknown>) => 
-    api.get<unknown>(`/payroll/periods/${periodId}/records`, params),
+  getRecords: (periodId: string, params?: object) =>
+    api.get<PaginatedResponse<PayrollRecord>>(`/payroll/periods/${periodId}/records`, params),
   getRecordById: (periodId: string, recordId: string) => 
-    api.get<unknown>(`/payroll/periods/${periodId}/records/${recordId}`),
-  getSummary: (periodId: string) => api.get<unknown>(`/payroll/periods/${periodId}/summary`),
+    api.get<PayrollRecord>(`/payroll/periods/${periodId}/records/${recordId}`),
+  getSummary: (periodId: string) => api.get<PayrollSummary>(`/payroll/periods/${periodId}/summary`),
   createAdjustment: (recordId: string, data: unknown) => 
     api.post<unknown>(`/payroll/records/${recordId}/adjustments`, data),
   getReports: (periodId: string) => api.get<unknown>(`/payroll/periods/${periodId}/reports`),
   generateReport: (periodId: string, reportType: string) => 
     api.post<unknown>(`/payroll/periods/${periodId}/reports`, { reportType }),
+  deletePeriod: (id: string) => api.delete<void>(`/payroll/periods/${id}`),
 };
 
 // Route API endpoints
 export const routeApi = {
-  getAll: (params?: Record<string, unknown>) => api.get<unknown>('/routes', params),
-  getById: (id: string) => api.get<unknown>(`/routes/${id}`),
+  getAll: (params?: object) => api.get<PaginatedResponse<Route>>('/routes', params),
+  getById: (id: string) => api.get<Route>(`/routes/${id}`),
   create: (data: unknown) => api.post<unknown>('/routes', data),
   update: (id: string, data: unknown) => api.put<unknown>(`/routes/${id}`, data),
   delete: (id: string) => api.delete<unknown>(`/routes/${id}`),
@@ -237,17 +269,17 @@ export const routeApi = {
 // Performance API endpoints
 export const performanceApi = {
   getDriverPerformance: (driverId: string, period?: string) => 
-    api.get<unknown>(`/performance/drivers/${driverId}`, { period }),
+    api.get<DriverPerformanceScore>(`/performance/drivers/${driverId}`, { period }),
   getTeamPerformance: (teamId: string, period?: string) => 
-    api.get<unknown>(`/performance/teams/${teamId}`, { period }),
-  getDSPPerformance: (period?: string) => api.get<unknown>('/performance/dsp', { period }),
-  getDashboard: (period?: string) => api.get<unknown>('/performance/dashboard', { period }),
-  getMetrics: (params?: Record<string, unknown>) => api.get<unknown>('/performance/metrics', params),
-  getAlerts: (params?: Record<string, unknown>) => api.get<unknown>('/performance/alerts', params),
+    api.get<TeamPerformance>(`/performance/teams/${teamId}`, { period }),
+  getDSPPerformance: (period?: string) => api.get<DSPPerformance>('/performance/dsp', { period }),
+  getDashboard: (period?: string) => api.get<PerformanceDashboard>('/performance/dashboard', { period }),
+  getMetrics: (params?: object) => api.get<unknown>('/performance/metrics', params),
+  getAlerts: (params?: object) => api.get<PaginatedResponse<PerformanceAlert>>('/performance/alerts', params),
   getTrends: (metricId: string, period?: string) => 
     api.get<unknown>(`/performance/metrics/${metricId}/trends`, { period }),
   getComparisons: (entityType: string, entityId: string, period?: string) => 
-    api.get<unknown>(`/performance/${entityType}/${entityId}/comparisons`, { period }),
+    api.get<PerformanceComparison>(`/performance/${entityType}/${entityId}/comparisons`, { period }),
 };
 
 // Fleet Costs API endpoints
@@ -303,3 +335,4 @@ export {
   apiClient,
   API_BASE_URL,
 };
+export default apiClient;

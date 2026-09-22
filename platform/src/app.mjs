@@ -14,6 +14,21 @@ import { disputesRoutes } from './api/disputes-routes.mjs';
 import { routeMonitorRoutes } from './api/route-monitor-routes.mjs';
 import { payrollRoutes } from './api/payroll-routes.mjs';
 import { reactCompatRoutes } from './api/react-compat-routes.mjs';
+import { connectionRoutes } from './api/connection-routes.mjs';
+import { accessControlRoutes } from './api/access-control-routes.mjs';
+import { visibleFeatures } from './feature-catalog.mjs';
+import { ROLE_PERMISSIONS } from './authorization.mjs';
+import { ImpersonationService } from './impersonation-service.mjs';
+import { impersonationRoutes } from './api/impersonation-routes.mjs';
+import { assistantRoutes } from './api/assistant-routes.mjs';
+
+const API_FEATURE_PREFIXES = Object.freeze([
+  ['/api/connections', 'connections'], ['/api/uploads', 'connections'], ['/api/vendor-rules', 'connections'],
+  ['/api/members', 'users'], ['/api/fleet-compliance', 'fleet_compliance'], ['/api/fleet-costs', 'fleet_costs'],
+  ['/api/disputes', 'disputes'], ['/api/payroll', 'payroll'], ['/api/routes', 'route_monitor'],
+  ['/api/drivers', 'drivers'], ['/api/pave', 'fleet_compliance'], ['/api/dashboard', 'dashboard']
+  ,['/api/assistant', 'dashboard']
+]);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,7 +39,11 @@ export async function createApp({
   logger = false,
   authConfig = null,
   dashboardHtmlPath = null,
-  disputeSubmission = null
+  disputeSubmission = null,
+  connectionService = null,
+  assistantService = null,
+  impersonationService = new ImpersonationService(),
+  exposeLegacyDashboard = true
 }) {
   if (!authenticator?.authenticate) throw new Error('authenticator is required');
   if (!repository?.resolveContext) throw new Error('repository is required');
@@ -74,7 +93,7 @@ export async function createApp({
   // remains available at /dashboard and /api/dashboard/document.
   app.get('/', async (_request, reply) => reply.sendFile('index.html', path.resolve(HERE, '..', 'web')));
 
-  if (dashboardHtmlPath) {
+  if (dashboardHtmlPath && exposeLegacyDashboard) {
     // Serve the incumbent dashboard from /dashboard for compatibility.
     app.get('/dashboard', async (_request, reply) => {
       try {
@@ -106,38 +125,8 @@ export async function createApp({
     };
   });
 
-  // List of public API endpoints that don't require authentication (for dashboard)
-  const PUBLIC_API_ENDPOINTS = [
-    '/api/driver-performance',
-    '/api/fleet-optimization',
-    '/api/fleet-costs',
-    '/api/route-monitor',
-    '/api/payroll',
-    '/api/payroll/discrepancies',
-    '/api/disputes',
-    '/api/disputes/candidates',
-    '/api/pave/vehicles',
-    '/api/pave/compliance-report',
-    '/api/pave/inspections'
-  ];
-
   app.addHook('onRequest', async (request, reply) => {
-    // Skip authentication for public dashboard API endpoints
-    const path = request.url.split('?')[0];
-    const isPublicEndpoint = request.method === 'GET' && PUBLIC_API_ENDPOINTS.some(endpoint => 
-      path === endpoint || path.startsWith(endpoint + '/')
-    );
-    
-    if (isPublicEndpoint) {
-      // For public endpoints, create a minimal context
-      request.tenantContext = {
-        principal: { tenantId: 'jecs', tenantName: 'JEC Logistics Solutions', userId: 'dashboard-user', email: 'dashboard@jecs.com', role: 'viewer' },
-        entitlements: []
-      };
-      return;
-    }
-    
-    // For all other API endpoints, require authentication
+    // Every tenant data endpoint requires verified identity and explicit tenant.
     if (!request.url.startsWith('/api/')) return;
     
     try {
@@ -148,17 +137,47 @@ export async function createApp({
       }
       const context = await repository.resolveContext({ tenantSlug, identity });
       if (!context) return reply.code(403).send({ error: 'tenant access denied' });
-      request.tenantContext = context;
+      const supportToken = request.headers['x-support-session'];
+      if (typeof supportToken === 'string') {
+        const payload = await impersonationService.verify(supportToken, { actor: context.principal, tenantId: context.principal.tenantId });
+        request.tenantContext = Object.freeze({
+          ...context,
+          principal: Object.freeze({
+            ...context.principal,
+            userId: String(payload.targetSub), email: String(payload.targetEmail || ''), role: String(payload.targetRole),
+            tenantRole: String(payload.targetRole), isPlatformAdmin: false,
+            impersonation: Object.freeze({ actor: context.principal, reason: String(payload.reason || ''), expiresAt: Number(payload.exp) * 1000 })
+          })
+        });
+      } else request.tenantContext = context;
     } catch {
       return reply.code(401).send({ error: 'authentication failed' });
     }
   });
 
+  app.addHook('preHandler', async (request, reply) => {
+    if (!request.url.startsWith('/api/') || !request.tenantContext) return;
+    if (request.tenantContext.principal.impersonation && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
+        && request.url !== '/api/support/impersonation/end') {
+      return reply.code(403).send({ error: 'support impersonation is read-only' });
+    }
+    const match = API_FEATURE_PREFIXES.find(([prefix]) => request.url.startsWith(prefix));
+    if (!match) return;
+    const { principal, entitlements } = request.tenantContext;
+    const overrides = repository.listFeatureOverrides ? await repository.listFeatureOverrides(request.tenantContext) : [];
+    const allowed = visibleFeatures({ entitlements, principal, overrides }).some((feature) => feature.id === match[1]);
+    if (!allowed) return reply.code(403).send({ error: `feature unavailable: ${match[1]}` });
+  });
+
   app.get('/api/context', async (request) => {
     const { principal, entitlements } = request.tenantContext;
+    const overrides = repository.listFeatureOverrides ? await repository.listFeatureOverrides(request.tenantContext) : [];
     return {
       tenant: { id: principal.tenantId, name: principal.tenantName },
-      user: { id: principal.userId, email: principal.email, role: principal.role },
+      user: { id: principal.userId, email: principal.email, role: principal.role, tenantRole: principal.tenantRole, isPlatformAdmin: principal.isPlatformAdmin === true },
+      impersonation: principal.impersonation ? { active: true, actorEmail: principal.impersonation.actor.email, targetEmail: principal.email, targetRole: principal.role, reason: principal.impersonation.reason, expiresAt: principal.impersonation.expiresAt } : null,
+      permissions: ROLE_PERMISSIONS[principal.role] || [],
+      features: visibleFeatures({ entitlements, principal, overrides }),
       modules: visibleModules({ registry, entitlements, principal }).map(({ id, displayName, status, billingSku }) => ({
         id, displayName, status, billingSku
       }))
@@ -230,6 +249,11 @@ export async function createApp({
     return { connections: await repository.listIntegrationConnections(request.tenantContext) };
   });
 
+  connectionRoutes(app, { connectionService });
+  accessControlRoutes(app, { repository, registry });
+  impersonationRoutes(app, { repository, impersonationService });
+  assistantRoutes(app, { assistantService });
+
   // Register PAVE routes
   paveRoutes(app, { repository, registry, logger });
 
@@ -249,7 +273,7 @@ export async function createApp({
   payrollRoutes(app, { repository, registry, logger });
 
   // React application compatibility endpoints backed by the tenant repository.
-  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger });
+  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, includeConnectionSnapshot: !connectionService });
 
   app.setErrorHandler((error, request, reply) => {
     request.log?.warn({ err: error, requestId: request.id }, 'request failed');

@@ -41,7 +41,7 @@ interface DriverActivity {
   type: string;
   description: string;
   timestamp: string;
-  status: 'success' | 'warning' | 'error';
+  status: 'success' | 'warning' | 'error' | 'info';
 }
 
 interface DriverDocument {

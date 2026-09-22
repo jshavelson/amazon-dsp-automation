@@ -7,12 +7,14 @@ interface SelectProps extends React.HTMLAttributes<HTMLDivElement> {
   onValueChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
 }
 
 const SelectContext = React.createContext<{
   value?: string;
   onValueChange?: (value: string) => void;
   disabled?: boolean;
+  placeholder?: string;
   open: boolean;
   setOpen: (open: boolean) => void;
 }>({ open: false, setOpen: () => {} });
@@ -75,14 +77,14 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
 
 SelectTrigger.displayName = 'SelectTrigger';
 
-interface SelectValueProps extends React.HTMLAttributes<HTMLSpanElement> {}
+interface SelectValueProps extends React.HTMLAttributes<HTMLSpanElement> { placeholder?: string }
 
-export const SelectValue: React.FC<SelectValueProps> = ({ className, ...props }) => {
+export const SelectValue: React.FC<SelectValueProps> = ({ className, placeholder, ...props }) => {
   const { value } = React.useContext(SelectContext);
 
   return (
     <span className={clsx('', className)} {...props}>
-      {value}
+      {value || placeholder}
     </span>
   );
 };
@@ -114,6 +116,7 @@ SelectContent.displayName = 'SelectContent';
 
 interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
   value: string;
+  disabled?: boolean;
 }
 
 export const SelectItem: React.FC<SelectItemProps> = ({ value, className, children, ...props }) => {

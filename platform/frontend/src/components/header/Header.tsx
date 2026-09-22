@@ -15,6 +15,12 @@ import {
   Sun,
 } from 'lucide-react';
 import { User as UserType } from '@/types/auth';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/services/api';
+
+interface ConnectionHealth {
+  summary: { total: number; active?: number; connected: number; health?: 'green' | 'yellow' | 'red' };
+}
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -47,6 +53,16 @@ const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { data: connectionHealth } = useQuery<ConnectionHealth>({
+    queryKey: ['connection-health'],
+    queryFn: () => api.get<ConnectionHealth>('/connections'),
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+  const activeConnections = connectionHealth?.summary.active ?? connectionHealth?.summary.connected ?? 0;
+  const totalConnections = connectionHealth?.summary.total ?? 0;
+  const healthColor = connectionHealth?.summary.health
+    ?? (totalConnections && activeConnections === totalConnections ? 'green' : activeConnections ? 'yellow' : 'red');
 
   // Mock notifications (replace with real data)
   useEffect(() => {
@@ -328,6 +344,19 @@ const Header: React.FC<HeaderProps> = ({
 
         {/* Right side */}
         <div className="flex items-center space-x-2">
+          <Link
+            to="/connections"
+            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            title={`${activeConnections} of ${totalConnections} connections active`}
+            aria-label={`Connection health ${healthColor}: ${activeConnections} of ${totalConnections} active`}
+          >
+            <span className={clsx('h-3 w-3 rounded-full ring-2 ring-white dark:ring-slate-900', {
+              'bg-emerald-500': healthColor === 'green',
+              'bg-amber-400': healthColor === 'yellow',
+              'bg-red-500': healthColor === 'red',
+            })} />
+            <span className="hidden sm:inline">Connections {activeConnections}/{totalConnections}</span>
+          </Link>
           <button
             type="button"
             onClick={onThemeToggle}

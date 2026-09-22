@@ -31,6 +31,8 @@ import TimeAttendancePage from './pages/time-attendance/TimeAttendancePage';
 import ReimbursementReviewPage from './pages/reimbursement/ReimbursementReviewPage';
 import ConnectionsPage from './pages/connections/ConnectionsPage';
 import SystemPage from './pages/system/SystemPage';
+import { UsersRolesPage, FeatureAdminPage } from './pages/admin/AccessAdminPage';
+import { usePlatformContext } from './hooks/usePlatformContext';
 
 // Shared Components
 import LoadingSpinner from './components/shared/LoadingSpinner';
@@ -75,6 +77,16 @@ const PublicRoute: React.FC = () => {
   return <Outlet />;
 };
 
+const FeatureGate: React.FC = () => {
+  const location = useLocation();
+  const { data, isLoading } = usePlatformContext();
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
+  if (location.pathname === '/') return <Outlet />;
+  const feature = data?.features.find((item) => location.pathname === item.route || location.pathname.startsWith(`${item.route}/`));
+  if (!feature) return <div className="m-8 rounded-xl border border-red-200 bg-red-50 p-6 text-red-800"><strong>Feature unavailable.</strong><p className="mt-1 text-sm">This feature is not implemented, enabled, entitled, or permitted for your role.</p></div>;
+  return <Outlet />;
+};
+
 // Main App Component
 const App: React.FC = () => {
   const location = useLocation();
@@ -98,6 +110,7 @@ const App: React.FC = () => {
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
+            <Route element={<FeatureGate />}>
             <Route element={<DashboardLayout />}>
               {/* Dashboard */}
               <Route path="/dashboard" element={<DashboardOverviewPage />} />
@@ -133,6 +146,8 @@ const App: React.FC = () => {
               <Route path="/time-attendance" element={<TimeAttendancePage />} />
               <Route path="/reimbursement-review" element={<ReimbursementReviewPage />} />
               <Route path="/connections" element={<ConnectionsPage />} />
+              <Route path="/users" element={<UsersRolesPage />} />
+              <Route path="/admin/features" element={<FeatureAdminPage />} />
 
               {/* Fleet Costs */}
               <Route path="/fleet-costs" element={<FleetCostsPage />} />
@@ -144,6 +159,7 @@ const App: React.FC = () => {
               <Route path="/security" element={<SystemPage />} />
               <Route path="/notifications" element={<SystemPage />} />
               <Route path="/help" element={<SystemPage />} />
+            </Route>
             </Route>
           </Route>
 

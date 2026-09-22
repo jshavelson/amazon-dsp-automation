@@ -10,7 +10,6 @@
   "executionServiceAreaId": "a9db613c-e583-4e6e-aacd-e05a253e5d2e",
   "downloadRoot": "data/scorecard_data",
   "storageStatePath": "./.openclaw/amazon-logistics-storage-state.json",
-  "paymentsStorageStatePath": "./.openclaw/amazon-payments-storage-state.json",
   "headedLogin": true,
   "requestTimeoutMs": 45000,
   "navigationTimeoutMs": 45000,

@@ -139,6 +139,9 @@ interface CompliancePayload {
   vehicles: ComplianceVehicle[];
   unmatchedPmIssues: Array<{ vin: string; issues: PmIssue[] }>;
   wearAndTear?: WearAndTearCompliance | null;
+  paveAssessments?: { rowsRead: number; completedRows: number; incompleteRows: number; uniqueVins: number;
+    currentFairOrBetter: number; currentPoor: number; currentGroundingRisk: number; currentNewDamage: number;
+    latestAt?: string | null; filename: string; confirmedAt: string; unmatchedVins: string[] } | null;
   sources: Array<{ label: string; asOf: string; path: string }>;
   reconciliation: { currentRosterVinCount?: number; portalVinCount?: number; vinSetsMatch?: boolean; note?: string };
 }
@@ -243,6 +246,12 @@ const FleetCompliancePage: React.FC = () => {
           <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Download size={15} />Export queue</button>
         </div>
       </section>
+
+      {data.paveAssessments && <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-blue-950 dark:text-blue-100">PAVE Fleet Dashboard assessments</h2><p className="mt-1 text-xs text-blue-800 dark:text-blue-300">{data.paveAssessments.filename} · confirmed {new Date(data.paveAssessments.confirmedAt).toLocaleString()}</p></div><span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800 dark:bg-blue-900 dark:text-blue-100">{data.paveAssessments.uniqueVins} current VINs</span></div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-4"><div><p className="text-xs text-blue-700 dark:text-blue-300">Fair or better</p><p className="text-xl font-bold text-blue-950 dark:text-white">{data.paveAssessments.currentFairOrBetter}</p></div><div><p className="text-xs text-blue-700 dark:text-blue-300">Poor</p><p className="text-xl font-bold text-blue-950 dark:text-white">{data.paveAssessments.currentPoor}</p></div><div><p className="text-xs text-blue-700 dark:text-blue-300">Grounding risk</p><p className="text-xl font-bold text-blue-950 dark:text-white">{data.paveAssessments.currentGroundingRisk}</p></div><div><p className="text-xs text-blue-700 dark:text-blue-300">New damage</p><p className="text-xl font-bold text-blue-950 dark:text-white">{data.paveAssessments.currentNewDamage}</p></div></div>
+        {data.paveAssessments.unmatchedVins.length > 0 && <p className="mt-3 text-xs text-amber-800 dark:text-amber-300">{data.paveAssessments.unmatchedVins.length} PAVE VINs are not in the current Amazon roster and remain in the reconciliation queue.</p>}
+      </section>}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(({ label, value, detail, icon: Icon, tone }) => (

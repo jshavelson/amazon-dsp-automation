@@ -1,4 +1,5 @@
 // Performance-related types
+import type { FilterParams } from './common';
 
 export interface PerformanceMetric {
   id: string;
@@ -39,6 +40,18 @@ export interface DriverPerformanceScore {
   rank: number;
   percentile: number;
   trend: PerformanceTrend;
+  week?: string;
+  year?: number;
+  packagesPerHour?: number;
+  milesPerHour?: number;
+  routeCompletionRate?: number;
+  overtimeHours?: number;
+  fuelEfficiency?: number;
+  score?: number;
+  grade?: string;
+  onTimeDeliveryRate?: number;
+  safetyIncidents?: number;
+  customerComplaints?: number;
 }
 
 export interface PerformanceMetricScore {

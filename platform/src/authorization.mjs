@@ -1,6 +1,7 @@
 import { moduleById } from './module-registry.mjs';
 
 export const ROLE_PERMISSIONS = Object.freeze({
+  platform_admin: Object.freeze(['module.read', 'workflow.run', 'approval.decide', 'submission.execute', 'integration.manage', 'member.manage', 'billing.manage', 'feature.manage', 'impersonation.manage']),
   owner: Object.freeze(['module.read', 'workflow.run', 'approval.decide', 'submission.execute', 'integration.manage', 'member.manage', 'billing.manage']),
   admin: Object.freeze(['module.read', 'workflow.run', 'approval.decide', 'submission.execute', 'integration.manage', 'member.manage']),
   reviewer: Object.freeze(['module.read', 'workflow.run', 'approval.decide']),
@@ -19,6 +20,11 @@ export function assertPrincipal(principal) {
 export function requirePermission(principal, permission) {
   assertPrincipal(principal);
   if (!ROLE_PERMISSIONS[principal.role].includes(permission)) throw new Error(`permission denied: ${permission}`);
+}
+
+export function hasPermission(principal, permission) {
+  assertPrincipal(principal);
+  return ROLE_PERMISSIONS[principal.role].includes(permission);
 }
 
 export function requireModuleAccess({ registry, entitlements, principal, moduleId, permission = 'module.read' }) {

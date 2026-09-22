@@ -1,4 +1,5 @@
 // Payroll-related types
+import type { FilterParams } from './common';
 
 export interface PayrollPeriod {
   id: string;

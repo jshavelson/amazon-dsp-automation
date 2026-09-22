@@ -51,6 +51,7 @@ data/module_approvals/
 data/payment_reconciliation/
 data/policies/
 data/scorecard_data/
+data/tenants/
 data/workforce/
 media/
 

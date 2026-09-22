@@ -39,6 +39,8 @@ export interface LoginCredentials {
   password: string;
   rememberMe?: boolean;
 }
+export type LoginRequest = LoginCredentials;
+export interface RefreshTokenRequest { refreshToken: string; }
 
 export interface LoginResponse {
   user: User;
@@ -118,6 +120,8 @@ export interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (data: ResetPasswordRequest) => Promise<void>;
   refreshToken: () => Promise<void>;
   clearError: () => void;
 }

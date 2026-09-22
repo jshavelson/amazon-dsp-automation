@@ -9,7 +9,7 @@ import {
   PerformanceFilterParams,
   PerformanceComparison
 } from '@/types/performance';
-import { PaginationParams } from '@/types/common';
+import { PaginatedResponse, PaginationParams } from '@/types/common';
 
 // Query keys
 const PERFORMANCE_KEYS = {

@@ -3,7 +3,6 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import {
-  LayoutDashboard,
   Users,
   Truck,
   FileText,
@@ -13,8 +12,6 @@ import {
   Settings,
   HelpCircle,
   X,
-  ChevronLeft,
-  ChevronRight,
   Home,
   FileBarChart,
   ShieldCheck,
@@ -27,6 +24,7 @@ import {
   Landmark,
   Link2,
 } from 'lucide-react';
+import { usePlatformContext } from '@/hooks/usePlatformContext';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -38,129 +36,65 @@ interface NavItem {
   icon: React.ReactNode;
   badge?: string | number;
   children?: NavItem[];
+  featureId: string;
+  planned?: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const location = useLocation();
-  const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({
-    operations: true,
-    management: true,
-    analytics: true,
-    system: true,
+  const { data: platform } = usePlatformContext();
+
+  const navGroups: NavGroup[] = [
+    { label: 'Overview', items: [
+      { label: 'Dashboard', href: '/dashboard', icon: <Home size={20} />, featureId: 'dashboard' },
+    ] },
+    { label: 'Operations', items: [
+      { label: 'Route Monitor', href: '/routes', icon: <Route size={20} />, featureId: 'route_monitor' },
+      { label: 'Drivers', href: '/drivers', icon: <Users size={20} />, featureId: 'drivers' },
+      { label: 'Time & Attendance', href: '/time-attendance', icon: <CalendarCheck size={20} />, featureId: 'time_attendance' },
+      { label: 'Payroll', href: '/payroll', icon: <DollarSign size={20} />, featureId: 'payroll' },
+    ] },
+    { label: 'Fleet', items: [
+      { label: 'Vans', href: '/vans', icon: <Truck size={20} />, featureId: 'vans' },
+      { label: 'Fleet Compliance', href: '/fleet-compliance', icon: <ClipboardCheck size={20} />, featureId: 'fleet_compliance' },
+      { label: 'Maintenance', href: '/maintenance', icon: <Wrench size={20} />, featureId: 'maintenance' },
+      { label: 'Fuel Tracking', href: '/fuel', icon: <Fuel size={20} />, featureId: 'fuel' },
+      { label: 'Fleet Costs', href: '/fleet-costs', icon: <CreditCard size={20} />, featureId: 'fleet_costs' },
+    ] },
+    { label: 'Performance & Finance', items: [
+      { label: 'Weekly Evaluation', href: '/weekly-evaluation', icon: <FileBarChart size={20} />, featureId: 'weekly_evaluation' },
+      { label: 'Driver Performance', href: '/performance', icon: <BarChart3 size={20} />, featureId: 'driver_performance' },
+      { label: 'Dispute Center', href: '/disputes', icon: <FileText size={20} />, badge: 5, featureId: 'disputes' },
+      { label: 'Reimbursement Review', href: '/reimbursement-review', icon: <Landmark size={20} />, featureId: 'reimbursement_review' },
+    ] },
+    { label: 'Administration', items: [
+      { label: 'Connections', href: '/connections', icon: <Link2 size={20} />, featureId: 'connections' },
+      { label: 'Users & Roles', href: '/users', icon: <Users size={20} />, featureId: 'users' },
+      ...(platform?.user.isPlatformAdmin
+        ? [{ label: 'Feature Management', href: '/admin/features', icon: <ShieldCheck size={20} />, featureId: 'feature_admin' }]
+        : []),
+    ] },
+    { label: 'Support & Settings', items: [
+      { label: 'Settings', href: '/settings', icon: <Settings size={20} />, featureId: 'settings' },
+      { label: 'Security', href: '/security', icon: <ShieldCheck size={20} />, featureId: 'security' },
+      { label: 'Notifications', href: '/notifications', icon: <Bell size={20} />, badge: 3, featureId: 'notifications' },
+      { label: 'Help & Support', href: '/help', icon: <HelpCircle size={20} />, featureId: 'help' },
+    ] },
+  ];
+
+  const visibleIds = new Map((platform?.features || []).map((feature) => [feature.id, feature]));
+  const filterItems = (items: NavItem[]) => items.flatMap((item) => {
+    const feature = visibleIds.get(item.featureId);
+    return feature ? [{ ...item, planned: feature.status !== 'implemented' }] : [];
   });
-
-  // Navigation items
-  const navItems: NavItem[] = [
-    {
-      label: 'Dashboard',
-      href: '/dashboard',
-      icon: <Home size={20} />,
-    },
-    {
-      label: 'Drivers',
-      href: '/drivers',
-      icon: <Users size={20} />,
-    },
-    {
-      label: 'Fleet Compliance',
-      href: '/fleet-compliance',
-      icon: <ClipboardCheck size={20} />,
-    },
-    {
-      label: 'Vans',
-      href: '/vans',
-      icon: <Truck size={20} />,
-    },
-    {
-      label: 'Route Monitor',
-      href: '/routes',
-      icon: <Route size={20} />,
-    },
-    {
-      label: 'Dispute Center',
-      href: '/disputes',
-      icon: <FileText size={20} />,
-      badge: 5, // Example badge count
-    },
-    {
-      label: 'Payroll',
-      href: '/payroll',
-      icon: <DollarSign size={20} />,
-    },
-    {
-      label: 'Weekly Evaluation',
-      href: '/weekly-evaluation',
-      icon: <FileBarChart size={20} />,
-    },
-    {
-      label: 'Driver Performance',
-      href: '/performance',
-      icon: <BarChart3 size={20} />,
-    },
-    {
-      label: 'Connections',
-      href: '/connections',
-      icon: <Link2 size={20} />,
-    },
-    {
-      label: 'Reimbursement Review',
-      href: '/reimbursement-review',
-      icon: <Landmark size={20} />,
-    },
-    {
-      label: 'Time & Attendance',
-      href: '/time-attendance',
-      icon: <CalendarCheck size={20} />,
-    },
-    {
-      label: 'Fleet Costs',
-      href: '/fleet-costs',
-      icon: <CreditCard size={20} />,
-    },
-    {
-      label: 'Maintenance',
-      href: '/maintenance',
-      icon: <Wrench size={20} />,
-    },
-    {
-      label: 'Fuel Tracking',
-      href: '/fuel',
-      icon: <Fuel size={20} />,
-    },
-  ];
-
-  // Bottom navigation items
-  const bottomNavItems: NavItem[] = [
-    {
-      label: 'Settings',
-      href: '/settings',
-      icon: <Settings size={20} />,
-    },
-    {
-      label: 'Security',
-      href: '/security',
-      icon: <ShieldCheck size={20} />,
-    },
-    {
-      label: 'Notifications',
-      href: '/notifications',
-      icon: <Bell size={20} />,
-      badge: 3,
-    },
-    {
-      label: 'Help & Support',
-      href: '/help',
-      icon: <HelpCircle size={20} />,
-    },
-  ];
-
-  // Toggle expanded state for a group
-  const toggleExpanded = (group: string) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [group]: !prev[group],
-    }));
-  };
+  const visibleNavGroups = navGroups
+    .map((group) => ({ ...group, items: filterItems(group.items) }))
+    .filter((group) => group.items.length > 0);
 
   // Check if a nav item is active
   const isActive = (href: string): boolean => {
@@ -220,24 +154,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
               {item.badge}
             </span>
           )}
-          {hasChildren && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                toggleExpanded(item.label.toLowerCase());
-              }}
-              className="ml-2 p-1 rounded hover:bg-gray-200 transition-colors"
-            >
-              {expandedGroups[item.label.toLowerCase()] ? (
-                <ChevronLeft size={16} />
-              ) : (
-                <ChevronRight size={16} />
-              )}
-            </button>
-          )}
+          {item.planned && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Planned</span>}
         </NavLink>
 
-        {hasChildren && expandedGroups[item.label.toLowerCase()] && (
+        {hasChildren && (
           <motion.ul
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -271,23 +191,18 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">
-        <ul className="space-y-1">
-          {navItems.map((item) => (
-            <NavItemComponent key={item.href} item={item} />
+        <div className="space-y-5">
+          {visibleNavGroups.map((group) => (
+            <section key={group.label} aria-labelledby={`nav-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+              <h2 id={`nav-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500">
+                {group.label}
+              </h2>
+              <ul className="space-y-1">
+                {group.items.map((item) => <NavItemComponent key={item.href} item={item} />)}
+              </ul>
+            </section>
           ))}
-        </ul>
-
-        {/* Divider */}
-        <div className="my-4 px-3">
-          <div className="h-px bg-gray-200" />
         </div>
-
-        {/* Bottom Navigation */}
-        <ul className="space-y-1">
-          {bottomNavItems.map((item) => (
-            <NavItemComponent key={item.href} item={item} />
-          ))}
-        </ul>
       </nav>
 
       {/* Footer */}

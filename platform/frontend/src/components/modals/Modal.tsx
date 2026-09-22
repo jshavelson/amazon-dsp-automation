@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
-interface ModalProps {
+export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
@@ -25,7 +25,7 @@ interface ModalProps {
 }
 
 // Type for modal methods exposed via ref
-interface ModalMethods {
+export interface ModalMethods {
   open: () => void;
   close: () => void;
   toggle: () => void;

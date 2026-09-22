@@ -1,4 +1,5 @@
 // Route-related types
+import type { FilterParams } from './common';
 
 export interface Route {
   id: string;

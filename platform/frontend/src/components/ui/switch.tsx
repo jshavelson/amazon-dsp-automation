@@ -1,21 +1,29 @@
 import React, { forwardRef } from 'react';
 import clsx from 'clsx';
 
-interface SwitchProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+export interface SwitchProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+}
 
-export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
-  ({ className, ...props }, ref) => {
+export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
+  ({ className, checked = false, onCheckedChange, ...props }, ref) => {
     return (
       <button
         type="button"
         role="switch"
-        aria-checked="false"
+        aria-checked={checked}
+        data-state={checked ? 'checked' : 'unchecked'}
+        onClick={(event) => {
+          props.onClick?.(event);
+          if (!event.defaultPrevented) onCheckedChange?.(!checked);
+        }}
         className={clsx(
           'peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input',
           className
         )}
         {...props}
-        ref={ref as React.Ref<HTMLButtonElement>}
+        ref={ref}
       >
         <span
           className={clsx(

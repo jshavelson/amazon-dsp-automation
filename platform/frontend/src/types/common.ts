@@ -25,7 +25,7 @@ export interface FilterParams {
   endDate?: string;
   status?: string;
   type?: string;
-  [key: string]: string | undefined;
+  [key: string]: unknown;
 }
 
 export interface ApiResponse<T> {

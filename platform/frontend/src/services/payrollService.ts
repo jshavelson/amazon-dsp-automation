@@ -132,11 +132,11 @@ export const payrollService = {
    * Get current/active payroll period
    */
   async getCurrentPayrollPeriod(): Promise<PayrollPeriod | null> {
-    const response = await api.get<PayrollPeriod[]>(PAYROLL_ENDPOINTS.PERIODS, {
+    const response = await api.get<PaginatedResponse<PayrollPeriod>>(PAYROLL_ENDPOINTS.PERIODS, {
       status: 'open',
       limit: 1,
     });
-    return response.data?.[0] || null;
+    return response.data[0] || null;
   },
 
   /**

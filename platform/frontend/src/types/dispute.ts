@@ -1,4 +1,5 @@
 // Dispute-related types
+import type { FilterParams } from './common';
 
 export interface Dispute {
   id: string;

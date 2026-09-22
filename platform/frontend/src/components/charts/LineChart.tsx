@@ -154,7 +154,7 @@ const LineChart: React.FC<LineChartProps> = ({
                 dot={showDots}
                 activeDot={{ r: 8, fill: colors[index % colors.length] }}
                 name={yKey}
-                onClick={handleLineClick}
+                onClick={() => handleLineClick(data[0] || {}, 0)}
               />
             ))}
           </RechartsLineChart>

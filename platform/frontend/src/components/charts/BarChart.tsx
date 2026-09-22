@@ -10,7 +10,6 @@ import {
   Legend,
   Cell,
 } from 'recharts';
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 interface BarChartProps {
   data: Record<string, unknown>[];
@@ -24,7 +23,7 @@ interface BarChartProps {
   showLegend?: boolean;
   showTooltip?: boolean;
   layout?: 'horizontal' | 'vertical';
-  config?: ChartConfig;
+  config?: Record<string, unknown>;
   onBarClick?: (data: Record<string, unknown>, index: number) => void;
 }
 

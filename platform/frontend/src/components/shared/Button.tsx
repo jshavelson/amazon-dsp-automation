@@ -1,5 +1,4 @@
 import React, { forwardRef } from 'react';
-import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { Loader2 } from 'lucide-react';
 
@@ -102,7 +101,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const showLoading = isLoading || disabled;
 
     return (
-      <motion.button
+      <button
         ref={ref}
         className={clsx(
           baseStyles,
@@ -112,8 +111,6 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           className
         )}
         disabled={disabled || isLoading}
-        whileHover={{ scale: disabled ? 1 : 1.02 }}
-        whileTap={{ scale: disabled ? 1 : 0.98 }}
         {...props}
       >
         {showLoading ? (
@@ -131,7 +128,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             {rightIcon && <span className="ml-2">{rightIcon}</span>}
           </>
         )}
-      </motion.button>
+      </button>
     );
   }
 );

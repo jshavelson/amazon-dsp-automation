@@ -1,7 +1,12 @@
 import React from 'react';
 import clsx from 'clsx';
 
-interface RadioGroupProps extends React.HTMLAttributes<HTMLDivElement> {}
+export interface RadioGroupProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> {
+  value?: string;
+  onValueChange?: (value: string) => void;
+  orientation?: 'horizontal' | 'vertical';
+  disabled?: boolean;
+}
 
 export const RadioGroup: React.FC<RadioGroupProps> = ({ className, ...props }) => (
   <div

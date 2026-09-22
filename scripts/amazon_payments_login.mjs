@@ -6,9 +6,7 @@ import { chromium } from 'playwright';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const config = JSON.parse(await fs.readFile(path.join(__dirname, 'amazon_logistics.config.json'), 'utf8'));
-// Payments can require a separate Amazon handshake. Keep it isolated so the
-// general Logistics session health check cannot overwrite payment-page state.
-const storageStatePath = path.resolve(repoRoot, config.paymentsStorageStatePath || config.storageStatePath);
+const storageStatePath = path.resolve(repoRoot, config.storageStatePath);
 const hasSavedSession = await fs.access(storageStatePath).then(() => true).catch(() => false);
 
 const browser = await chromium.launch({ headless: false });

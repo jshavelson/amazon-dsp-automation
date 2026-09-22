@@ -1,7 +1,7 @@
 import React, { useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useForm, UseFormReturn, FormProvider as RhfFormProvider, SubmitHandler } from 'react-hook-form';
 
-interface FormProps<T extends Record<string, unknown>> {
+export interface FormProps<T extends Record<string, unknown>> {
   children: React.ReactNode;
   onSubmit: SubmitHandler<T>;
   defaultValues?: Partial<T>;
@@ -10,7 +10,7 @@ interface FormProps<T extends Record<string, unknown>> {
 }
 
 // Type for the form methods we want to expose
-interface FormMethods<T extends Record<string, unknown>> {
+export interface FormMethods<T extends Record<string, unknown>> {
   reset: () => void;
   setValue: (name: keyof T, value: unknown) => void;
   getValues: () => T;
@@ -58,7 +58,7 @@ Form.displayName = 'Form';
 export function createForm<T extends Record<string, unknown>>(
   props: FormProps<T> & { ref?: React.Ref<FormMethods<T>> }
 ): React.ReactElement {
-  return <Form {...props} />;
+  return React.createElement(Form, props as FormProps<Record<string, unknown>>);
 }
 
 export default Form;

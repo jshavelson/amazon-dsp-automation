@@ -191,7 +191,11 @@ function Table<T>({
   const renderCell = useCallback(
     (column: Column<T>, item: T, index: number) => {
     const value = (item as Record<string, unknown>)[String(column.key)];
-    const content = column.render ? column.render(value, item, index) : value;
+    const content: React.ReactNode = column.render
+      ? column.render(value, item, index)
+      : value == null
+        ? ''
+        : String(value);
 
     return (
       <td

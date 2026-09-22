@@ -53,7 +53,7 @@ async function main() {
   }
   const outputDir = path.resolve(ROOT, args['output-dir'] || `data/payment_reconciliation/${year}-wk${String(week).padStart(2, '0')}`);
   const config = JSON.parse(await fs.readFile(path.join(ROOT, 'scripts/amazon_logistics.config.json'), 'utf8'));
-  const storageState = path.resolve(ROOT, config.paymentsStorageStatePath || config.storageStatePath);
+  const storageState = path.resolve(ROOT, config.storageStatePath);
   await fs.mkdir(outputDir, { recursive: true });
 
   const browser = await chromium.launch({ headless: true });

@@ -74,7 +74,7 @@ function warnFallback(request, error, resource) {
   request.log?.warn({ err: error, resource }, 'using React compatibility fallback');
 }
 
-export function reactCompatRoutes(app, { repository, dashboardHtmlPath }) {
+export function reactCompatRoutes(app, { repository, dashboardHtmlPath, includeConnectionSnapshot = true }) {
   app.get('/api/auth/me', async (request) => {
     const principal = request.tenantContext.principal;
     const [firstName = '', ...lastNameParts] = (principal.email || 'DSP User').split('@')[0].split(/[._-]/);
@@ -170,7 +170,7 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath }) {
   app.get('/api/performance/teams/:id', async () => ({}));
 
   app.get('/api/fleet-compliance', async () => operationalSnapshot('fleet-compliance'));
-  app.get('/api/connections', async () => operationalSnapshot('connections'));
+  if (includeConnectionSnapshot) app.get('/api/connections', async () => operationalSnapshot('connections'));
   app.get('/api/vendor-rules', async () => operationalSnapshot('vendor-rules'));
   app.get('/api/modules', async () => operationalSnapshot('modules'));
 

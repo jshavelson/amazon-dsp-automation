@@ -17,16 +17,29 @@ Then open: http://localhost:8000/amazon-dsp-kpi-dashboard.html
 """
 
 import json
+import imaplib
+import email
 import math
+import os
 import re
 import sqlite3
+import subprocess
 import sys
+import tempfile
+import threading
+import ssl
+import base64
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
+from email import policy
+from email.header import decode_header, make_header
+
+import assistant_service
 
 ROOT = Path(__file__).resolve().parents[1]
+TENANT_ROOT = ROOT / "data/tenants"
 DB_PATH = ROOT / "data/dsp_operations.db"
 DASHBOARD_DIR = ROOT / "data/dashboards"
 DASHBOARD_PATH = DASHBOARD_DIR / "amazon-dsp-kpi-dashboard.html"
@@ -38,6 +51,80 @@ WEAR_TEAR_STRETCH_PERCENT = 85.0
 def _read_json(path):
     with open(path, 'r', encoding='utf-8') as source:
         return json.load(source)
+
+
+def _test_adp_connection(tenant):
+    """Validate the saved ADP mTLS client and read-only worker scope.
+
+    Secrets are supplied to curl over stdin. Certificate material is written
+    only to owner-readable temporary files and removed before this returns.
+    """
+    client_id = get_secret(tenant, 'adp', 'production-client-id')
+    client_secret = get_secret(tenant, 'adp', 'production-client-secret')
+    certificate = get_secret(tenant, 'adp', 'production-certificate-pem')
+    private_key = get_secret(tenant, 'adp', 'production-private-key-pem')
+    paths = []
+
+    def request(url, method='GET', headers=None, body=None):
+        arguments = [
+            'curl', '-q', '--silent', '--show-error', '--http1.1',
+            '--config', '-', '--cert', paths[0], '--key', paths[1],
+            '--max-time', '45', '--write-out', '\n__ADP_HTTP_STATUS__:%{http_code}',
+        ]
+        if body is not None:
+            arguments.extend(['--data-raw', body])
+        config_lines = [
+            f'url = "{url}"', f'request = "{method}"',
+            'header = "Accept: application/json"',
+        ]
+        for name, value in (headers or {}).items():
+            config_lines.append(f'header = "{name}: {value}"')
+        completed = subprocess.run(
+            arguments, input=('\n'.join(config_lines) + '\n').encode(),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=50, check=False)
+        marker = b'\n__ADP_HTTP_STATUS__:'
+        marker_at = completed.stdout.rfind(marker)
+        if completed.returncode or marker_at < 0:
+            raise RuntimeError('ADP HTTPS request failed')
+        status = int(completed.stdout[marker_at + len(marker):].strip())
+        try:
+            document = json.loads(completed.stdout[:marker_at])
+        except (TypeError, ValueError):
+            raise RuntimeError(f'ADP returned an invalid response (HTTP {status})')
+        return status, document
+
+    try:
+        for material in (certificate, private_key):
+            handle = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False)
+            paths.append(handle.name)
+            try:
+                handle.write(material)
+                handle.flush()
+            finally:
+                handle.close()
+        authorization = base64.b64encode(
+            f'{client_id}:{client_secret}'.encode()).decode('ascii')
+        token_status, token = request(
+            'https://accounts.adp.com/auth/oauth/v2/token', method='POST',
+            headers={
+                'Authorization': f'Basic {authorization}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }, body='grant_type=client_credentials')
+        access_token = token.get('access_token') if isinstance(token, dict) else None
+        if token_status != 200 or not access_token:
+            raise RuntimeError(f'ADP OAuth authentication failed (HTTP {token_status})')
+        worker_status, workers = request(
+            'https://api.adp.com/hr/v2/workers?$top=1',
+            headers={'Authorization': f'Bearer {access_token}'})
+        if worker_status != 200:
+            raise RuntimeError(f'ADP worker access failed (HTTP {worker_status})')
+        return len(workers.get('workers', [])) if isinstance(workers, dict) else 0
+    finally:
+        for path in paths:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
 
 
 def _normalized_unit(value):
@@ -53,7 +140,15 @@ def _days_until(value, today):
         return None
 
 
-def build_fleet_compliance_payload():
+def _latest_pave_upload_preview(tenant="jecs"):
+    record = tenant_store.latest_confirmed(tenant, "pave")
+    if not record:
+        return None, None
+    preview = parse_pave_export(tenant_store.read_bytes(tenant, record["id"]), record["originalFilename"])
+    return record, preview if preview.get("ok") else None
+
+
+def build_fleet_compliance_payload(tenant="jecs"):
     """Reconcile Fleet Portal, dispatch readiness, DVIC, and PM evidence."""
     roster_path = FLEET_REVIEW_DIR / "2026-09-07/vehicles-1.json"
     inspection_path = FLEET_REVIEW_DIR / "2026-09-07/inspection-stats-1.json"
@@ -71,6 +166,7 @@ def build_fleet_compliance_payload():
     wear_data = _read_json(wear_files[-1]) if wear_files else None
     lsc_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-lsc-cases.json"))
     lsc_data = _read_json(lsc_files[-1]) if lsc_files else {'cases': []}
+    pave_upload, pave_preview = _latest_pave_upload_preview(tenant)
     today = datetime.now().date()
 
     note = snapshot.get('reconciliation', {}).get('note', '')
@@ -197,6 +293,34 @@ def build_fleet_compliance_payload():
             'lastRouteCompletedInDays': vehicle.get('lastRouteCompletedInDays')
         })
 
+    pave_by_vin = {item['vin']: item for item in (pave_preview or {}).get('latestByVin', [])}
+    rows_by_vin = {row['vin']: row for row in rows}
+    for vin, assessment in pave_by_vin.items():
+        row = rows_by_vin.get(vin)
+        if not row:
+            continue
+        row.update({
+            'paveGrade': assessment.get('grade'),
+            'paveGradeLabel': assessment.get('gradeLabel'),
+            'paveConditionScore': assessment.get('conditionScore'),
+            'paveHasNewDamage': assessment.get('hasNewDamage'),
+            'paveGroundingRisk': assessment.get('groundingRisk'),
+            'paveAssessedAt': assessment.get('createdAt'),
+            'paveSessionKey': assessment.get('sessionKey'),
+        })
+        if assessment.get('groundingRisk'):
+            row['issues'].append({'category': 'PAVE', 'severity': 'critical', 'label': 'Latest PAVE assessment identifies grounding risk'})
+            row['priority'] = max(row['priority'], 4)
+            if row['complianceStatus'] != 'grounded':
+                row['complianceStatus'] = 'action_required'
+            row['nextAction'] = 'Review PAVE grounding evidence and repair before dispatch.'
+        elif assessment.get('grade') == 2:
+            row['issues'].append({'category': 'PAVE', 'severity': 'warning', 'label': 'Latest PAVE grade is Poor'})
+            row['priority'] = max(row['priority'], 3)
+            if row['complianceStatus'] == 'ready':
+                row['complianceStatus'] = 'action_required'
+            row['nextAction'] = 'Repair documented PAVE damage and complete a replacement assessment.'
+
     rows.sort(key=lambda item: (-item['priority'], item['unit']))
     status_counts = {}
     ownership_counts = {}
@@ -310,13 +434,21 @@ def build_fleet_compliance_payload():
         'vehicles': rows,
         'unmatchedPmIssues': unmatched_pm_issues,
         'wearAndTear': wear_and_tear,
+        'paveAssessments': ({
+            **pave_preview['summary'],
+            'filename': pave_upload['originalFilename'],
+            'uploadedAt': pave_upload['uploadedAt'],
+            'confirmedAt': pave_upload['confirmedAt'],
+            'unmatchedVins': sorted(set(pave_by_vin) - set(rows_by_vin)),
+        } if pave_preview else None),
         'sources': [
             {'label': 'Dispatch readiness', 'asOf': snapshot.get('asOf'), 'path': snapshot.get('readinessSource')},
             {'label': 'Fleet roster and ownership', 'asOf': snapshot.get('ownershipAsOf'), 'path': snapshot.get('ownershipClassificationSource')},
             {'label': 'DVIC inspection evidence', 'asOf': '2026-09-07', 'path': str(inspection_path.relative_to(ROOT))},
             {'label': 'Preventive maintenance', 'asOf': '2026-09-07', 'path': str(pm_path.relative_to(ROOT))},
             *([{'label': 'Quarterly Wear & Tear report', 'asOf': wear_data.get('reportedAt', '')[:10], 'path': str(wear_files[-1].relative_to(ROOT))}] if wear_data else []),
-            *([{'label': 'Wear & Tear LSC case register', 'asOf': lsc_data.get('asOf'), 'path': str(lsc_files[-1].relative_to(ROOT))}] if lsc_files else [])
+            *([{'label': 'Wear & Tear LSC case register', 'asOf': lsc_data.get('asOf'), 'path': str(lsc_files[-1].relative_to(ROOT))}] if lsc_files else []),
+            *([{'label': 'PAVE Fleet Dashboard CSV', 'asOf': pave_preview['summary'].get('latestAt', '')[:10], 'path': pave_upload['storageKey']}] if pave_preview else []),
         ],
         'reconciliation': snapshot.get('reconciliation', {})
     }
@@ -643,8 +775,68 @@ from scripts.financial_ingest import (
     parse_financial_export,
     save_vendor_rules,
 )
+from scripts.pave_ingest import parse_pave_export
+from scripts.secret_store import get_secret, has_secret, put_secret
 
 DEFAULT_TENANT = "jecs"
+
+LOCAL_FEATURES = [
+    ('dashboard', 'Dashboard', '/dashboard', 'implemented'),
+    ('drivers', 'Drivers', '/drivers', 'implemented'),
+    ('fleet_compliance', 'Fleet Compliance', '/fleet-compliance', 'implemented'),
+    ('vans', 'Vans', '/vans', 'implemented'),
+    ('route_monitor', 'Route Monitor', '/routes', 'implemented'),
+    ('disputes', 'Dispute Center', '/disputes', 'implemented'),
+    ('payroll', 'Payroll', '/payroll', 'implemented'),
+    ('weekly_evaluation', 'Weekly Evaluation', '/weekly-evaluation', 'implemented'),
+    ('driver_performance', 'Driver Performance', '/performance', 'implemented'),
+    ('connections', 'Connections', '/connections', 'implemented'),
+    ('users', 'Users & Roles', '/users', 'implemented'),
+    ('reimbursement_review', 'Reimbursement Review', '/reimbursement-review', 'implemented'),
+    ('time_attendance', 'Time & Attendance', '/time-attendance', 'implemented'),
+    ('fleet_costs', 'Fleet Costs', '/fleet-costs', 'implemented'),
+    ('maintenance', 'Maintenance', '/maintenance', 'planned'),
+    ('fuel', 'Fuel Tracking', '/fuel', 'planned'),
+    ('settings', 'Settings', '/settings', 'implemented'),
+    ('security', 'Security', '/security', 'planned'),
+    ('notifications', 'Notifications', '/notifications', 'planned'),
+    ('help', 'Help & Support', '/help', 'implemented'),
+    ('feature_admin', 'Feature Management', '/admin/features', 'implemented'),
+]
+
+
+def _feature_state_path(tenant):
+    return TENANT_ROOT / tenant / 'feature-overrides.json'
+
+
+def _feature_overrides(tenant):
+    path = _feature_state_path(tenant)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (ValueError, OSError):
+        return {}
+
+
+def _public_features(tenant):
+    overrides = _feature_overrides(tenant)
+    return [
+        {'id': item[0], 'displayName': item[1], 'route': item[2], 'status': item[3],
+         'permission': 'module.read', 'enabled': overrides.get(item[0], True)}
+        for item in LOCAL_FEATURES
+    ]
+
+
+def _set_feature_override(tenant, feature_id, enabled):
+    if feature_id not in {item[0] for item in LOCAL_FEATURES}:
+        raise KeyError('unknown feature')
+    path = _feature_state_path(tenant)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = _feature_overrides(tenant)
+    state[feature_id] = bool(enabled)
+    path.write_text(json.dumps(state, indent=2, sort_keys=True))
+    return next(item for item in _public_features(tenant) if item['id'] == feature_id)
 
 
 def _tenant_from_headers(headers):
@@ -678,17 +870,28 @@ def latest_financial_upload(tenant):
 
 def build_connections_payload(tenant):
     connections = connections_registry.list_connections(tenant, _latest_upload_index(tenant))
+    # Manual uploads are data-ingestion sources, not persistent connections.
+    # Keep them in the catalog but exclude them from connection-health KPIs.
+    live_connections = [
+        connection for connection in connections
+        if connection["authKind"] != "manual_upload"
+    ]
     counts = {}
     for connection in connections:
         counts[connection["status"]] = counts.get(connection["status"], 0) + 1
+    active = sum(1 for connection in live_connections if connection["status"] == "healthy")
+    health = "green" if live_connections and active == len(live_connections) else "yellow" if active else "red"
     return {
         "tenant": tenant,
         "servedAt": datetime.now().isoformat(timespec="seconds"),
         "summary": {
             "total": len(connections),
-            "connected": sum(1 for c in connections if c["configured"]),
-            "needsAttention": sum(1 for c in connections if c["status"] in ("needs_reauth", "degraded")),
-            "notConnected": sum(1 for c in connections if c["status"] == "not_connected"),
+            "connectionTotal": len(live_connections),
+            "connected": active,
+            "active": active,
+            "health": health,
+            "needsAttention": sum(1 for c in live_connections if c["status"] in ("needs_reauth", "degraded")),
+            "notConnected": sum(1 for c in live_connections if c["status"] == "not_connected"),
             "statusCounts": counts,
         },
         "connections": connections,
@@ -699,6 +902,332 @@ def build_connections_payload(tenant):
             "note": "The platform stores a reference only. Credential values are never written to the database, logs, or this API response.",
         },
     }
+
+
+def build_assistant_snapshot(tenant, current_path='/dashboard'):
+    """Return a bounded, read-only tenant snapshot for model grounding."""
+    citations = [
+        {'id': 'connections', 'label': 'Connection health', 'route': '/connections'},
+        {'id': 'fleet-compliance', 'label': 'Fleet Compliance', 'route': '/fleet-compliance'},
+        {'id': 'fleet-costs', 'label': 'Fleet Costs', 'route': '/fleet-costs'},
+        {'id': 'disputes', 'label': 'Dispute Center', 'route': '/disputes'},
+        {'id': 'driver-performance', 'label': 'Driver Performance', 'route': '/performance'},
+        {'id': 'routes', 'label': 'Route Monitor', 'route': '/routes'},
+        {'id': 'payroll', 'label': 'Payroll', 'route': '/payroll'},
+    ]
+    connections = build_connections_payload(tenant)
+    fleet = build_fleet_compliance_payload(tenant)
+    fleet_rows = fleet.get('vehicles') or fleet.get('rows') or []
+    priority_fleet = sorted(fleet_rows, key=lambda row: row.get('priority') or 0, reverse=True)[:12]
+    costs = build_fleet_cost_reconciliation(tenant)
+    conn = get_connection()
+    cursor = conn.cursor()
+    def rows(sql, params=()):
+        cursor.execute(sql, params)
+        return [dict(item) for item in cursor.fetchall()]
+    try:
+        drivers = rows("""SELECT ar.driver_id, d.name AS driver_name, ar.overall_score,
+                                 ar.pod, ar.cdf, ar.dsb, ar.packages, ar.date
+                            FROM amazon_routes ar JOIN drivers d ON d.id=ar.driver_id
+                           WHERE ar.is_weekly_aggregate=1
+                           ORDER BY ar.date DESC, ar.overall_score DESC LIMIT 20""")
+        disputes = rows("""SELECT week, driver_id, metric, reason, status, priority
+                             FROM disputes ORDER BY week DESC, priority ASC LIMIT 20""")
+        route_period = rows("SELECT MAX(date) AS latest FROM amazon_routes")
+        latest_date = route_period[0].get('latest') if route_period else None
+        routes = rows("""SELECT route_code, driver_id, stops, packages, status
+                           FROM amazon_routes WHERE date=? ORDER BY route_code LIMIT 80""", (latest_date,)) if latest_date else []
+        payroll = rows("""SELECT COUNT(*) AS timecard_count,
+                                  COALESCE(SUM(duration_hours),0) AS total_hours
+                             FROM adp_timecards""")
+    finally:
+        conn.close()
+    compact_fleet = [{key: row.get(key) for key in (
+        'unit', 'vin', 'operationalStatus', 'complianceStatus', 'priority',
+        'paveGradeLabel', 'paveGroundingRisk', 'paveHasNewDamage', 'nextAction')}
+        for row in priority_fleet]
+    return {
+        'tenant': tenant,
+        'generatedAt': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+        'currentPath': current_path,
+        'connections': connections.get('summary'),
+        'fleetCompliance': {
+            'summary': fleet.get('summary'),
+            'wearAndTear': fleet.get('wearAndTear'),
+            'priorityVehicles': compact_fleet,
+        },
+        'fleetCosts': {
+            key: costs.get(key) for key in ('period', 'summary', 'totals', 'months', 'dataSources')
+        },
+        'driverPerformance': drivers,
+        'disputes': disputes,
+        'routeMonitor': {'period': latest_date, 'routeCount': len(routes), 'routes': routes},
+        'payroll': payroll[0] if payroll else {},
+        'citations': citations,
+    }
+
+
+def reconcile_saved_browser_sessions(tenant="jecs"):
+    """Reuse persistent provider sessions after an API restart.
+
+    This runs headlessly and never opens an MFA prompt. A valid session is
+    refreshed and marked healthy; an expired one is surfaced for deliberate
+    user reconnection from the Connections screen.
+    """
+    checks = (
+        ("amazon", ROOT / ".openclaw/amazon-logistics-storage-state.json",
+         ["node", str(ROOT / "scripts/amazon_payments_session_check.mjs")]),
+        ("pave", ROOT / ".openclaw/pave-storage-state.json",
+         ["node", str(ROOT / "scripts/pave_login.mjs"), "--check"]),
+    )
+    for connection_id, state_path, command in checks:
+        if not state_path.exists():
+            continue
+        checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        try:
+            subprocess.run(
+                command, cwd=str(ROOT), stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=90, check=True)
+            connections_registry.set_connection_state(
+                tenant, connection_id, status="healthy",
+                lastCheckedAt=checked_at, lastSuccessAt=checked_at,
+                lastError=None)
+        except (subprocess.SubprocessError, OSError):
+            if connection_id == "pave":
+                try:
+                    environment = os.environ.copy()
+                    environment["PAVE_USERNAME"] = get_secret(
+                        tenant, "pave", "production-username")
+                    environment["PAVE_PASSWORD"] = get_secret(
+                        tenant, "pave", "production-password")
+                    subprocess.run(
+                        ["node", str(ROOT / "scripts/pave_login.mjs"), "--headless"],
+                        cwd=str(ROOT), env=environment, stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL, timeout=90, check=True)
+                    refreshed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    connections_registry.set_connection_state(
+                        tenant, connection_id, status="healthy",
+                        lastCheckedAt=refreshed_at, lastSuccessAt=refreshed_at,
+                        lastError=None)
+                    continue
+                except (KeyError, subprocess.SubprocessError, OSError):
+                    pass
+            connections_registry.set_connection_state(
+                tenant, connection_id, status="needs_reauth",
+                lastCheckedAt=checked_at,
+                lastError=f'{connections_registry.BY_ID[connection_id]["displayName"]} saved session requires sign-in.')
+
+    # API-provider checks run after browser sessions so a slow upstream API can
+    # never prevent Amazon/PAVE state from being restored after startup.
+    checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for environment in ("development", "production"):
+        if (has_secret(tenant, "digits", f"{environment}-client-id")
+                and has_secret(tenant, "digits", f"{environment}-client-secret")):
+            try:
+                from scripts.digits_api_client import list_entities
+                list_entities(tenant, environment)
+                connections_registry.set_connection_state(
+                    tenant, "digits_api", status="healthy",
+                    lastCheckedAt=checked_at, lastSuccessAt=checked_at,
+                    lastError=None, environment=environment,
+                    secretReference=connections_registry.secret_reference(
+                        tenant, "digits_api", "credentials"),
+                    configuredFields=["clientId", "clientSecret"])
+            except Exception:
+                connections_registry.set_connection_state(
+                    tenant, "digits_api", status="degraded",
+                    lastCheckedAt=checked_at,
+                    lastError="Digits API credentials require attention.",
+                    environment=environment,
+                    secretReference=connections_registry.secret_reference(
+                        tenant, "digits_api", "credentials"),
+                    configuredFields=["clientId", "clientSecret"])
+            break
+
+    if all(has_secret(tenant, 'email-imap', name) for name in (
+            'production-host', 'production-port', 'production-username', 'production-app-password')):
+        try:
+            sync_imap_reports(tenant)
+        except Exception:
+            checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            connections_registry.set_connection_state(
+                tenant, 'email_imap', status='degraded', lastCheckedAt=checked_at,
+                lastError='IMAP credentials require attention.',
+                secretReference=connections_registry.secret_reference(
+                    tenant, 'email_imap', 'credentials'),
+                configuredFields=['host', 'port', 'username', 'appPassword'], environment='production')
+
+
+def _due(value, interval):
+    if not value:
+        return True
+    try:
+        return datetime.now(timezone.utc) - datetime.fromisoformat(value) >= interval
+    except (TypeError, ValueError):
+        return True
+
+
+def sync_pave_export(tenant="jecs"):
+    completed = subprocess.run(
+        ["node", str(ROOT / "scripts/pave_export_download.mjs")],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=180, check=True)
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    path = Path(result["path"])
+    payload = path.read_bytes()
+    preview = parse_pave_export(payload, result["filename"])
+    if not preview.get("ok"):
+        raise RuntimeError(preview.get("error") or "PAVE export parse failed")
+    record = tenant_store.put_file(tenant, "pave", result["filename"], payload, "scheduled-pave-sync")
+    record = tenant_store.update_file(
+        tenant, record["id"], status="parsed", provider="pave",
+        periodKey=preview.get("periodKey"), parseSummary={
+            **preview["summary"], "provider": "pave", "providerLabel": "PAVE Fleet Dashboard"})
+    tenant_store.supersede_others(tenant, "pave", record["id"], record.get("periodKey"))
+    now = datetime.now(timezone.utc)
+    record = tenant_store.update_file(
+        tenant, record["id"], status="confirmed", confirmedAt=now.isoformat(timespec="seconds"))
+    connections_registry.set_connection_state(
+        tenant, "pave", status="healthy", lastSuccessAt=record["confirmedAt"],
+        lastCheckedAt=record["confirmedAt"], lastAutomatedSyncAt=record["confirmedAt"],
+        nextRunAt=(now + timedelta(days=1)).isoformat(timespec="seconds"), lastError=None,
+        lastSyncSummary={"rows": preview["summary"]["rowsRead"], "uniqueVins": preview["summary"]["uniqueVins"]})
+    return preview["summary"]
+
+
+def sync_imap_reports(tenant="jecs"):
+    host = get_secret(tenant, 'email-imap', 'production-host')
+    port = int(get_secret(tenant, 'email-imap', 'production-port'))
+    username = get_secret(tenant, 'email-imap', 'production-username')
+    password = get_secret(tenant, 'email-imap', 'production-app-password')
+    stored = 0
+    with imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=30) as client:
+        client.login(username, password)
+        status, _ = client.select('INBOX', readonly=True)
+        if status != 'OK':
+            raise RuntimeError('read-only INBOX access unavailable')
+        since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%d-%b-%Y')
+        status, data = client.uid('search', None, 'SINCE', since)
+        if status != 'OK':
+            raise RuntimeError('IMAP search failed')
+        for uid in (data[0] or b'').split():
+            status, fetched = client.uid('fetch', uid, '(BODY.PEEK[])')
+            if status != 'OK':
+                continue
+            raw = next((part[1] for part in fetched if isinstance(part, tuple)), b'')
+            message = email.message_from_bytes(raw, policy=policy.default)
+            for part in message.walk():
+                filename = part.get_filename()
+                if not filename:
+                    continue
+                try:
+                    filename = str(make_header(decode_header(filename)))
+                except Exception:
+                    filename = str(filename)
+                if Path(filename).suffix.lower() not in ('.csv', '.xlsx', '.xlsm', '.pdf'):
+                    continue
+                content = part.get_payload(decode=True) or b''
+                if content:
+                    tenant_store.put_file(tenant, 'email_reports', filename, content, 'scheduled-imap-sync')
+                    stored += 1
+        client.logout()
+    now = datetime.now(timezone.utc)
+    stamp = now.isoformat(timespec='seconds')
+    connections_registry.set_connection_state(
+        tenant, 'email_imap', status='healthy', lastSuccessAt=stamp,
+        lastCheckedAt=stamp, lastAutomatedSyncAt=stamp,
+        nextRunAt=(now + timedelta(minutes=15)).isoformat(timespec='seconds'), lastError=None,
+        lastSyncSummary={'attachmentsArchived': stored})
+    return stored
+
+
+_CONNECTION_REFRESH_LOCK = threading.Lock()
+_CONNECTION_REFRESH_JOBS = {}
+
+
+def refresh_all_connection_data(tenant="jecs"):
+    """Refresh every configured source and retain the last good data on failure."""
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    _CONNECTION_REFRESH_JOBS[tenant] = {
+        "status": "running", "startedAt": started, "finishedAt": None, "sources": []}
+    results = []
+    with _CONNECTION_REFRESH_LOCK:
+        try:
+            reconcile_saved_browser_sessions(tenant)
+            current = {item["id"]: item for item in
+                       connections_registry.list_connections(tenant, _latest_upload_index(tenant))}
+
+            pave = current.get("pave", {})
+            if pave.get("configured"):
+                try:
+                    summary = sync_pave_export(tenant)
+                    results.append({"id": "pave", "status": "healthy",
+                                    "message": f'{summary["rowsRead"]} rows; {summary["uniqueVins"]} VINs'})
+                except Exception:
+                    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    connections_registry.set_connection_state(
+                        tenant, "pave", status="degraded", lastCheckedAt=stamp,
+                        lastError="Manual PAVE refresh failed; saved data remains available.")
+                    results.append({"id": "pave", "status": "degraded",
+                                    "message": "Refresh failed; retained saved data"})
+
+            imap = current.get("email_imap", {})
+            if imap.get("configured"):
+                try:
+                    count = sync_imap_reports(tenant)
+                    results.append({"id": "email_imap", "status": "healthy",
+                                    "message": f"{count} report attachments checked"})
+                except Exception:
+                    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    connections_registry.set_connection_state(
+                        tenant, "email_imap", status="degraded", lastCheckedAt=stamp,
+                        lastError="Manual IMAP refresh failed; saved data remains available.")
+                    results.append({"id": "email_imap", "status": "degraded",
+                                    "message": "Refresh failed; retained saved data"})
+
+            final_connections = connections_registry.list_connections(
+                tenant, _latest_upload_index(tenant))
+            completed_ids = {item["id"] for item in results}
+            for item in final_connections:
+                if item["id"] not in completed_ids:
+                    results.append({"id": item["id"], "status": item["status"],
+                                    "message": "Connection checked" if item.get("configured") else "Not configured"})
+            status = "completed"
+        except Exception:
+            status = "failed"
+            results.append({"id": "system", "status": "degraded",
+                            "message": "Refresh could not be completed; saved data remains available"})
+    _CONNECTION_REFRESH_JOBS[tenant] = {
+        "status": status, "startedAt": started,
+        "finishedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "sources": results,
+    }
+
+
+def run_connection_scheduler(tenant="jecs"):
+    reconcile_saved_browser_sessions(tenant)
+    while True:
+        connections = {item['id']: item for item in connections_registry.list_connections(tenant, _latest_upload_index(tenant))}
+        pave = connections.get('pave', {})
+        if pave.get('status') == 'healthy' and _due(pave.get('lastAutomatedSyncAt'), timedelta(days=1)):
+            try:
+                with _CONNECTION_REFRESH_LOCK:
+                    sync_pave_export(tenant)
+            except Exception:
+                now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                connections_registry.set_connection_state(
+                    tenant, 'pave', status='degraded', lastCheckedAt=now,
+                    lastError='Scheduled PAVE export failed; saved data remains available.')
+        imap = connections.get('email_imap', {})
+        if imap.get('configured') and _due(imap.get('lastAutomatedSyncAt'), timedelta(minutes=15)):
+            try:
+                with _CONNECTION_REFRESH_LOCK:
+                    sync_imap_reports(tenant)
+            except Exception:
+                now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                connections_registry.set_connection_state(
+                    tenant, 'email_imap', status='degraded', lastCheckedAt=now,
+                    lastError='Scheduled IMAP collection failed; verify the mailbox credentials.')
+        threading.Event().wait(60)
 
 
 def parse_multipart(body, content_type):
@@ -802,6 +1331,10 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_get_fleet_compliance()
             elif path == '/api/connections':
                 self.send_json(build_connections_payload(_tenant_from_headers(self.headers)))
+            elif path == '/api/connections/refresh':
+                tenant = _tenant_from_headers(self.headers)
+                self.send_json(_CONNECTION_REFRESH_JOBS.get(tenant, {
+                    'status': 'idle', 'startedAt': None, 'finishedAt': None, 'sources': []}))
             elif path == '/api/uploads':
                 tenant = _tenant_from_headers(self.headers)
                 source = (query.get('source') or [None])[0]
@@ -812,6 +1345,27 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                                 'providers': PROVIDER_LABELS})
             elif path == '/api/modules':
                 self.send_json(build_reimbursement_review_payload())
+            elif path == '/api/context':
+                tenant = _tenant_from_headers(self.headers)
+                self.send_json({
+                    'tenant': {'id': 'jecs', 'name': 'JEC Logistics Solutions'},
+                    'user': {'id': 'dev-user', 'email': 'dev@example.com', 'role': 'platform_admin',
+                             'tenantRole': 'owner', 'isPlatformAdmin': True},
+                    'permissions': ['module.read', 'integration.manage', 'member.manage',
+                                    'feature.manage', 'impersonation.manage'],
+                    'features': _public_features(tenant),
+                    'modules': [], 'impersonation': None,
+                })
+            elif path == '/api/assistant/status':
+                self.send_json(assistant_service.status(_tenant_from_headers(self.headers)))
+            elif path == '/api/features':
+                self.send_json({'features': _public_features(_tenant_from_headers(self.headers)),
+                                'canManage': True})
+            elif path == '/api/members':
+                self.send_json({'members': [
+                    {'identitySubject': 'dev-user', 'email': 'dev@example.com', 'role': 'owner',
+                     'status': 'active', 'createdAt': '2026-09-21T00:00:00Z'}
+                ], 'roles': ['owner', 'admin', 'reviewer', 'analyst', 'viewer']})
             elif path.startswith('/api/modules/') and path.endswith('/cases'):
                 module_id = path.split('/')[3]
                 self.send_json({'cases': [c for c in _load_module_cases() if c['moduleId'] == module_id]})
@@ -875,6 +1429,12 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_post_vendor_rules()
             elif path.startswith('/api/connections/') and path.endswith('/test'):
                 self.handle_post_connection_test(path.split('/')[3])
+            elif path == '/api/connections/refresh':
+                self.handle_post_connections_refresh()
+            elif path == '/api/assistant/chat':
+                self.handle_post_assistant_chat()
+            elif path.startswith('/api/connections/') and path.endswith('/reconnect'):
+                self.handle_post_connection_reconnect(path.split('/')[3])
             elif path == '/api/daily-entries':
                 self.handle_post_daily_entries()
             elif path == '/api/daily-entries/revert':
@@ -890,6 +1450,24 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.send_error(404, f"Not found: {path}")
         except Exception as e:
             self.send_error(500, f"Error: {str(e)}")
+
+    def do_PUT(self):
+        """Handle local-development configuration updates."""
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        try:
+            if path.startswith('/api/connections/') and path.endswith('/credentials'):
+                self.handle_put_connection_credentials(path.split('/')[3])
+            elif path.startswith('/api/features/'):
+                self.handle_put_feature(path.split('/')[3])
+            else:
+                self.send_error(404, f"Not found: {path}")
+        except KeyError as error:
+            self.send_json_status(404, {'error': str(error)})
+        except ValueError as error:
+            self.send_json_status(400, {'error': str(error)})
+        except Exception as error:
+            self.send_json_status(500, {'error': str(error)})
     
     def do_OPTIONS(self):
         """Handle OPTIONS for CORS."""
@@ -1411,19 +1989,22 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     # ========== Route Monitoring Handlers ==========
     
     def handle_get_route_monitor(self, query):
-        """Return route monitoring summary."""
+        """Return the requested or latest available route operating period."""
         conn = get_connection()
         cursor = conn.cursor()
         
-        # Get today's routes
-        today = datetime.now().strftime('%Y-%m-%d')
+        requested = (query.get('period') or query.get('date') or [None])[0]
+        if not requested:
+            cursor.execute("SELECT MAX(date) AS latest FROM amazon_routes")
+            requested = cursor.fetchone()['latest']
         cursor.execute("""
             SELECT 
-                route_code, driver_id, date, stops, packages, status
+                route_code, driver_id, date, stops, packages, status,
+                overall_score, pod, cdf, dsb, is_weekly_aggregate
             FROM amazon_routes
             WHERE date = ?
             ORDER BY route_code
-        """, (today,))
+        """, (requested,))
         routes = []
         for row in cursor.fetchall():
             route = dict(row)
@@ -1440,7 +2021,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             routes.append(route)
         
         conn.close()
-        self.send_json(routes)
+        self.send_json({'period': requested, 'routes': routes, 'routeCount': len(routes),
+                        'source': 'Amazon scorecard route aggregates'})
 
     # ========== Payroll Reconciliation Handlers ==========
     
@@ -1457,9 +2039,19 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         cursor.execute("SELECT * FROM amazon_routes LIMIT 10")
         routes = [dict(row) for row in cursor.fetchall()]
         
+        summaries = sorted((ROOT / 'data' / 'adp').glob('*/summary.json'))
+        source_summary = {}
+        if summaries:
+            try:
+                source_summary = json.loads(summaries[-1].read_text())
+            except (ValueError, OSError):
+                source_summary = {}
         result = {
             'timecards': timecards,
-            'routes': routes
+            'routes': routes,
+            'summary': source_summary,
+            'source': 'ADP Workforce Now API',
+            'sourceStatus': source_summary.get('payrollOutputStatus') or 'Timecard data available',
         }
         
         conn.close()
@@ -1490,7 +2082,7 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
 
     def handle_get_fleet_compliance(self):
         """Return the reconciled fleet compliance management view."""
-        self.send_json(build_fleet_compliance_payload())
+        self.send_json(build_fleet_compliance_payload(_tenant_from_headers(self.headers)))
     
     def handle_get_pave_vehicles(self, query):
         """Return PAVE vehicle data with all Amazon wear and tear data points."""
@@ -1620,6 +2212,33 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             'total': len(vehicles),
             'items': vehicles
         }
+
+        tenant = _tenant_from_headers(self.headers)
+        pave_upload, pave_preview = _latest_pave_upload_preview(tenant)
+        if pave_preview:
+            by_vin = {item['vin']: item for item in pave_preview['latestByVin']}
+            for vehicle in result['items']:
+                assessment = by_vin.get(vehicle.get('vin'))
+                if not assessment:
+                    continue
+                vehicle.update({
+                    'licensePlate': assessment.get('licensePlate') or vehicle.get('licensePlate'),
+                    'paveStatus': 'red' if assessment.get('groundingRisk') or assessment.get('grade') == 2 else 'green',
+                    'paveScore': assessment.get('conditionScore'),
+                    'complianceStatus': 'non-compliant' if assessment.get('grade') == 2 else 'compliant',
+                    'lastPaveInspectionDate': assessment.get('createdAt'),
+                    'paveGrade': assessment.get('grade'),
+                    'paveGradeLabel': assessment.get('gradeLabel'),
+                    'hasNewDamage': assessment.get('hasNewDamage'),
+                    'groundingRisk': assessment.get('groundingRisk'),
+                    'sessionKey': assessment.get('sessionKey'),
+                })
+            result['source'] = {
+                'provider': 'PAVE Fleet Dashboard CSV',
+                'filename': pave_upload['originalFilename'],
+                'confirmedAt': pave_upload['confirmedAt'],
+                'summary': pave_preview['summary'],
+            }
         
         conn.close()
         self.send_json(result)
@@ -1871,6 +2490,30 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             raise ValueError('upload exceeds the 25 MB limit')
         return self.rfile.read(length)
 
+    def handle_post_assistant_chat(self):
+        tenant = _tenant_from_headers(self.headers)
+        try:
+            body = json.loads(self._read_body() or b'{}')
+        except (TypeError, ValueError):
+            self.send_json_status(400, {'error': 'invalid JSON body'})
+            return
+        page = body.get('page') if isinstance(body.get('page'), dict) else {}
+        try:
+            result = assistant_service.ask(
+                tenant=tenant,
+                actor=self.headers.get('x-actor') or 'dev-user',
+                message=body.get('message'),
+                history=body.get('history'),
+                page=page,
+                snapshot=build_assistant_snapshot(tenant, page.get('path') or '/dashboard'),
+            )
+            self.send_json_status(200, result)
+        except ValueError as error:
+            self.send_json_status(400, {'error': str(error)})
+        except RuntimeError as error:
+            status = 503 if 'not configured' in str(error) or 'unavailable' in str(error) else 502
+            self.send_json_status(status, {'error': str(error)})
+
     def send_json_status(self, status, data):
         content = json.dumps(data, default=str).encode('utf-8')
         self.send_response(status)
@@ -1892,13 +2535,15 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         filename, payload = files['file']
         actor = fields.get('uploadedBy') or self.headers.get('x-actor') or 'local-dev@jeclogs.com'
 
-        if source not in connections_registry.FINANCIAL_SOURCES:
+        if source not in (*connections_registry.FINANCIAL_SOURCES, 'pave'):
             self.send_json_status(400, {'error': f'unsupported upload source: {source}'})
             return
 
         record = tenant_store.put_file(tenant, source, filename, payload, actor)
-        preview = parse_financial_export(payload, filename, tenant=tenant,
-                                         provider=fields.get('provider') or None)
+        existing_status = record.get('status')
+        preview = (parse_pave_export(payload, filename) if source == 'pave'
+                   else parse_financial_export(payload, filename, tenant=tenant,
+                                               provider=fields.get('provider') or None))
 
         if preview.get('ok'):
             summary = dict(preview['summary'])
@@ -1906,7 +2551,7 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             summary['provider'] = preview.get('provider')
             summary['providerLabel'] = preview.get('providerLabel')
             record = tenant_store.update_file(
-                tenant, record['id'], status='parsed', provider=preview.get('provider'),
+                tenant, record['id'], status='confirmed' if existing_status == 'confirmed' else 'parsed', provider=preview.get('provider'),
                 periodKey=preview.get('periodKey'), parseSummary=summary)
         else:
             record = tenant_store.update_file(
@@ -1923,8 +2568,10 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         if not record:
             self.send_json_status(404, {'error': 'unknown upload'})
             return
-        preview = parse_financial_export(tenant_store.read_bytes(tenant, file_id),
-                                         record['originalFilename'], tenant=tenant)
+        preview = (parse_pave_export(tenant_store.read_bytes(tenant, file_id), record['originalFilename'])
+                   if record['source'] == 'pave' else
+                   parse_financial_export(tenant_store.read_bytes(tenant, file_id),
+                                          record['originalFilename'], tenant=tenant))
         if preview.get('ok'):
             summary = dict(preview['summary'])
             summary['periods'] = preview.get('periods')
@@ -1979,6 +2626,94 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             self.send_json_status(404, {'error': 'unknown connection'})
             return
         now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        if connection_id == 'digits_api':
+            public = next(item for item in build_connections_payload(tenant)['connections']
+                          if item['id'] == connection_id)
+            environment = public.get('environment') or 'development'
+            try:
+                from scripts.digits_api_client import list_entities
+                entities = list_entities(tenant, environment)
+                state = connections_registry.set_connection_state(
+                    tenant, connection_id, status='healthy', lastCheckedAt=now,
+                    lastSuccessAt=now, lastError=None, environment=environment,
+                    secretReference=connections_registry.secret_reference(
+                        tenant, connection_id, 'credentials'),
+                    configuredFields=['clientId', 'clientSecret'])
+                self.send_json_status(200, {
+                    'tenant': tenant, 'connection': connection_id, 'state': state,
+                    'status': 'healthy', 'provider': 'Digits API',
+                    'message': 'Read-only ledger access verified',
+                    'entityCount': len(entities),
+                })
+                return
+            except Exception:
+                state = connections_registry.set_connection_state(
+                    tenant, connection_id, status='degraded', lastCheckedAt=now,
+                    lastError='Provider authentication failed', environment=environment)
+                self.send_json_status(502, {
+                    'tenant': tenant, 'connection': connection_id, 'state': state,
+                    'error': 'provider connection test failed',
+                })
+                return
+        if connection_id == 'email_imap':
+            try:
+                host = get_secret(tenant, 'email-imap', 'production-host')
+                port = int(get_secret(tenant, 'email-imap', 'production-port'))
+                username = get_secret(tenant, 'email-imap', 'production-username')
+                password = get_secret(tenant, 'email-imap', 'production-app-password')
+                with imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=30) as client:
+                    client.login(username, password)
+                    status, _ = client.select('INBOX', readonly=True)
+                    if status != 'OK':
+                        raise RuntimeError('read-only INBOX access unavailable')
+                    client.logout()
+                state = connections_registry.set_connection_state(
+                    tenant, connection_id, status='healthy', lastCheckedAt=now,
+                    lastSuccessAt=now, lastError=None,
+                    secretReference=connections_registry.secret_reference(
+                        tenant, connection_id, 'credentials'),
+                    configuredFields=['host', 'port', 'username', 'appPassword'])
+                self.send_json_status(200, {
+                    'tenant': tenant, 'connection': connection_id, 'state': state,
+                    'status': 'healthy', 'provider': 'IMAP',
+                    'message': 'Read-only INBOX access verified',
+                })
+                return
+            except Exception:
+                state = connections_registry.set_connection_state(
+                    tenant, connection_id, status='degraded', lastCheckedAt=now,
+                    lastError='IMAP authentication or read-only INBOX access failed.')
+                self.send_json_status(502, {
+                    'tenant': tenant, 'connection': connection_id, 'state': state,
+                    'error': 'provider connection test failed',
+                })
+                return
+        if connection_id == 'adp':
+            try:
+                worker_count = _test_adp_connection(tenant)
+                state = connections_registry.set_connection_state(
+                    tenant, connection_id, status='healthy', lastCheckedAt=now,
+                    lastSuccessAt=now, lastError=None, environment='production',
+                    secretReference=connections_registry.secret_reference(
+                        tenant, connection_id, 'credentials'),
+                    configuredFields=['clientId', 'clientSecret', 'certificatePem', 'privateKeyPem'])
+                self.send_json_status(200, {
+                    'tenant': tenant, 'connection': connection_id, 'state': state,
+                    'status': 'healthy', 'provider': 'ADP Workforce Now',
+                    'message': 'OAuth and read-only worker access verified',
+                    'workerCountInProbe': worker_count,
+                })
+                return
+            except Exception as error:
+                safe_error = str(error) if str(error).startswith('ADP ') else 'ADP connection validation failed'
+                state = connections_registry.set_connection_state(
+                    tenant, connection_id, status='degraded', lastCheckedAt=now,
+                    lastError=safe_error, environment='production')
+                self.send_json_status(502, {
+                    'tenant': tenant, 'connection': connection_id, 'state': state,
+                    'error': safe_error,
+                })
+                return
         if entry['authKind'] == 'manual_upload':
             latest = tenant_store.latest_confirmed(tenant, connection_id)
             ok = latest is not None
@@ -1992,6 +2727,110 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 tenant, connection_id, status='pending', lastCheckedAt=now,
                 lastError='Connector not provisioned in local development.')
         self.send_json_status(200, {'tenant': tenant, 'connection': connection_id, 'state': state})
+
+    def handle_post_connections_refresh(self):
+        tenant = _tenant_from_headers(self.headers)
+        existing = _CONNECTION_REFRESH_JOBS.get(tenant, {})
+        if existing.get('status') == 'running':
+            self.send_json_status(202, existing)
+            return
+        job = {'status': 'running',
+               'startedAt': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+               'finishedAt': None, 'sources': []}
+        _CONNECTION_REFRESH_JOBS[tenant] = job
+        threading.Thread(target=refresh_all_connection_data, args=(tenant,), daemon=True).start()
+        self.send_json_status(202, job)
+
+    def handle_put_connection_credentials(self, connection_id):
+        """Write local connector secrets without returning their values."""
+        tenant = _tenant_from_headers(self.headers)
+        definitions = connections_registry.BY_ID
+        if connection_id not in ('digits_api', 'adp', 'email_imap', 'pave'):
+            raise ValueError('this connection does not accept credentials')
+        body = json.loads(self._read_body() or b'{}')
+        environment = body.get('environment')
+        credentials = body.get('credentials') or {}
+        if environment not in ('development', 'production'):
+            raise ValueError('invalid connector environment')
+        expected = [field['name'] for field in definitions[connection_id].get('credentialFields', [])]
+        for name in expected:
+            value = credentials.get(name)
+            if not isinstance(value, str) or len(value.strip()) < 2 or len(value) > 65536:
+                raise ValueError(f'invalid credential field: {name}')
+        integration = 'digits' if connection_id == 'digits_api' else connection_id.replace('_', '-')
+        for name in expected:
+            stored_name = {'clientId': 'client-id', 'clientSecret': 'client-secret',
+                           'certificatePem': 'certificate-pem', 'privateKeyPem': 'private-key-pem',
+                           'appPassword': 'app-password'}.get(name, name)
+            put_secret(tenant, integration, f'{environment}-{stored_name}', credentials[name])
+        reference = connections_registry.secret_reference(tenant, connection_id, 'credentials')
+        connections_registry.set_connection_state(
+            tenant, connection_id, status='pending', secretReference=reference,
+            environment=environment, configuredFields=expected,
+            lastError=None)
+        public = next(item for item in build_connections_payload(tenant)['connections']
+                      if item['id'] == connection_id)
+        self.send_json_status(200, {'connection': public})
+
+    def handle_post_connection_reconnect(self, connection_id):
+        tenant = _tenant_from_headers(self.headers)
+        urls = {
+            'amazon': 'https://logistics.amazon.com/dspconsolev2',
+            'pave': connections_registry.PAVE_LOGIN_URL,
+        }
+        if connection_id not in urls:
+            raise ValueError('this connection does not use a browser reconnect flow')
+        if not urls[connection_id]:
+            raise ValueError('reconnect adapter is unavailable')
+        state = connections_registry.set_connection_state(
+            tenant, connection_id, status='needs_reauth',
+            lastCheckedAt=datetime.now(timezone.utc).isoformat(timespec='seconds'),
+            lastError=('Complete Amazon sign-in and MFA in the reconnect browser.'
+                       if connection_id == 'amazon' else
+                       'Complete PAVE sign-in in the reconnect browser.'))
+        launch_mode = 'external_url'
+        if connection_id in ('amazon', 'pave'):
+            log_path = ROOT / '.openclaw' / f'{connection_id}-login.log'
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log = open(log_path, 'ab', buffering=0)
+            child_environment = os.environ.copy()
+            if connection_id == 'pave':
+                child_environment['PAVE_USERNAME'] = get_secret(tenant, 'pave', 'production-username')
+                child_environment['PAVE_PASSWORD'] = get_secret(tenant, 'pave', 'production-password')
+            process = subprocess.Popen(
+                ['node', str(ROOT / 'scripts' / ('amazon_logistics_login.mjs' if connection_id == 'amazon' else 'pave_login.mjs'))],
+                cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT,
+                start_new_session=True, env=child_environment)
+            def watch_login():
+                return_code = process.wait()
+                log.close()
+                checked_at = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                if return_code == 0:
+                    connections_registry.set_connection_state(
+                        tenant, connection_id, status='healthy', lastSuccessAt=checked_at,
+                        lastCheckedAt=checked_at, lastError=None)
+                else:
+                    connections_registry.set_connection_state(
+                        tenant, connection_id, status='needs_reauth', lastCheckedAt=checked_at,
+                        lastError=f'{connections_registry.BY_ID[connection_id]["displayName"]} sign-in did not complete. Reopen the managed browser and finish authentication.')
+            threading.Thread(target=watch_login, daemon=True, name=f'{connection_id}-login-{tenant}').start()
+            launch_mode = 'local_managed_browser'
+        self.send_json_status(200, {
+            'connection': connection_id, 'status': state['status'],
+            'authorizationUrl': urls[connection_id],
+            'launchMode': launch_mode,
+            'message': ('Complete Amazon sign-in and MFA once. The shared session authorizes all Amazon-backed features.'
+                        if connection_id == 'amazon' else
+                        'Complete PAVE sign-in. This session is separate from Amazon and feeds fleet compliance data.'),
+        })
+
+    def handle_put_feature(self, feature_id):
+        tenant = _tenant_from_headers(self.headers)
+        body = json.loads(self._read_body() or b'{}')
+        if not isinstance(body.get('enabled'), bool):
+            raise ValueError('enabled must be a boolean')
+        self.send_json_status(200, {'feature': _set_feature_override(
+            tenant, feature_id, body['enabled'])})
 
     def send_json(self, data):
         """Send JSON response."""
@@ -2011,6 +2850,9 @@ def run_server(port=8000):
     print(f"JECS API server running on http://localhost:{port}")
     print(f"Open the dashboard at: http://localhost:{port}/amazon-dsp-kpi-dashboard.html")
     print("Press Ctrl+C to stop the server")
+    threading.Thread(
+        target=run_connection_scheduler, daemon=True,
+        name="startup-connection-health").start()
     httpd.serve_forever()
 
 
