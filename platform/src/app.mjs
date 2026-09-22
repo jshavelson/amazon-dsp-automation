@@ -150,7 +150,12 @@ export async function createApp({
           })
         });
       } else request.tenantContext = context;
-    } catch {
+    } catch (error) {
+      request.log.warn({
+        err: error,
+        hasAuthorization: typeof request.headers.authorization === 'string',
+        hasTenant: typeof request.headers['x-tenant-id'] === 'string'
+      }, 'authentication failed');
       return reply.code(401).send({ error: 'authentication failed' });
     }
   });
