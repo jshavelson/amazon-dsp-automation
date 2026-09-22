@@ -121,8 +121,11 @@ cluster_name="$(stack_output "$FOUNDATION_STACK" EcsClusterName)"
 service_name="$(stack_output "$APPLICATION_STACK" ApplicationServiceName)"
 distribution_id="$(stack_output "$APPLICATION_STACK" DistributionId)"
 website_url="$(stack_output "$APPLICATION_STACK" WebsiteUrl)"
+public_subnet_a="$(stack_output "$FOUNDATION_STACK" PublicSubnetAId)"
+public_subnet_b="$(stack_output "$FOUNDATION_STACK" PublicSubnetBId)"
+application_security_group="$(stack_output "$FOUNDATION_STACK" ApplicationSecurityGroupId)"
 
-for value in "$deployment_bucket" "$build_project" "$repository_uri" "$cluster_name" "$service_name" "$distribution_id" "$website_url"; do
+for value in "$deployment_bucket" "$build_project" "$repository_uri" "$cluster_name" "$service_name" "$distribution_id" "$website_url" "$public_subnet_a" "$public_subnet_b" "$application_security_group"; do
   if [[ -z "$value" || "$value" == "None" ]]; then
     print -u2 "Required CloudFormation output is missing."
     exit 1
@@ -166,6 +169,33 @@ expected_digest="$(aws_cmd ecr describe-images \
 print "Published image digest: $expected_digest"
 
 update_application_infrastructure
+
+bootstrap_task_definition="$(stack_output "$APPLICATION_STACK" BootstrapTaskDefinitionArn)"
+print "Applying database migrations..."
+bootstrap_task_arn="$(aws_cmd ecs run-task \
+  --cluster "$cluster_name" \
+  --task-definition "$bootstrap_task_definition" \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[$public_subnet_a,$public_subnet_b],securityGroups=[$application_security_group],assignPublicIp=ENABLED}" \
+  --query 'tasks[0].taskArn' --output text)"
+if [[ -z "$bootstrap_task_arn" || "$bootstrap_task_arn" == "None" ]]; then
+  print -u2 "Database bootstrap task failed to start."
+  exit 1
+fi
+aws_cmd ecs wait tasks-stopped --cluster "$cluster_name" --tasks "$bootstrap_task_arn"
+bootstrap_exit_code="$(aws_cmd ecs describe-tasks \
+  --cluster "$cluster_name" \
+  --tasks "$bootstrap_task_arn" \
+  --query 'tasks[0].containers[?name==`bootstrap`].exitCode | [0]' --output text)"
+if [[ "$bootstrap_exit_code" != "0" ]]; then
+  bootstrap_reason="$(aws_cmd ecs describe-tasks \
+    --cluster "$cluster_name" \
+    --tasks "$bootstrap_task_arn" \
+    --query 'tasks[0].{stoppedReason:stoppedReason,containerReason:containers[?name==`bootstrap`].reason | [0]}' --output json)"
+  print -u2 "Database bootstrap failed: $bootstrap_reason"
+  exit 1
+fi
+print "Database migrations are current."
 
 print "Deploying ECS service..."
 aws_cmd ecs update-service \
