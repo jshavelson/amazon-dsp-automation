@@ -43,6 +43,7 @@ export async function createApp({
   disputeSubmission = null,
   connectionService = null,
   assistantService = null,
+  memberProvisioner = null,
   impersonationService = new ImpersonationService(),
   exposeLegacyDashboard = true
 }) {
@@ -256,7 +257,7 @@ export async function createApp({
   });
 
   connectionRoutes(app, { connectionService });
-  accessControlRoutes(app, { repository, registry });
+  accessControlRoutes(app, { repository, registry, memberProvisioner });
   impersonationRoutes(app, { repository, impersonationService });
   assistantRoutes(app, { assistantService });
 

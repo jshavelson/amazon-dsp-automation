@@ -4,7 +4,7 @@ import { requirePermission } from '../authorization.mjs';
 const TENANT_ROLES = new Set(['owner', 'admin', 'reviewer', 'analyst', 'viewer']);
 const MEMBER_STATUSES = new Set(['invited', 'active', 'disabled']);
 
-export function accessControlRoutes(app, { repository, registry }) {
+export function accessControlRoutes(app, { repository, registry, memberProvisioner = null }) {
   app.get('/api/features', async (request) => {
     const { principal, entitlements } = request.tenantContext;
     const overrides = repository.listFeatureOverrides ? await repository.listFeatureOverrides(request.tenantContext) : [];
@@ -34,16 +34,29 @@ export function accessControlRoutes(app, { repository, registry }) {
     requirePermission(request.tenantContext.principal, 'member.manage');
     const email = String(request.body?.email || '').trim().toLowerCase();
     const role = String(request.body?.role || 'viewer');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !TENANT_ROLES.has(role)) {
-      return reply.code(400).send({ error: 'valid email and tenant role required' });
+    const givenName = String(request.body?.givenName || '').trim();
+    const familyName = String(request.body?.familyName || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !TENANT_ROLES.has(role) || !givenName || !familyName) {
+      return reply.code(400).send({ error: 'first name, last name, valid email, and tenant role are required' });
     }
     if (role === 'owner' && request.tenantContext.principal.role !== 'platform_admin') {
       return reply.code(403).send({ error: 'only a platform admin can invite another owner' });
     }
     try {
-      return reply.code(201).send({ member: await repository.inviteMember(request.tenantContext, { email, role }) });
+      const existing = await repository.listMembers(request.tenantContext);
+      if (existing.some((member) => member.email?.toLowerCase() === email)) {
+        return reply.code(409).send({ error: 'that email is already a tenant member' });
+      }
+      const identity = memberProvisioner
+        ? await memberProvisioner.invite({ email, givenName, familyName, tenantId: request.tenantContext.principal.tenantId, role })
+        : { identitySubject: null, invitationSent: false };
+      const member = await repository.inviteMember(request.tenantContext, { email, role, identitySubject: identity.identitySubject });
+      return reply.code(201).send({ member, invitationSent: identity.invitationSent });
     } catch (error) {
       if (error.code === '23505') return reply.code(409).send({ error: 'that email is already a tenant member' });
+      if (error.name === 'LimitExceededException' || error.name === 'TooManyRequestsException') {
+        return reply.code(429).send({ error: 'invitation delivery is temporarily rate limited; try again shortly' });
+      }
       throw error;
     }
   });

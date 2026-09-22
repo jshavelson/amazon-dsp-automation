@@ -18,7 +18,8 @@ const schema = z.object({
   TOKEN_URL: z.url(),
   TENANT_SLUG: z.string().regex(/^[a-z][a-z0-9-]{2,62}$/),
   DASHBOARD_HTML_PATH: z.string().min(1).default('/app/dashboard/amazon-dsp-kpi-dashboard.html'),
-  SECRET_PREFIX: z.string().min(1).default('dsp/credentials')
+  SECRET_PREFIX: z.string().min(1).default('dsp/credentials'),
+  USER_POOL_ID: z.string().min(1).optional()
 });
 
 export function loadConfig(environment = process.env) {

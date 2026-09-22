@@ -30,6 +30,7 @@ import tempfile
 import threading
 import ssl
 import base64
+import uuid
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -886,6 +887,33 @@ def _set_feature_override(tenant, feature_id, enabled):
     return next(item for item in _public_features(tenant) if item['id'] == feature_id)
 
 
+def _member_state_path(tenant):
+    return TENANT_ROOT / tenant / 'members.json'
+
+
+def _local_members(tenant):
+    path = _member_state_path(tenant)
+    if path.exists():
+        try:
+            members = json.loads(path.read_text())
+            if isinstance(members, list):
+                return members
+        except (ValueError, OSError):
+            pass
+    return [{'identitySubject': 'dev-user', 'email': 'dev@example.com', 'role': 'owner',
+             'status': 'active', 'createdAt': '2026-09-21T00:00:00Z'}]
+
+
+def _save_local_members(tenant, members):
+    path = _member_state_path(tenant)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(members, indent=2, sort_keys=True))
+
+
+def _valid_member_email(value):
+    return bool(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', value or ''))
+
+
 def _tenant_from_headers(headers):
     """Tenant comes from the authenticated context in production; the local
     server accepts the same header the React client sends."""
@@ -1602,10 +1630,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.send_json({'features': _public_features(_tenant_from_headers(self.headers)),
                                 'canManage': True})
             elif path == '/api/members':
-                self.send_json({'members': [
-                    {'identitySubject': 'dev-user', 'email': 'dev@example.com', 'role': 'owner',
-                     'status': 'active', 'createdAt': '2026-09-21T00:00:00Z'}
-                ], 'roles': ['owner', 'admin', 'reviewer', 'analyst', 'viewer']})
+                self.send_json({'members': _local_members(_tenant_from_headers(self.headers)),
+                                'roles': ['owner', 'admin', 'reviewer', 'analyst', 'viewer']})
             elif path.startswith('/api/modules/') and path.endswith('/cases'):
                 module_id = path.split('/')[3]
                 self.send_json({'cases': [c for c in _load_module_cases() if c['moduleId'] == module_id]})
@@ -1676,6 +1702,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_post_assistant_chat()
             elif path == '/api/assistant/config/test':
                 self.handle_post_assistant_config_test()
+            elif path == '/api/members/invitations':
+                self.handle_post_member_invitation()
             elif path.startswith('/api/connections/') and path.endswith('/reconnect'):
                 self.handle_post_connection_reconnect(path.split('/')[3])
             elif path == '/api/daily-entries':
@@ -1705,6 +1733,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_put_assistant_config()
             elif path.startswith('/api/features/'):
                 self.handle_put_feature(path.split('/')[3])
+            elif path.startswith('/api/members/'):
+                self.handle_put_member(urllib.parse.unquote(path.split('/')[3]))
             else:
                 self.send_error(404, f"Not found: {path}")
         except KeyError as error:
@@ -3170,6 +3200,46 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             raise ValueError('enabled must be a boolean')
         self.send_json_status(200, {'feature': _set_feature_override(
             tenant, feature_id, body['enabled'])})
+
+    def handle_post_member_invitation(self):
+        tenant = _tenant_from_headers(self.headers)
+        body = json.loads(self._read_body() or b'{}')
+        email_address = str(body.get('email') or '').strip().lower()
+        given_name = str(body.get('givenName') or '').strip()
+        family_name = str(body.get('familyName') or '').strip()
+        role = str(body.get('role') or 'viewer')
+        if not _valid_member_email(email_address) or not given_name or not family_name or role not in {'owner', 'admin', 'reviewer', 'analyst', 'viewer'}:
+            self.send_json_status(400, {'error': 'first name, last name, valid email, and tenant role are required'})
+            return
+        members = _local_members(tenant)
+        if any(item.get('email', '').lower() == email_address for item in members):
+            self.send_json_status(409, {'error': 'that email is already a tenant member'})
+            return
+        member = {
+            'identitySubject': f'invited:{uuid.uuid4()}', 'email': email_address,
+            'givenName': given_name, 'familyName': family_name, 'role': role,
+            'status': 'invited', 'createdAt': datetime.now(timezone.utc).isoformat(timespec='seconds')
+        }
+        members.append(member)
+        _save_local_members(tenant, members)
+        self.send_json_status(201, {'member': member, 'invitationSent': False})
+
+    def handle_put_member(self, identity_subject):
+        tenant = _tenant_from_headers(self.headers)
+        body = json.loads(self._read_body() or b'{}')
+        role = str(body.get('role') or '')
+        status = str(body.get('status') or '')
+        if role not in {'owner', 'admin', 'reviewer', 'analyst', 'viewer'} or status not in {'invited', 'active', 'disabled'}:
+            self.send_json_status(400, {'error': 'valid role and status required'})
+            return
+        members = _local_members(tenant)
+        member = next((item for item in members if item.get('identitySubject') == identity_subject), None)
+        if not member:
+            self.send_json_status(404, {'error': 'member not found'})
+            return
+        member.update({'role': role, 'status': status})
+        _save_local_members(tenant, members)
+        self.send_json_status(200, {'member': member})
 
     def send_json(self, data):
         """Send JSON response."""

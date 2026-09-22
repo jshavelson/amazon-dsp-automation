@@ -8,6 +8,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
 import { NagSuppressions } from 'cdk-nag';
 
@@ -21,6 +22,7 @@ interface ApiStackProps extends cdk.StackProps {
   };
   database: rds.DatabaseInstance;
   databaseSecret: secretsmanager.Secret;
+  userPool: cognito.UserPool;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -48,7 +50,7 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { prefix, vpc, securityGroups, database, databaseSecret } = props;
+    const { prefix, vpc, securityGroups, database, databaseSecret, userPool } = props;
 
     // Get foundation stack resources
     const ecsTaskRole = this.node.tryFindChild('EcsTaskRole') as iam.Role;
@@ -100,6 +102,7 @@ export class ApiStack extends cdk.Stack {
         REDIS_HOST: '', // Will be set if Redis is configured
         REDIS_PORT: '6379',
         AWS_REGION: this.region,
+        USER_POOL_ID: userPool.userPoolId,
         LOG_LEVEL: 'info',
       },
       secrets: {
@@ -126,6 +129,7 @@ export class ApiStack extends cdk.Stack {
     // Grant permissions to task role
     if (ecsTaskRole) {
       databaseSecret.grantRead(ecsTaskRole);
+      userPool.grant(ecsTaskRole, 'cognito-idp:AdminCreateUser', 'cognito-idp:AdminGetUser');
       
       // Grant S3 access
       ecsTaskRole.addToPolicy(new iam.PolicyStatement({

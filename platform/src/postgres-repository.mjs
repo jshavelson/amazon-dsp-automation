@@ -157,14 +157,14 @@ export class PostgresRepository {
     });
   }
 
-  async inviteMember(context, { email, role }) {
+  async inviteMember(context, { email, role, identitySubject = null }) {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
       const result = await client.query(
         `insert into app.tenant_memberships (tenant_id, identity_subject, email, role, status)
-         values ($1, 'invited:' || gen_random_uuid()::text, lower($2), $3, 'invited')
+         values ($1, coalesce($4, 'invited:' || gen_random_uuid()::text), lower($2), $3, 'invited')
          on conflict (tenant_id, identity_subject) do nothing
          returning identity_subject as "identitySubject", email, role, status, created_at as "createdAt"`,
-        [context.principal.tenantDbId, email, role]
+        [context.principal.tenantDbId, email, role, identitySubject]
       );
       if (result.rowCount !== 1) throw new Error('member invitation could not be created');
       await client.query(

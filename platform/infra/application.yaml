@@ -128,6 +128,7 @@ Resources:
             - {Name: TENANT_SLUG, Value: jecs}
             - {Name: DASHBOARD_HTML_PATH, Value: /app/dashboard/amazon-dsp-kpi-dashboard.html}
             - {Name: AWS_REGION, Value: !Ref 'AWS::Region'}
+            - {Name: USER_POOL_ID, Value: !Ref UserPoolId}
             - {Name: SECRET_PREFIX, Value: dsp/credentials}
           Secrets:
             - {Name: DB_PASSWORD, ValueFrom: !Sub '${DatabaseRuntimeSecretArn}:password::'}
@@ -169,6 +170,11 @@ Resources:
                   - secretsmanager:CreateSecret
                   - secretsmanager:DescribeSecret
                 Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:dsp/credentials/*'
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminGetUser
+                Resource: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
               - !If
                 - HasOpenAiApiKeySecret
                 - Effect: Allow

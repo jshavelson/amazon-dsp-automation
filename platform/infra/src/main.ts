@@ -88,6 +88,7 @@ const apiStack = new ApiStack(app, `${config.prefix}-api`, {
   securityGroups: networkStack.securityGroups,
   database: databaseStack.database,
   databaseSecret: databaseStack.databaseSecret,
+  userPool: authStack.userPool,
   description: 'API stack with API Gateway, ALB, and ECS Fargate service',
 });
 

@@ -6,6 +6,7 @@ import { createAwsSecretsManagerProvider } from './secrets/aws-secrets-manager-p
 import { ConnectionService } from './integrations/connection-service.mjs';
 import { AssistantService } from './assistant-service.mjs';
 import fs from 'node:fs/promises';
+import { CognitoMemberProvisioner } from './auth/cognito-member-provisioner.mjs';
 
 const config = loadConfig();
 const repository = new PostgresRepository({ connectionString: config.DATABASE_URL });
@@ -31,6 +32,10 @@ const connectionBaseline = await fs.readFile(new URL('../operational-snapshots/c
   .then((value) => JSON.parse(value)).catch(() => null);
 const connectionService = new ConnectionService({ repository, secretProvider, baseline: connectionBaseline });
 const assistantService = new AssistantService({ repository, secretProvider });
+const memberProvisioner = config.USER_POOL_ID ? new CognitoMemberProvisioner({
+  userPoolId: config.USER_POOL_ID,
+  region: process.env.AWS_REGION || 'us-east-2'
+}) : null;
 const app = await createApp({
   authenticator,
   repository,
@@ -44,6 +49,7 @@ const app = await createApp({
   dashboardHtmlPath: config.DASHBOARD_HTML_PATH,
   connectionService,
   assistantService,
+  memberProvisioner,
   exposeLegacyDashboard: true
 });
 

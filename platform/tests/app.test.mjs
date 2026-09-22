@@ -275,11 +275,33 @@ test('tenant owner can manage users but cannot manage platform feature flags', a
   const members = await app.inject({ method: 'GET', url: '/api/members', headers });
   assert.equal(members.statusCode, 200);
   assert.equal(members.json().members[0].role, 'owner');
-  const invited = await app.inject({ method: 'POST', url: '/api/members/invitations', headers, payload: { email: 'analyst@example.com', role: 'analyst' } });
+  const invited = await app.inject({ method: 'POST', url: '/api/members/invitations', headers, payload: { email: 'analyst@example.com', givenName: 'Alex', familyName: 'Analyst', role: 'analyst' } });
   assert.equal(invited.statusCode, 201);
   assert.equal(invited.json().member.status, 'invited');
   const featureUpdate = await app.inject({ method: 'PUT', url: '/api/features/dashboard', headers, payload: { enabled: false } });
   assert.equal(featureUpdate.statusCode, 403);
+});
+
+test('add user provisions Cognito identity before creating tenant membership', async (t) => {
+  const calls = [];
+  const provisionedRepository = {
+    ...repository,
+    async inviteMember(_context, value) { calls.push(['membership', value]); return { ...value, status: 'invited' }; }
+  };
+  const memberProvisioner = {
+    async invite(value) { calls.push(['identity', value]); return { identitySubject: 'cognito-sub-1', invitationSent: true }; }
+  };
+  const app = await createApp({ authenticator, repository: provisionedRepository, registry, memberProvisioner });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'POST', url: '/api/members/invitations',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics', 'content-type': 'application/json' },
+    payload: { email: 'new.user@example.com', givenName: 'New', familyName: 'User', role: 'viewer' }
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json().invitationSent, true);
+  assert.deepEqual(calls.map(([kind]) => kind), ['identity', 'membership']);
+  assert.equal(calls[1][1].identitySubject, 'cognito-sub-1');
 });
 
 test('platform admin support session assumes target visibility but remains read-only and audited', async (t) => {
