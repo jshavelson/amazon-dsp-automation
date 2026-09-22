@@ -107,6 +107,44 @@ test('authenticated React session endpoint returns the current tenant user', asy
   assert.equal(response.json().role, 'dsp_owner');
 });
 
+test('a non-reference tenant never receives the reference tenant operational snapshots', async (t) => {
+  const isolatedRepository = {
+    ...repository,
+    async resolveContext({ tenantSlug, identity }) {
+      if (tenantSlug !== 'funk') return null;
+      return {
+        principal: { userId: identity.subject, tenantId: 'funk', tenantDbId: 'db-funk', tenantName: 'Funk', role: 'platform_admin', email: identity.email, isPlatformAdmin: true },
+        entitlements: [
+          { tenantId: 'funk', moduleId: 'executive_dashboard', status: 'active' },
+          { tenantId: 'funk', moduleId: 'fixed_monthly', status: 'active' }
+        ]
+      };
+    }
+  };
+  const app = await createApp({
+    authenticator, repository: isolatedRepository, registry,
+    authConfig: { clientId: 'client', authorizationUrl: 'https://identity.example/authorize', tokenUrl: 'https://identity.example/token', tenantSlug: 'jec-logistics' }
+  });
+  t.after(() => app.close());
+  const headers = { authorization: 'Bearer test', 'x-tenant-id': 'funk' };
+  const operations = await app.inject({ method: 'GET', url: '/api/dashboard/operations', headers });
+  assert.equal(operations.statusCode, 200);
+  assert.equal(operations.json().tenant.name, 'Funk');
+  assert.equal(operations.json().needsData, true);
+  assert.deepEqual(operations.json().performance.history, []);
+  assert.deepEqual(operations.json().fleet.vehicles, []);
+  assert.deepEqual(operations.json().costs.charges, []);
+
+  const compliance = await app.inject({ method: 'GET', url: '/api/fleet-compliance', headers });
+  assert.equal(compliance.statusCode, 200);
+  assert.equal(compliance.json().needsData, true);
+  assert.deepEqual(compliance.json().vehicles, []);
+
+  const evaluations = await app.inject({ method: 'GET', url: '/api/weekly-evaluations', headers });
+  assert.equal(evaluations.statusCode, 200);
+  assert.deepEqual(evaluations.json().weeks, []);
+});
+
 test('operations dashboard is assembled from connected scorecard and operational sources', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());

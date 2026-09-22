@@ -156,6 +156,13 @@ def _latest_pave_upload_preview(tenant="jecs"):
 
 def build_fleet_compliance_payload(tenant="jecs"):
     """Reconcile Fleet Portal, dispatch readiness, DVIC, and PM evidence."""
+    if tenant != DEFAULT_TENANT and not tenant_store.latest_confirmed(tenant, "pave"):
+        return {
+            'tenant': tenant, 'asOf': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
+            'needsData': True, 'message': 'No tenant-scoped fleet source has been ingested',
+            'summary': {'registeredFleet': 0, 'operational': 0, 'grounded': 0, 'ready': 0},
+            'vehicles': [], 'rows': [],
+        }
     roster_path = FLEET_REVIEW_DIR / "2026-09-07/vehicles-1.json"
     inspection_path = FLEET_REVIEW_DIR / "2026-09-07/inspection-stats-1.json"
     pm_path = FLEET_REVIEW_DIR / "2026-09-07/pm-stats-1.json"
@@ -1183,7 +1190,13 @@ def build_route_monitor_payload(period=None):
 
 
 def build_dashboard_operations_payload(tenant='jecs'):
-    performance = build_performance_dashboard_payload()
+    performance = (build_performance_dashboard_payload() if tenant == DEFAULT_TENANT else {
+        'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'source': 'No tenant-scoped scorecard source available', 'needsData': True,
+        'drivers': [], 'history': [],
+        'dspPerformance': {'overallScore': None, 'deliveryScore': 0, 'safetyScore': 0,
+                           'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0},
+    })
     fleet = build_fleet_compliance_payload(tenant)
     costs = build_fleet_cost_reconciliation(tenant)
     connections = build_connections_payload(tenant)
@@ -1236,7 +1249,10 @@ def build_dashboard_operations_payload(tenant='jecs'):
         ],
     }
     return {
+        'tenant': {'id': tenant, 'name': next((item.get('displayName') for item in _local_tenants()
+                                               if item.get('slug') == tenant), tenant)},
         'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'needsData': tenant != DEFAULT_TENANT,
         'performance': dashboard_performance,
         'fleet': dashboard_fleet,
         'costs': dashboard_costs,
@@ -1771,7 +1787,14 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.send_paginated([])
 
             elif path == '/api/performance/dashboard':
-                self.send_json(build_performance_dashboard_payload())
+                tenant = _tenant_from_headers(self.headers)
+                self.send_json(build_performance_dashboard_payload() if tenant == DEFAULT_TENANT else {
+                    'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
+                    'source': 'No tenant-scoped scorecard source available', 'needsData': True,
+                    'drivers': [], 'history': [],
+                    'dspPerformance': {'overallScore': None, 'deliveryScore': 0, 'safetyScore': 0,
+                                       'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0},
+                })
 
             # Incumbent dashboard compatibility endpoints
             elif path == '/api/weekly-evaluations':
@@ -2804,6 +2827,10 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
 
     def handle_get_weekly_evaluations(self):
         """Expose the incumbent dashboard's weekly evaluation payload to React."""
+        if _tenant_from_headers(self.headers) != DEFAULT_TENANT:
+            self.send_json({'weeks': [], 'evaluations': {}, 'needsData': True,
+                            'message': 'No tenant-scoped weekly evaluations have been generated'})
+            return
         html = DASHBOARD_PATH.read_text(encoding='utf-8')
         match = re.search(
             r'window\.__WEEKLY_EVALUATIONS__=(\{.*?\});</script>',

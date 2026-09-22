@@ -96,7 +96,11 @@ function warnFallback(request, error, resource) {
   request.log?.warn({ err: error, resource }, 'using React compatibility fallback');
 }
 
-export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connectionService = null, includeConnectionSnapshot = true }) {
+export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connectionService = null, includeConnectionSnapshot = true, referenceTenantSlug = 'jec-logistics' }) {
+  const hasReferenceData = (request) => request.tenantContext.principal.tenantId === referenceTenantSlug;
+  const emptyPerformance = () => ({ period: null, generatedAt: new Date().toISOString(), source: 'No tenant-scoped scorecard source available', needsData: true, drivers: [], history: [], dspPerformance: { overallScore: null, deliveryScore: 0, safetyScore: 0, qualityScore: 0, driverCount: 0, totalDeliveries: 0 } });
+  const emptyFleet = () => ({ asOf: null, generatedAt: new Date().toISOString(), needsData: true, message: 'No tenant-scoped fleet source has been ingested', summary: { registeredFleet: 0, operational: 0, grounded: 0, ready: 0 }, vehicles: [] });
+  const emptyCosts = () => ({ asOf: null, period: null, needsData: true, message: 'No tenant-scoped accounting source has been ingested', months: [], charges: [], summary: {} });
   app.get('/api/auth/me', async (request) => {
     const principal = request.tenantContext.principal;
     const roleMap = {
@@ -132,7 +136,7 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
       return result.items;
     } catch (error) {
       warnFallback(request, error, 'drivers');
-      return fallbackDrivers(dashboardHtmlPath);
+      return hasReferenceData(request) ? fallbackDrivers(dashboardHtmlPath) : [];
     }
   });
 
@@ -199,8 +203,9 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
   });
 
   app.get('/api/payroll/periods', async () => page([]));
-  app.get('/api/performance/dashboard', async (request) => getPerformanceDashboard(request.query.period));
+  app.get('/api/performance/dashboard', async (request) => hasReferenceData(request) ? getPerformanceDashboard(request.query.period) : emptyPerformance());
   app.get('/api/performance/drivers/:id', async (request, reply) => {
+    if (!hasReferenceData(request)) return reply.code(404).send({ error: 'driver performance not found' });
     const dashboard = await getPerformanceDashboard(request.query.period);
     const driver = dashboard.drivers.find((row) => row.driverId === request.params.id);
     return driver || reply.code(404).send({ error: 'driver performance not found' });
@@ -208,6 +213,10 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
   app.get('/api/performance/teams/:id', async (_request, reply) => reply.code(404).send({ error: 'team performance is not available from connected sources' }));
 
   app.get('/api/dashboard/operations', async (request) => {
+    if (!hasReferenceData(request)) {
+      const connections = connectionService ? await connectionService.list(request.tenantContext) : { connections: [], summary: { connected: 0, connectionTotal: 0 } };
+      return { tenant: { id: request.tenantContext.principal.tenantId, name: request.tenantContext.principal.tenantName }, generatedAt: new Date().toISOString(), needsData: true, performance: emptyPerformance(), fleet: emptyFleet(), costs: emptyCosts(), connections, modules: { modules: [] }, sources: (connections.connections || []).map((item) => ({ id: item.id, label: item.displayName || item.name || item.id, asOf: item.lastSuccessAt || null, status: item.status, feeds: item.feeds || [] })) };
+    }
     const performance = await getPerformanceDashboard();
     const [fleet, costs, connections, modules] = await Promise.all([
       operationalSnapshot('fleet-compliance'), operationalSnapshot('fleet-costs'),
@@ -215,7 +224,7 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
       operationalSnapshot('modules')
     ]);
     return {
-      generatedAt: new Date().toISOString(), performance, fleet, costs, connections, modules,
+      tenant: { id: request.tenantContext.principal.tenantId, name: request.tenantContext.principal.tenantName }, generatedAt: new Date().toISOString(), performance, fleet, costs, connections, modules,
       sources: (connections.connections || []).map((item) => {
         const manual = item.authKind === 'manual_upload';
         return {
@@ -232,13 +241,14 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
     };
   });
 
-  app.get('/api/fleet-compliance', async () => operationalSnapshot('fleet-compliance'));
+  app.get('/api/fleet-compliance', async (request) => hasReferenceData(request) ? operationalSnapshot('fleet-compliance') : emptyFleet());
   if (includeConnectionSnapshot) app.get('/api/connections', async () => operationalSnapshot('connections'));
-  app.get('/api/vendor-rules', async () => operationalSnapshot('vendor-rules'));
+  app.get('/api/vendor-rules', async (request) => hasReferenceData(request) ? operationalSnapshot('vendor-rules') : { rules: [], needsData: true });
   app.get('/api/modules', async () => operationalSnapshot('modules'));
 
-  app.get('/api/fleet-costs/records', async () => page((await operationalSnapshot('fleet-costs')).charges || []));
-  app.get('/api/fleet-costs/summary', async () => {
+  app.get('/api/fleet-costs/records', async (request) => page(hasReferenceData(request) ? ((await operationalSnapshot('fleet-costs')).charges || []) : []));
+  app.get('/api/fleet-costs/summary', async (request) => {
+    if (!hasReferenceData(request)) return { ...emptyCosts(), totalCost: 0, totalFixedCost: 0, totalVariableCost: 0, totalCapitalCost: 0, totalOperatingCost: 0, costByCategory: {}, costByVan: [], costByDriver: [], costPerMile: 0, costPerDay: 0, costPerRoute: 0, costPerDelivery: 0, fuelEfficiency: 0, maintenanceCostPerMile: 0 };
     const costs = await operationalSnapshot('fleet-costs');
     const summary = costs.summary || {};
     return {
@@ -290,7 +300,8 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
     };
   });
 
-  app.get('/api/weekly-evaluations', async () => {
+  app.get('/api/weekly-evaluations', async (request) => {
+    if (!hasReferenceData(request)) return { weeks: [], evaluations: {}, needsData: true, message: 'No tenant-scoped weekly evaluations have been generated' };
     const evaluations = await loadEvaluations(dashboardHtmlPath);
     return { weeks: Object.keys(evaluations), evaluations };
   });

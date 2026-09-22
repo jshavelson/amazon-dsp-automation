@@ -282,7 +282,7 @@ export async function createApp({
   payrollRoutes(app, { repository, registry, logger });
 
   // React application compatibility endpoints backed by the tenant repository.
-  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, connectionService, includeConnectionSnapshot: !connectionService });
+  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, connectionService, includeConnectionSnapshot: !connectionService, referenceTenantSlug: authConfig?.tenantSlug || 'jec-logistics' });
 
   app.setErrorHandler((error, request, reply) => {
     request.log?.warn({ err: error, requestId: request.id }, 'request failed');
