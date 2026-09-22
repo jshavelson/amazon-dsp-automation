@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validTenantDraft } from './SuperAdminPage';
+import { validMemberDraft, validTenantDraft } from './SuperAdminPage';
 
 describe('tenant provisioning validation', () => {
   it('accepts a complete tenant and owner identity', () => {
@@ -14,5 +14,12 @@ describe('tenant provisioning validation', () => {
       slug: '../other', displayName: 'Other', ownerEmail: 'not-an-email',
       ownerGivenName: 'New', ownerFamilyName: 'Owner'
     })).toBe(false);
+  });
+});
+
+describe('tenant member validation', () => {
+  it('requires a named member, valid email, and supported tenant role', () => {
+    expect(validMemberDraft({ givenName: 'Alex', familyName: 'Driver', email: 'alex@example.com', role: 'viewer' })).toBe(true);
+    expect(validMemberDraft({ givenName: '', familyName: 'Driver', email: 'invalid', role: 'root' })).toBe(false);
   });
 });
