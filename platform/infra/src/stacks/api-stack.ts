@@ -143,6 +143,8 @@ export class ApiStack extends cdk.Stack {
         actions: [
           'secretsmanager:GetSecretValue',
           'secretsmanager:DescribeSecret',
+          'secretsmanager:PutSecretValue',
+          'secretsmanager:CreateSecret',
         ],
         resources: ['*'],
       }));

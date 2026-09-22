@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getPerformanceDashboard } from '../services/scorecard-data-service.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_ROOT = path.resolve(HERE, '..', '..', 'operational-snapshots');
@@ -57,6 +58,27 @@ const fleetFallback = [
   { id: 'fleet-3', vin: 'W1Y4KBHY8RT100003', licensePlate: 'JECS-201', make: 'Mercedes-Benz', model: 'Sprinter', year: 2024, status: 'maintenance', mileage: 26740 }
 ];
 
+async function fleetRosterFallback() {
+  const snapshot = await operationalSnapshot('fleet-compliance');
+  if (!Array.isArray(snapshot.vehicles) || snapshot.vehicles.length === 0) return fleetFallback;
+  return snapshot.vehicles.map((vehicle, index) => ({
+    id: vehicle.vin || `fleet-${index + 1}`,
+    vin: vehicle.vin || '',
+    licensePlate: vehicle.registrationNumber || '',
+    van_number: vehicle.unit || vehicle.registrationNumber || vehicle.vin?.slice(-7) || `Vehicle ${index + 1}`,
+    unit: vehicle.unit || '',
+    make: vehicle.make || '',
+    model: vehicle.model || '',
+    year: Number(vehicle.year) || 0,
+    type: vehicle.serviceTier || 'cargo_van',
+    ownership: vehicle.ownership || 'UNKNOWN',
+    status: vehicle.operationalStatus || vehicle.portalOperationalStatus || 'UNKNOWN',
+    operationalStatus: vehicle.operationalStatus || vehicle.portalOperationalStatus || 'UNKNOWN',
+    mileage: Number(vehicle.mileage) || 0,
+    currentDriverId: null
+  }));
+}
+
 async function routeFallback(dashboardHtmlPath) {
   const drivers = await fallbackDrivers(dashboardHtmlPath);
   return drivers.slice(0, 3).map((driver, index) => ({
@@ -74,7 +96,7 @@ function warnFallback(request, error, resource) {
   request.log?.warn({ err: error, resource }, 'using React compatibility fallback');
 }
 
-export function reactCompatRoutes(app, { repository, dashboardHtmlPath, includeConnectionSnapshot = true }) {
+export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connectionService = null, includeConnectionSnapshot = true }) {
   app.get('/api/auth/me', async (request) => {
     const principal = request.tenantContext.principal;
     const roleMap = {
@@ -137,7 +159,7 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, includeC
       items = result.items;
     } catch (error) {
       warnFallback(request, error, 'vans');
-      items = fleetFallback;
+      items = await fleetRosterFallback();
     }
     return page(items.map((van) => ({
       ...van,
@@ -177,51 +199,96 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, includeC
   });
 
   app.get('/api/payroll/periods', async () => page([]));
-  app.get('/api/performance/dashboard', async () => ({}));
-  app.get('/api/performance/drivers/:id', async () => ({}));
-  app.get('/api/performance/teams/:id', async () => ({}));
+  app.get('/api/performance/dashboard', async (request) => getPerformanceDashboard(request.query.period));
+  app.get('/api/performance/drivers/:id', async (request, reply) => {
+    const dashboard = await getPerformanceDashboard(request.query.period);
+    const driver = dashboard.drivers.find((row) => row.driverId === request.params.id);
+    return driver || reply.code(404).send({ error: 'driver performance not found' });
+  });
+  app.get('/api/performance/teams/:id', async (_request, reply) => reply.code(404).send({ error: 'team performance is not available from connected sources' }));
+
+  app.get('/api/dashboard/operations', async (request) => {
+    const performance = await getPerformanceDashboard();
+    const [fleet, costs, connections, modules] = await Promise.all([
+      operationalSnapshot('fleet-compliance'), operationalSnapshot('fleet-costs'),
+      connectionService ? connectionService.list(request.tenantContext) : operationalSnapshot('connections'),
+      operationalSnapshot('modules')
+    ]);
+    return {
+      generatedAt: new Date().toISOString(), performance, fleet, costs, connections, modules,
+      sources: (connections.connections || []).map((item) => {
+        const manual = item.authKind === 'manual_upload';
+        return {
+          id: item.id,
+          label: item.displayName || item.name || item.id,
+          asOf: item.lastSuccessAt
+            || (item.id === 'amazon' ? performance.period : null)
+            || (item.id === 'pave' ? fleet.generatedAt || fleet.asOf : null)
+            || (manual ? costs.asOf : null),
+          status: manual ? (costs.needsData ? 'needs_data' : 'current') : item.status,
+          feeds: item.feeds || []
+        };
+      })
+    };
+  });
 
   app.get('/api/fleet-compliance', async () => operationalSnapshot('fleet-compliance'));
   if (includeConnectionSnapshot) app.get('/api/connections', async () => operationalSnapshot('connections'));
   app.get('/api/vendor-rules', async () => operationalSnapshot('vendor-rules'));
   app.get('/api/modules', async () => operationalSnapshot('modules'));
 
-  app.get('/api/fleet-costs/records', async () => page([]));
-  app.get('/api/fleet-costs/summary', async () => ({
-    period: 'June–August 2026', totalCost: 79904.99, totalFixedCost: 39345,
-    totalVariableCost: 40559.99, totalCapitalCost: 0, totalOperatingCost: 79904.99,
-    costByCategory: { leasing: 39345, other: 40559.99 }, costByVan: [], costByDriver: [],
-    costPerMile: 0, costPerDay: 868.53, costPerRoute: 0, costPerDelivery: 0,
-    fuelEfficiency: 0, maintenanceCostPerMile: 0
-  }));
+  app.get('/api/fleet-costs/records', async () => page((await operationalSnapshot('fleet-costs')).charges || []));
+  app.get('/api/fleet-costs/summary', async () => {
+    const costs = await operationalSnapshot('fleet-costs');
+    const summary = costs.summary || {};
+    return {
+    period: costs.period, asOf: costs.asOf,
+    totalCost: summary.threeMonthIncludedCost || 0,
+    totalFixedCost: summary.thirdPartyRentalCost || 0,
+    totalVariableCost: (summary.lmrCost || 0) + (summary.elementCost || 0),
+    totalCapitalCost: 0, totalOperatingCost: summary.threeMonthIncludedCost || 0,
+    costByCategory: { thirdPartyRental: summary.thirdPartyRentalCost || 0, lmr: summary.lmrCost || 0, element: summary.elementCost || 0 },
+    costByVan: [], costByDriver: [], costPerMile: 0,
+    costPerDay: (summary.threeMonthIncludedCost || 0) / 92,
+    costPerRoute: 0, costPerDelivery: 0, fuelEfficiency: 0, maintenanceCostPerMile: 0
+  }; });
   app.get('/api/fleet-costs/fuel-analysis', async () => ({
-    period: 'June–August 2026', totalFuelCost: 0, totalGallons: 0,
+    period: (await operationalSnapshot('fleet-costs')).period, needsData: true,
+    message: 'No tenant-scoped fuel-detail source has been ingested', totalFuelCost: 0, totalGallons: 0,
     averagePricePerGallon: 0, totalMiles: 0, fuelEfficiency: 0, costPerMile: 0,
     byVan: [], byDriver: [], trends: []
   }));
   app.get('/api/fleet-costs/maintenance-analysis', async () => ({
-    period: 'June–August 2026', totalMaintenanceCost: 0, byVan: [], byCategory: {},
+    period: (await operationalSnapshot('fleet-costs')).period, needsData: true,
+    message: 'No tenant-scoped maintenance-cost source has been ingested', totalMaintenanceCost: 0, byVan: [], byCategory: {},
     averageCostPerMile: 0, averageCostPerVan: 0, trends: []
   }));
-  app.get('/api/fleet-costs/trends', async () => ([
-    { period: 'June', totalCost: 21334, costByCategory: {}, costPerMile: 0, costPerDelivery: 0 },
-    { period: 'July', totalCost: 25743, costByCategory: {}, costPerMile: 0, costPerDelivery: 0 },
-    { period: 'August', totalCost: 32828, costByCategory: {}, costPerMile: 0, costPerDelivery: 0 }
-  ]));
+  app.get('/api/fleet-costs/trends', async () => (await operationalSnapshot('fleet-costs')).months.map((row) => ({
+    period: row.month, totalCost: row.includedCost, amazonCoverage: row.amazonCoverage,
+    difference: row.difference, status: row.status, costByCategory: {}, costPerMile: 0, costPerDelivery: 0
+  })));
   app.get('/api/fleet-costs/budgets', async () => []);
   app.get('/api/fleet-costs/forecasts', async () => []);
 
-  app.get('/api/time-attendance/exceptions', async () => ({
-    sourcePeriod: '2026-09-13 to 2026-09-19',
-    capturedAt: '2026-09-16',
-    exceptions: [
-      { employee: 'Davis, George', date: '2026-09-13', issueType: 'Unassigned shift', details: 'ADP time but no Amazon route assignment' },
-      { employee: 'Davis, George', date: '2026-09-14', issueType: 'Unassigned shift', details: 'ADP time but no Amazon route assignment' },
-      ...[15, 16, 17, 18, 19].map((day) => ({
-        employee: 'Davis, George', date: `2026-09-${day}`, issueType: 'Missed punch', details: `No time recorded for 2026-09-${day}`
-      }))
-    ]
-  }));
+  app.get('/api/time-attendance/exceptions', async (request) => {
+    const result = await repository.listAttendanceExceptions(request.tenantContext, { limit: 500 });
+    const sourcePeriod = result.startDate && result.endDate ? `${result.startDate} to ${result.endDate}` : null;
+    return {
+      source: 'ADP Workforce Now API',
+      sourcePeriod,
+      capturedAt: result.capturedAt,
+      needsData: !sourcePeriod,
+      message: sourcePeriod
+        ? `Live tenant-scoped ADP timecards for ${result.employees} employees; ${result.routeReconciliationAvailable ? 'reconciled with Amazon daily assignments' : 'Amazon daily assignments are not loaded, so route-based exceptions are withheld'}`
+        : 'No tenant-scoped ADP timecards have been ingested',
+      coverage: {
+        employees: result.employees || 0,
+        dailyAssignments: result.dailyAssignments || 0,
+        routeReconciliationAvailable: result.routeReconciliationAvailable,
+      },
+      exceptions: result.items
+    };
+  });
 
   app.get('/api/weekly-evaluations', async () => {
     const evaluations = await loadEvaluations(dashboardHtmlPath);

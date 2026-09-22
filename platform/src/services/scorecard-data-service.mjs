@@ -3,26 +3,42 @@
  * Reads from local CSV files in data/scorecard_data/
  */
 
-import fs from 'fs/promises';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'path';
 
 const SCORECARD_DATA_DIR = path.resolve(process.cwd(), 'data/scorecard_data');
+const PERFORMANCE_SNAPSHOT = path.resolve(process.cwd(), 'platform/operational-snapshots/performance.json');
+
+async function packagedPerformance() {
+  try { return JSON.parse(await fsp.readFile(PERFORMANCE_SNAPSHOT, 'utf8')); }
+  catch { return null; }
+}
 
 /**
  * Simple CSV parser
  */
-function parseCSV(content) {
-  const lines = content.split('\n').filter(l => l.trim());
-  if (lines.length === 0) return [];
-  
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+export function parseCSV(content) {
+  const records = [];
+  let record = [], field = '', quoted = false;
+  const source = String(content).replace(/^\uFEFF/, '');
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (char === '"' && quoted && source[i + 1] === '"') { field += '"'; i += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === ',' && !quoted) { record.push(field.trim()); field = ''; }
+    else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && source[i + 1] === '\n') i += 1;
+      record.push(field.trim()); field = '';
+      if (record.some((value) => value !== '')) records.push(record);
+      record = [];
+    } else field += char;
+  }
+  if (field || record.length) { record.push(field.trim()); records.push(record); }
+  if (!records.length) return [];
+  const headers = records[0];
   const rows = [];
-  
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-    
-    const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+  for (const values of records.slice(1)) {
     const row = {};
     for (let j = 0; j < Math.min(headers.length, values.length); j++) {
       row[headers[j]] = values[j];
@@ -36,7 +52,7 @@ function parseCSV(content) {
 /**
  * Get the latest week folder
  */
-function getLatestWeekFolder() {
+export function getLatestWeekFolder() {
   try {
     const weeks = fs.readdirSync(SCORECARD_DATA_DIR)
       .filter(dir => dir.match(/^\d{4}-wk\d{2}$/))
@@ -56,7 +72,7 @@ async function readScorecardCSV(week, filename) {
   const filePath = path.join(weekPath, filename);
   
   try {
-    const content = await fs.readFile(filePath, 'utf8');
+    const content = await fsp.readFile(filePath, 'utf8');
     return parseCSV(content);
   } catch {
     return [];
@@ -70,7 +86,9 @@ export async function getDriverPerformance(week = null) {
   const targetWeek = week || getLatestWeekFolder();
   if (!targetWeek) return { week: null, drivers: [], summary: {} };
   
-  const data = await readScorecardCSV(targetWeek, `DSP_Overview_Dashboard_JECS_DFH7_${targetWeek.replace('-', '')}.csv`);
+  const files = await fsp.readdir(path.join(SCORECARD_DATA_DIR, targetWeek)).catch(() => []);
+  const overview = files.find((name) => /^DSP_Overview_Dashboard_.*\.csv$/i.test(name));
+  const data = overview ? await readScorecardCSV(targetWeek, overview) : [];
   
   if (!data || data.length === 0) {
     return { week: targetWeek, drivers: [], summary: {} };
@@ -78,7 +96,7 @@ export async function getDriverPerformance(week = null) {
   
   const drivers = data.map(row => ({
     id: row['Transporter ID'] || '',
-    name: row['Delivery Associate ']?.trim() || '',
+    name: String(row['Delivery Associate'] || row['Delivery Associate '] || '').trim(),
     overallScore: parseFloat(row['Overall Score']) || 0,
     overallStanding: row['Overall Standing'] || '',
     ficoScore: parseFloat(row['FICO Score']) || 0,
@@ -92,7 +110,7 @@ export async function getDriverPerformance(week = null) {
     dsbTier: row['DSB DPMO Tier'] || '',
     psb: parseFloat(row['PSB']) || 0,
     psbTier: row['PSB Tier'] || '',
-    packagesDelivered: parseInt(row['Packages Delivered'].replace(/,/g, '')) || 0,
+    packagesDelivered: parseInt(String(row['Packages Delivered'] || '').replace(/,/g, '')) || 0,
     speedingRate: parseFloat(row['Speeding Event Rate (per trip)']) || 0,
     seatbeltRate: parseFloat(row['Seatbelt-Off Rate (per trip)']) || 0,
     distractionRate: parseFloat(row['Distractions Rate (per trip)']) || 0,
@@ -117,7 +135,7 @@ export async function getDriverPerformance(week = null) {
 export async function getFleetData() {
   try {
     const vehiclesFile = path.join(SCORECARD_DATA_DIR, '_templates/', 'vehicles-1.json');
-    const content = await fs.readFile(vehiclesFile, 'utf8');
+    const content = await fsp.readFile(vehiclesFile, 'utf8');
     const vehicles = JSON.parse(content);
     return vehicles;
   } catch {
@@ -140,7 +158,7 @@ export async function getTimecards(week = null) {
   // Try to read from ADP payroll data
   try {
     const payrollDir = path.join(SCORECARD_DATA_DIR, targetWeek);
-    const files = await fs.readdir(payrollDir);
+    const files = await fsp.readdir(payrollDir);
     
     // Look for payroll register or timecard files
     const payrollFile = files.find(f => 
@@ -148,7 +166,7 @@ export async function getTimecards(week = null) {
     );
     
     if (payrollFile) {
-      const content = await fs.readFile(path.join(payrollDir, payrollFile), 'utf8');
+      const content = await fsp.readFile(path.join(payrollDir, payrollFile), 'utf8');
       const data = parseCSV(content);
       return { week: targetWeek, timecards: data, summary: { total: data.length } };
     }
@@ -156,14 +174,7 @@ export async function getTimecards(week = null) {
     // Return mock data
   }
   
-  // Mock timecard data
-  const mockTimecards = [
-    { driverId: 'A11030SMNGIQYH', driverName: 'Jayden Julius Tavera', week: targetWeek, regularHours: 45, overtimeHours: 5, regularEarnings: 922.50, overtimeEarnings: 102.50, status: 'approved' },
-    { driverId: 'A2DWYPL507YLX0', driverName: 'Danjay Steve Blackburn', week: targetWeek, regularHours: 48, overtimeHours: 3, regularEarnings: 984.00, overtimeEarnings: 61.50, status: 'approved' },
-    { driverId: 'A33SU2XRPGI1M5', driverName: 'Demaury Juvar Brown', week: targetWeek, regularHours: 42, overtimeHours: 8, regularEarnings: 861.00, overtimeEarnings: 164.00, status: 'pending' }
-  ];
-  
-  return { week: targetWeek, timecards: mockTimecards, summary: { total: mockTimecards.length } };
+  return { week: targetWeek, timecards: [], summary: { total: 0 }, needsData: true };
 }
 
 /**
@@ -176,18 +187,11 @@ export async function getRoutes(date = null) {
   // Try to read DA Daily Reports
   try {
     const weekPath = path.join(SCORECARD_DATA_DIR, targetWeek);
-    const files = await fs.readdir(weekPath);
+    const files = await fsp.readdir(weekPath);
     const dailyReports = files.filter(f => f.includes('DA-Daily-Report'));
     
     if (dailyReports.length > 0) {
-      // Parse PDF or CSV daily reports
-      // For now, return mock data based on known drivers
-      const mockRoutes = [
-        { driverId: 'A11030SMNGIQYH', driverName: 'Jayden Julius Tavera', date: '2026-09-15', status: 'completed', startTime: '07:00', endTime: '17:00', totalStops: 120, packagesDelivered: 185, packagesTotal: 200, milesDriven: 156 },
-        { driverId: 'A2DWYPL507YLX0', driverName: 'Danjay Steve Blackburn', date: '2026-09-15', status: 'completed', startTime: '07:00', endTime: '17:30', totalStops: 130, packagesDelivered: 210, packagesTotal: 220, milesDriven: 182 },
-        { driverId: 'A33SU2XRPGI1M5', driverName: 'Demaury Juvar Brown', date: '2026-09-15', status: 'completed', startTime: '06:30', endTime: '16:30', totalStops: 95, packagesDelivered: 145, packagesTotal: 150, milesDriven: 128 }
-      ];
-      return { date: date || '2026-09-15', routes: mockRoutes, summary: { total: mockRoutes.length } };
+      return { date: date || null, week: targetWeek, routes: [], summary: { total: 0 }, needsData: true, evidenceFiles: dailyReports.length };
     }
   } catch {
     // Return mock data
@@ -205,7 +209,7 @@ export async function getDisputeCandidates(week = null) {
   
   try {
     const disputesFile = path.join(SCORECARD_DATA_DIR, targetWeek, `${targetWeek}-disputes.md`);
-    const content = await fs.readFile(disputesFile, 'utf8');
+    const content = await fsp.readFile(disputesFile, 'utf8');
     
     // Parse markdown disputes file
     const disputes = [];
@@ -225,13 +229,70 @@ export async function getDisputeCandidates(week = null) {
     
     return { week: targetWeek, disputes, summary: { total: disputes.length } };
   } catch {
-    // Return mock disputes
-    const mockDisputes = [
-      { id: '1', driverId: 'A11030SMNGIQYH', driverName: 'Jayden Julius Tavera', week: targetWeek, metric: 'DCR', reason: 'GPS issue during delivery', status: 'pending', priority: 'high', confidence: 0.95 },
-      { id: '2', driverId: 'A2DWYPL507YLX0', driverName: 'Danjay Steve Blackburn', week: targetWeek, metric: 'POD', reason: 'Customer refused delivery', status: 'pending', priority: 'medium', confidence: 0.85 }
-    ];
-    return { week: targetWeek, disputes: mockDisputes, summary: { total: mockDisputes.length } };
+    return { week: targetWeek, disputes: [], summary: { total: 0 }, needsData: true };
   }
+}
+
+export async function getPerformanceDashboard(week = null) {
+  if (!getLatestWeekFolder()) {
+    const snapshot = await packagedPerformance();
+    if (snapshot && (!week || snapshot.period === week)) return snapshot;
+  }
+  const current = await getDriverPerformance(week);
+  const officialPerformance = await packagedPerformance();
+  const officialHistory = new Map((officialPerformance?.history || []).map((row) => [row.period, row]));
+  const officialCurrent = officialHistory.get(current.week);
+  const drivers = current.drivers.map((driver, index) => ({
+    driverId: driver.id, driverName: driver.name, period: current.week,
+    metrics: [], overallScore: driver.overallScore,
+    deliveryScore: driver.dcr || driver.pod || 0,
+    safetyScore: Math.max(0, 100 - (driver.speedingRate + driver.seatbeltRate + driver.distractionRate) * 100),
+    efficiencyScore: driver.overallScore, qualityScore: driver.pod || 0,
+    costScore: 0, complianceScore: driver.overallScore,
+    rank: index + 1, percentile: Math.round((current.drivers.length - index) / Math.max(current.drivers.length, 1) * 100),
+    trend: 'stable', week: current.week?.replace('wk', 'W'), year: Number(current.week?.slice(0, 4)),
+    score: driver.overallScore, grade: driver.overallStanding,
+    onTimeDeliveryRate: driver.dcr || 0, safetyIncidents: 0,
+    customerComplaints: driver.cdf || 0, packagesPerHour: 0,
+    routeCompletionRate: driver.dcr || 0, fuelEfficiency: 0
+  }));
+  const avg = (key) => drivers.reduce((sum, row) => sum + Number(row[key] || 0), 0) / Math.max(drivers.length, 1);
+  const dspPerformance = {
+    dspId: 'JECS', period: current.week, overallScore: officialCurrent?.overallScore ?? officialPerformance?.dspPerformance?.overallScore ?? null, deliveryScore: avg('deliveryScore'),
+    safetyScore: avg('safetyScore'), efficiencyScore: avg('efficiencyScore'), qualityScore: avg('qualityScore'),
+    costScore: 0, complianceScore: avg('complianceScore'), driverCount: drivers.length, vanCount: 0,
+    routeCount: 0, totalMiles: 0, totalDeliveries: drivers.reduce((sum, row) => sum + Number(current.drivers.find((d) => d.id === row.driverId)?.packagesDelivered || 0), 0),
+    onTimeDeliveryRate: avg('onTimeDeliveryRate'), customerSatisfaction: 0, costPerDelivery: 0,
+    profitMargin: 0, safetyIncidentRate: 0, retentionRate: 0, utilizationRate: 0
+  };
+  const folders = fs.existsSync(SCORECARD_DATA_DIR)
+    ? fs.readdirSync(SCORECARD_DATA_DIR).filter((name) => /^\d{4}-wk\d{2}$/.test(name)).sort().slice(-13)
+    : [];
+  const history = [];
+  for (const folder of folders) {
+    const weekly = folder === current.week ? current : await getDriverPerformance(folder);
+    if (!weekly.drivers.length) continue;
+    const average = (key) => weekly.drivers.reduce((sum, row) => sum + Number(row[key] || 0), 0) / weekly.drivers.length;
+    history.push({
+      period: folder, overallScore: officialHistory.get(folder)?.overallScore ?? null,
+      overallStanding: officialHistory.get(folder)?.overallStanding ?? null,
+      averageDaScore: average('overallScore'), pod: average('pod'), dcr: average('dcr'),
+      cdf: weekly.drivers.reduce((sum, row) => sum + Number(row.cdf || 0), 0),
+      packages: weekly.drivers.reduce((sum, row) => sum + Number(row.packagesDelivered || 0), 0),
+      activeDrivers: weekly.drivers.length
+    });
+  }
+  return {
+    period: current.week, generatedAt: new Date().toISOString(), source: `Amazon DSP scorecard ${current.week}`,
+    dspPerformance, teamPerformance: [], topDrivers: drivers.slice(0, 5), bottomDrivers: drivers.slice(-5).reverse(),
+    drivers, history, metricTrends: [], scoreDistribution: {
+      excellent: drivers.filter((d) => d.overallScore >= 95).length,
+      good: drivers.filter((d) => d.overallScore >= 90 && d.overallScore < 95).length,
+      average: drivers.filter((d) => d.overallScore >= 80 && d.overallScore < 90).length,
+      belowAverage: drivers.filter((d) => d.overallScore >= 70 && d.overallScore < 80).length,
+      poor: drivers.filter((d) => d.overallScore < 70).length, total: drivers.length
+    }
+  };
 }
 
 export default {
@@ -240,4 +301,5 @@ export default {
   getTimecards,
   getRoutes,
   getDisputeCandidates
+  ,getPerformanceDashboard
 };

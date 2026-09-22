@@ -17,6 +17,7 @@ Then open: http://localhost:8000/amazon-dsp-kpi-dashboard.html
 """
 
 import json
+import csv
 import imaplib
 import email
 import math
@@ -33,8 +34,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
+import urllib.error
+import urllib.request
 from email import policy
 from email.header import decode_header, make_header
+from pypdf import PdfReader
 
 import assistant_service
 
@@ -563,12 +567,13 @@ def build_fleet_cost_reconciliation(tenant=None):
 
     # Tenant-uploaded Digits export takes precedence for charges and the
     # monthly cost side. Amazon coverage is left untouched.
-    charge_source = {
+    charge_sources = [{
+        'side': 'What I paid · June/July',
         'label': 'Reviewed reconciliation workbook',
         'kind': 'workbook',
         'reference': str(RENTAL_RECON_PATH.relative_to(ROOT)),
         'asOf': '2026-09-07',
-    }
+    }]
     if confirmed:
         try:
             parsed = parse_financial_export(tenant_store.read_bytes(tenant, confirmed['id']),
@@ -580,11 +585,16 @@ def build_fleet_cost_reconciliation(tenant=None):
         for charge in uploaded:
             by_month.setdefault(charge['month'], []).append(charge)
         if parsed.get('ok') and any(month in by_month for month in months):
-            charges = parsed['charges']
-            cost = [round(sum(c['netCharge'] for c in by_month.get(m, [])), 2) for m in months]
+            uploaded_months = set(by_month).intersection(months)
+            charges = [c for c in charges if c['month'] not in uploaded_months] + parsed['charges']
+            cost = [round(sum(c['netCharge'] for c in by_month[m]), 2)
+                    if m in uploaded_months else cost[index]
+                    for index, m in enumerate(months)]
             for name in list(vendors):
-                vendors[name] = [round(sum(c['netCharge'] for c in by_month.get(m, [])
-                                           if c['vendor'] == name), 2) for m in months]
+                vendors[name] = [round(sum(c['netCharge'] for c in by_month[m]
+                                           if c['vendor'] == name), 2)
+                                 if m in uploaded_months else vendors[name][index]
+                                 for index, m in enumerate(months)]
             third_party = [round(e + h, 2) for e, h in zip(vendors['Enterprise Rent-A-Car'], vendors['Hertz'])]
             difference = [round(cov - cst, 2) for cov, cst in zip(coverage, cost)]
             for index, row in enumerate(month_rows):
@@ -596,8 +606,11 @@ def build_fleet_cost_reconciliation(tenant=None):
                 row['lmrCost'] = vendors['MerchAuto9150 Corp'][index]
                 row['lmrBalance'] = round(lmr_cov[index] - vendors['MerchAuto9150 Corp'][index], 2)
                 row['elementCost'] = vendors['Element Fleet'][index]
-            charge_source = {
-                'label': 'Your uploaded ' + parsed.get('providerLabel', 'accounting') + ' export',
+            charge_sources = [source for source in charge_sources
+                              if any(month not in uploaded_months for month in ('June', 'July'))]
+            charge_sources.append({
+                'side': 'What I paid · ' + '/'.join(sorted(uploaded_months, key=months.index)),
+                'label': 'Your confirmed ' + parsed.get('providerLabel', 'accounting') + ' export',
                 'provider': parsed.get('provider'),
                 'kind': 'tenant_upload',
                 'reference': confirmed['originalFilename'],
@@ -605,7 +618,33 @@ def build_fleet_cost_reconciliation(tenant=None):
                 'contentSha256': confirmed['contentSha256'],
                 'uploadedBy': confirmed['uploadedBy'],
                 'asOf': confirmed.get('confirmedAt') or confirmed['uploadedAt'],
-            }
+            })
+
+    current_amazon = None
+    payment_candidates = []
+    for payment_path in sorted((FLEET_REVIEW_DIR / '2026-09-07' / 'payments').glob('*.csv')):
+        try:
+            with payment_path.open(newline='', encoding='utf-8-sig') as source:
+                payment_rows = list(csv.DictReader(source))
+        except (OSError, csv.Error):
+            continue
+        dated = [row for row in payment_rows if row.get('Date')]
+        if dated:
+            payment_candidates.append((max(row['Date'] for row in dated), payment_path, payment_rows))
+    if payment_candidates:
+        latest_date, payment_path, payment_rows = max(payment_candidates, key=lambda item: item[0])
+        relevant = [row for row in payment_rows if row.get('Vehicle Description') in (
+            'Rental Van', 'DSP Leased Van', 'Branded Last Mile Rental Van')]
+        current_amazon = {
+            'period': datetime.strptime(latest_date, '%Y/%m/%d').strftime('%B %Y'),
+            'asOf': latest_date.replace('/', '-'),
+            'status': 'advance' if any(row.get('Payment Type') == 'PrePayment' for row in payment_rows) else 'final',
+            'invoiceNumber': next((row.get('Invoice Number') for row in payment_rows if row.get('Invoice Number')), None),
+            'rentalLmrLeaseCoverage': round(sum(float(row.get('Amount') or 0) for row in relevant), 2),
+            'fullFleetCoverage': round(sum(float(row.get('Amount') or 0) for row in payment_rows), 2),
+            'source': str(payment_path.relative_to(ROOT)),
+            'costStatus': 'Awaiting a confirmed tenant accounting export for this month',
+        }
 
     fleet = []
     for r in rows('Current fleet plus two')[1:]:
@@ -637,10 +676,14 @@ def build_fleet_cost_reconciliation(tenant=None):
                     for k, v in vendors.items()],
         'amazonClasses': class_rows, 'invoiceBridge': bridge, 'charges': charges, 'fleet': fleet, 'notes': notes,
         'tenant': tenant, 'needsData': False,
+        'currentPeriod': current_amazon,
         'dataSources': [
-            {'side': 'What I paid', **charge_source},
+            *charge_sources,
             {'side': 'What Amazon paid', 'label': 'Amazon reconciliation invoices', 'kind': 'workbook',
              'reference': str(RENTAL_RECON_PATH.relative_to(ROOT)), 'asOf': '2026-09-07'},
+            *([{'side': 'Latest Amazon payment', 'label': f"Amazon invoice {current_amazon['invoiceNumber']}",
+                'kind': 'connector_artifact', 'reference': current_amazon['source'],
+                'asOf': current_amazon['asOf']}] if current_amazon else []),
         ],
         'caveats': [
             'Posting-period comparison: Digits dates are posting dates, not confirmed rental service periods.',
@@ -779,6 +822,7 @@ from scripts.pave_ingest import parse_pave_export
 from scripts.secret_store import get_secret, has_secret, put_secret
 
 DEFAULT_TENANT = "jecs"
+SCORECARD_DATA_DIR = ROOT / "data/scorecard_data"
 
 LOCAL_FEATURES = [
     ('dashboard', 'Dashboard', '/dashboard', 'implemented'),
@@ -802,6 +846,7 @@ LOCAL_FEATURES = [
     ('notifications', 'Notifications', '/notifications', 'planned'),
     ('help', 'Help & Support', '/help', 'implemented'),
     ('feature_admin', 'Feature Management', '/admin/features', 'implemented'),
+    ('ai_admin', 'AI Assistant Setup', '/admin/ai', 'implemented'),
 ]
 
 
@@ -901,6 +946,182 @@ def build_connections_payload(tenant):
             "pathTemplate": connections_registry.secret_reference("{tenant}", "{connection}", "{name}"),
             "note": "The platform stores a reference only. Credential values are never written to the database, logs, or this API response.",
         },
+    }
+
+
+def _scorecard_number(value):
+    text = str(value or '').strip().replace(',', '').replace('%', '')
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
+def _dsp_scorecard_standing(week):
+    """Read the fleet-level DSP score from the official weekly scorecard PDF.
+
+    The Overview Dashboard CSV contains one score per delivery associate and
+    must not be averaged into a DSP score. Missing official PDFs remain
+    unavailable rather than silently substituting a DA average.
+    """
+    week_dir = SCORECARD_DATA_DIR / week
+    official = sorted(
+        path for path in week_dir.glob('*.pdf')
+        if '_en_dspscorecard' in path.name.lower() and 'preview' not in path.name.lower()
+    )
+    previews = sorted(path for path in week_dir.glob('*.pdf') if 'dspscorecardpreview' in path.name.lower())
+    # Amazon can republish a corrected scorecard after the original. Prefer the
+    # newest republish timestamp; otherwise use the original official file.
+    official.sort(key=lambda item: ('republish' in item.name.lower(), item.name), reverse=True)
+    source = (official or previews or [None])[0]
+    if source is None:
+        return {'score': None, 'tier': None, 'source': None}
+    try:
+        text = '\n'.join(page.extract_text() or '' for page in PdfReader(str(source)).pages)
+    except Exception:
+        return {'score': None, 'tier': None, 'source': source.name}
+    match = re.search(r'Overall Standing:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:\||,)\s*([^\n\r]+)', text, re.I)
+    if not match:
+        return {'score': None, 'tier': None, 'source': source.name}
+    return {'score': float(match.group(1)), 'tier': ' '.join(match.group(2).split()), 'source': source.name}
+
+
+def _scorecard_week(week):
+    files = sorted((SCORECARD_DATA_DIR / week).glob('DSP_Overview_Dashboard_*.csv'))
+    if not files:
+        return None
+    with files[-1].open(encoding='utf-8-sig', newline='') as source:
+        rows = list(csv.DictReader(source))
+    drivers = []
+    for index, row in enumerate(rows):
+        drivers.append({
+            'driverId': row.get('Transporter ID') or f'{week}-{index + 1}',
+            'driverName': (row.get('Delivery Associate') or row.get('Delivery Associate ') or '').strip(),
+            'overallScore': _scorecard_number(row.get('Overall Score')),
+            'deliveryScore': _scorecard_number(row.get('DCR')),
+            'qualityScore': _scorecard_number(row.get('POD')),
+            'score': _scorecard_number(row.get('Overall Score')),
+            'grade': row.get('Overall Standing') or '',
+        })
+    if not drivers:
+        return None
+    average = lambda field: sum(_scorecard_number(row.get(field)) for row in rows) / len(rows)
+    dsp_standing = _dsp_scorecard_standing(week)
+    return {
+        'period': week,
+        'drivers': drivers,
+        'overallScore': dsp_standing['score'],
+        'overallStanding': dsp_standing['tier'],
+        'dspScoreSource': dsp_standing['source'],
+        'averageDaScore': average('Overall Score'),
+        'pod': average('POD'),
+        'dcr': average('DCR'),
+        'cdf': sum(_scorecard_number(row.get('CDF DPMO')) for row in rows),
+        'packages': int(sum(_scorecard_number(row.get('Packages Delivered')) for row in rows)),
+        'activeDrivers': len(rows),
+    }
+
+
+def build_performance_dashboard_payload():
+    weeks = sorted(
+        item.name for item in SCORECARD_DATA_DIR.iterdir()
+        if item.is_dir() and re.fullmatch(r'\d{4}-wk\d{2}', item.name)
+    )[-13:]
+    history = [item for week in weeks if (item := _scorecard_week(week))]
+    if not history:
+        return {'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
+                'source': None, 'drivers': [], 'history': [],
+                'dspPerformance': {'overallScore': 0, 'deliveryScore': 0, 'safetyScore': 0,
+                                   'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0}}
+    current = history[-1]
+    drivers = current.pop('drivers')
+    return {
+        'period': current['period'],
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'source': f"Amazon DSP scorecard {current['period']}",
+        'drivers': drivers,
+        'history': history,
+        'dspPerformance': {
+            'overallScore': current['overallScore'],
+            'deliveryScore': current['dcr'],
+            'safetyScore': 0,
+            'qualityScore': current['pod'],
+            'driverCount': current['activeDrivers'],
+            'totalDeliveries': current['packages'],
+        },
+    }
+
+
+def build_route_monitor_payload(period=None):
+    """Export tenant route aggregates in the same schema used by the React screen."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    requested = period
+    if not requested:
+        cursor.execute("SELECT MAX(date) AS latest FROM amazon_routes")
+        row = cursor.fetchone()
+        requested = row['latest'] if row else None
+    routes = []
+    if requested:
+        cursor.execute("""
+            SELECT route_code, driver_id, date, stops, packages, status,
+                   overall_score, pod, cdf, dsb, is_weekly_aggregate
+              FROM amazon_routes
+             WHERE date = ?
+             ORDER BY route_code
+        """, (requested,))
+        for row in cursor.fetchall():
+            route = dict(row)
+            cursor.execute("SELECT name FROM drivers WHERE id = ?", (route.get('driver_id'),))
+            driver = cursor.fetchone()
+            route['driver_name'] = driver['name'] if driver else 'Unknown'
+            routes.append(route)
+    conn.close()
+    return {
+        'period': requested,
+        'routes': routes,
+        'routeCount': len(routes),
+        'source': 'Amazon scorecard route aggregates',
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'needsData': not routes,
+    }
+
+
+def build_dashboard_operations_payload(tenant='jecs'):
+    performance = build_performance_dashboard_payload()
+    fleet = build_fleet_compliance_payload(tenant)
+    costs = build_fleet_cost_reconciliation(tenant)
+    connections = build_connections_payload(tenant)
+    modules = build_reimbursement_review_payload()
+    sources = []
+    for item in connections.get('connections', []):
+        source_id = item.get('id')
+        as_of = item.get('lastSuccessAt')
+        status = item.get('status')
+        if source_id == 'amazon':
+            as_of = as_of or performance.get('period')
+            status = status if performance.get('drivers') else 'needs_data'
+        elif source_id == 'pave':
+            as_of = as_of or fleet.get('generatedAt') or fleet.get('asOf')
+            status = status if fleet.get('vehicles') else 'needs_data'
+        elif item.get('authKind') == 'manual_upload':
+            as_of = costs.get('asOf')
+            status = 'needs_data' if costs.get('needsData') else 'current'
+        sources.append({
+            'id': source_id,
+            'label': item.get('displayName') or item.get('name') or source_id,
+            'asOf': as_of,
+            'status': status,
+            'feeds': item.get('feeds') or [],
+        })
+    return {
+        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'performance': performance,
+        'fleet': fleet,
+        'costs': costs,
+        'connections': connections,
+        'modules': modules,
+        'sources': sources,
     }
 
 
@@ -1306,7 +1527,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             elif path == '/api/fleet-costs':
                 self.handle_get_fleet_costs(query)
             elif path == '/api/fleet-costs/records':
-                self.send_paginated([])
+                payload = build_fleet_cost_reconciliation(_tenant_from_headers(self.headers))
+                self.send_paginated(payload.get('charges', []))
             elif path == '/api/fleet-costs/summary':
                 self.handle_get_fleet_cost_summary(query)
             elif path == '/api/fleet-costs/fuel-analysis':
@@ -1335,6 +1557,9 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 tenant = _tenant_from_headers(self.headers)
                 self.send_json(_CONNECTION_REFRESH_JOBS.get(tenant, {
                     'status': 'idle', 'startedAt': None, 'finishedAt': None, 'sources': []}))
+            elif path == '/api/dashboard/operations':
+                self.send_json(build_dashboard_operations_payload(
+                    _tenant_from_headers(self.headers)))
             elif path == '/api/uploads':
                 tenant = _tenant_from_headers(self.headers)
                 source = (query.get('source') or [None])[0]
@@ -1358,6 +1583,18 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 })
             elif path == '/api/assistant/status':
                 self.send_json(assistant_service.status(_tenant_from_headers(self.headers)))
+            elif path == '/api/assistant/config':
+                tenant = _tenant_from_headers(self.headers)
+                credential = assistant_service.credentials(tenant)
+                self.send_json({
+                    'configured': bool(credential), 'provider': 'OpenAI',
+                    'model': (credential or {}).get('model') or 'gpt-5-mini',
+                    'organizationConfigured': bool((credential or {}).get('organization')),
+                    'projectConfigured': bool((credential or {}).get('project')),
+                    'storage': 'Local managed secret store (AWS Secrets Manager in production)',
+                    'writeOnly': True,
+                    'lastFour': (credential or {}).get('apiKey', '')[-4:] or None,
+                })
             elif path == '/api/features':
                 self.send_json({'features': _public_features(_tenant_from_headers(self.headers)),
                                 'canManage': True})
@@ -1376,9 +1613,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             elif path == '/api/routes':
                 self.send_paginated([])
 
-            # Performance page uses its own reconciled client-side operating view.
             elif path == '/api/performance/dashboard':
-                self.send_json({})
+                self.send_json(build_performance_dashboard_payload())
 
             # Incumbent dashboard compatibility endpoints
             elif path == '/api/weekly-evaluations':
@@ -1433,6 +1669,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_post_connections_refresh()
             elif path == '/api/assistant/chat':
                 self.handle_post_assistant_chat()
+            elif path == '/api/assistant/config/test':
+                self.handle_post_assistant_config_test()
             elif path.startswith('/api/connections/') and path.endswith('/reconnect'):
                 self.handle_post_connection_reconnect(path.split('/')[3])
             elif path == '/api/daily-entries':
@@ -1458,6 +1696,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         try:
             if path.startswith('/api/connections/') and path.endswith('/credentials'):
                 self.handle_put_connection_credentials(path.split('/')[3])
+            elif path == '/api/assistant/config':
+                self.handle_put_assistant_config()
             elif path.startswith('/api/features/'):
                 self.handle_put_feature(path.split('/')[3])
             else:
@@ -2377,33 +2617,45 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         })
 
     def handle_get_time_attendance_exceptions(self):
-        """Return the incumbent ADP exception view in a stable React schema."""
-        exceptions = [
-            {
-                'employee': 'Davis, George',
-                'date': '2026-09-13',
-                'issueType': 'Unassigned shift',
-                'details': 'ADP time but no Amazon route assignment',
-            },
-            *[
-                {
-                    'employee': 'Davis, George',
-                    'date': f'2026-09-{day:02d}',
-                    'issueType': 'Missed punch',
-                    'details': f'No time recorded for 2026-09-{day:02d}',
-                }
-                for day in range(15, 20)
-            ],
-        ]
-        exceptions.insert(1, {
-            'employee': 'Davis, George',
-            'date': '2026-09-14',
-            'issueType': 'Unassigned shift',
-            'details': 'ADP time but no Amazon route assignment',
-        })
+        """Return real ADP exceptions, reconciled against daily Amazon assignments."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM driver_route_assignments")
+        assignment_count = cursor.fetchone()[0]
+        cursor.execute("""
+            SELECT employee, date, issue_type AS issueType, details
+            FROM time_attendance_issues
+            WHERE issue_type = 'Long shift' OR ? > 0
+            ORDER BY date DESC, employee
+        """, (assignment_count,))
+        exceptions = [dict(row) for row in cursor.fetchall()]
+        cursor.execute("SELECT MIN(date), MAX(date), COUNT(DISTINCT driver_id) FROM adp_timecards")
+        first_date, last_date, employee_count = cursor.fetchone()
+        conn.close()
+
+        summaries = sorted((ROOT / 'data' / 'adp').glob('????-??-??_to_????-??-??/summary.json'))
+        captured_at = None
+        if summaries:
+            try:
+                captured_at = json.loads(summaries[-1].read_text()).get('capturedAt')
+            except (OSError, ValueError):
+                captured_at = None
+        period = f'{first_date} to {last_date}' if first_date and last_date else None
         self.send_json({
-            'sourcePeriod': '2026-09-13 to 2026-09-19',
-            'capturedAt': '2026-09-16',
+            'source': 'ADP Workforce Now API',
+            'sourcePeriod': period,
+            'capturedAt': captured_at,
+            'needsData': not period,
+            'message': (
+                f'Live ADP timecards for {employee_count} employees; '
+                + ('reconciled with Amazon daily assignments' if assignment_count else
+                   'Amazon daily assignments are not loaded, so route-based exceptions are withheld')
+            ) if period else 'No ADP timecards have been ingested',
+            'coverage': {
+                'employees': employee_count or 0,
+                'dailyAssignments': assignment_count,
+                'routeReconciliationAvailable': bool(assignment_count),
+            },
             'exceptions': exceptions,
         })
 
@@ -2423,21 +2675,25 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
 
     def handle_get_fleet_cost_summary(self, query):
         """Return the reconciled three-month fleet totals in the React schema."""
+        payload = build_fleet_cost_reconciliation(_tenant_from_headers(self.headers))
+        summary = payload.get('summary', {})
         self.send_json({
-            'period': 'June–August 2026',
-            'totalCost': 79904.99,
-            'totalFixedCost': 39345.00,
-            'totalVariableCost': 40559.99,
+            'period': payload.get('period'),
+            'asOf': payload.get('asOf'),
+            'totalCost': summary.get('threeMonthIncludedCost', 0),
+            'totalFixedCost': summary.get('thirdPartyRentalCost', 0),
+            'totalVariableCost': round(summary.get('lmrCost', 0) + summary.get('elementCost', 0), 2),
             'totalCapitalCost': 0,
-            'totalOperatingCost': 79904.99,
+            'totalOperatingCost': summary.get('threeMonthIncludedCost', 0),
             'costByCategory': {
-                'leasing': 39345.00,
-                'other': 40559.99,
+                'thirdPartyRental': summary.get('thirdPartyRentalCost', 0),
+                'lmr': summary.get('lmrCost', 0),
+                'element': summary.get('elementCost', 0),
             },
             'costByVan': [],
             'costByDriver': [],
             'costPerMile': 0,
-            'costPerDay': 868.53,
+            'costPerDay': round(summary.get('threeMonthIncludedCost', 0) / 92, 2),
             'costPerRoute': 0,
             'costPerDelivery': 0,
             'fuelEfficiency': 0,
@@ -2473,11 +2729,12 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
 
     def handle_get_fleet_cost_trends(self, query):
         """Return the monthly reconciliation used by the incumbent dashboard."""
-        self.send_json([
-            {'period': 'June', 'totalCost': 21334, 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0},
-            {'period': 'July', 'totalCost': 25743, 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0},
-            {'period': 'August', 'totalCost': 32828, 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0},
-        ])
+        payload = build_fleet_cost_reconciliation(_tenant_from_headers(self.headers))
+        self.send_json([{
+            'period': row['month'], 'totalCost': row['includedCost'],
+            'amazonCoverage': row['amazonCoverage'], 'difference': row['difference'],
+            'status': row['status'], 'costByCategory': {}, 'costPerMile': 0, 'costPerDelivery': 0,
+        } for row in payload.get('months', [])])
     
 
     # ========== Connections and tenant uploads ==========
@@ -2513,6 +2770,59 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         except RuntimeError as error:
             status = 503 if 'not configured' in str(error) or 'unavailable' in str(error) else 502
             self.send_json_status(status, {'error': str(error)})
+
+    def handle_put_assistant_config(self):
+        """Store OpenAI credentials in the managed local vault; never echo the key."""
+        tenant = _tenant_from_headers(self.headers)
+        body = json.loads(self._read_body() or b'{}')
+        api_key = str(body.get('apiKey') or '').strip()
+        model = str(body.get('model') or 'gpt-5-mini').strip()
+        organization = str(body.get('organization') or '').strip()
+        project = str(body.get('project') or '').strip()
+        if len(api_key) < 20 or len(api_key) > 512 or any(char.isspace() for char in api_key):
+            raise ValueError('invalid OpenAI API key')
+        if not re.fullmatch(r'[A-Za-z0-9._:-]{2,100}', model):
+            raise ValueError('invalid model')
+        for name, value in (('organization', organization), ('project', project)):
+            if value and not re.fullmatch(r'[A-Za-z0-9_-]{2,160}', value):
+                raise ValueError(f'invalid {name}')
+        bundle = {'apiKey': api_key, 'model': model}
+        if organization:
+            bundle['organization'] = organization
+        if project:
+            bundle['project'] = project
+        put_secret(tenant, 'openai', 'credentials', json.dumps(bundle, separators=(',', ':')))
+        self.send_json_status(200, {
+            'configured': True, 'provider': 'OpenAI', 'model': model,
+            'organizationConfigured': bool(organization), 'projectConfigured': bool(project),
+            'storage': 'Local managed secret store (AWS Secrets Manager in production)',
+            'writeOnly': True, 'lastFour': api_key[-4:],
+        })
+
+    def handle_post_assistant_config_test(self):
+        tenant = _tenant_from_headers(self.headers)
+        credential = assistant_service.credentials(tenant)
+        if not credential:
+            self.send_json_status(409, {'error': 'AI assistant is not configured'})
+            return
+        headers = {'Authorization': f"Bearer {credential['apiKey']}"}
+        if credential.get('organization'):
+            headers['OpenAI-Organization'] = credential['organization']
+        if credential.get('project'):
+            headers['OpenAI-Project'] = credential['project']
+        request = urllib.request.Request('https://api.openai.com/v1/models', headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=15):
+                pass
+        except urllib.error.HTTPError:
+            self.send_json_status(502, {'error': 'OpenAI credential validation failed'})
+            return
+        except (urllib.error.URLError, TimeoutError):
+            self.send_json_status(502, {'error': 'OpenAI is temporarily unavailable'})
+            return
+        self.send_json_status(200, {'status': 'healthy', 'provider': 'OpenAI',
+                                    'model': credential.get('model') or 'gpt-5-mini',
+                                    'checkedAt': datetime.now(timezone.utc).isoformat(timespec='seconds')})
 
     def send_json_status(self, status, data):
         content = json.dumps(data, default=str).encode('utf-8')

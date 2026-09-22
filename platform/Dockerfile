@@ -23,6 +23,7 @@ ENV NODE_EXTRA_CA_CERTS=/app/certs/aws-rds-global-bundle.pem
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
 COPY platform ./platform
+COPY AGENTS.md SOUL.md IDENTITY.md ./
 COPY --from=frontend /frontend/dist ./platform/frontend-dist
 COPY data/dashboards/amazon-dsp-kpi-dashboard.html ./dashboard/amazon-dsp-kpi-dashboard.html
 RUN chown -R node:node /app

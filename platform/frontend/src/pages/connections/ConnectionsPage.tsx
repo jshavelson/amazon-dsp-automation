@@ -252,6 +252,7 @@ const ConnectionsPage: React.FC = () => {
   if (error || !data) return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"><strong>Connections could not be loaded.</strong><button onClick={() => refetch()} className="ml-3 underline">Retry</button></div>;
 
   const s = data.summary;
+  const connectionTotal = s.connectionTotal ?? data.connections.filter((item) => item.authKind !== 'manual_upload').length ?? s.total ?? 0;
   const fileUploads = data.uploads.filter((u) => u.source === FINANCIAL_SOURCE || u.source === 'digits');
   const paveUploads = data.uploads.filter((u) => u.source === 'pave');
   const pv = preview?.preview;
@@ -269,7 +270,7 @@ const ConnectionsPage: React.FC = () => {
     {notice && <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"><CheckCircle2 size={16} />{notice}<button onClick={() => setNotice(null)} className="ml-auto"><X size={14} /></button></div>}
 
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {[{ l: 'Sources connected', v: s.connected + ' of ' + s.connectionTotal, i: <Link2 size={20} /> },
+      {[{ l: 'Sources connected', v: (s.connected ?? 0) + ' of ' + connectionTotal, i: <Link2 size={20} /> },
         { l: 'Need attention', v: String(s.needsAttention), i: <ShieldAlert size={20} /> },
         { l: 'Not connected', v: String(s.notConnected), i: <AlertTriangle size={20} /> },
         { l: 'Credential storage', v: data.secretPolicy.storage, i: <Lock size={20} /> }].map((k) => (

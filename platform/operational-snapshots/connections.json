@@ -1,13 +1,16 @@
 {
   "tenant": "jecs",
-  "servedAt": "2026-09-20T21:32:00",
+  "servedAt": "2026-09-22T00:41:16",
   "summary": {
-    "total": 7,
-    "connected": 0,
+    "total": 6,
+    "connectionTotal": 5,
+    "connected": 5,
+    "active": 5,
+    "health": "green",
     "needsAttention": 0,
-    "notConnected": 7,
+    "notConnected": 0,
     "statusCounts": {
-      "not_connected": 7
+      "healthy": 6
     }
   },
   "connections": [
@@ -24,15 +27,54 @@
         "Workforce KPIs"
       ],
       "reauthNote": "Certificate plus OAuth client credentials. Runs unattended once configured.",
-      "status": "not_connected",
-      "configured": false,
-      "secretReference": null,
-      "lastSuccessAt": null,
-      "lastCheckedAt": null,
+      "credentialFields": [
+        {
+          "name": "clientId",
+          "label": "Client ID",
+          "secret": false,
+          "placeholder": "ADP API client ID",
+          "configured": true
+        },
+        {
+          "name": "clientSecret",
+          "label": "Client secret",
+          "secret": true,
+          "placeholder": "ADP API client secret",
+          "configured": true
+        },
+        {
+          "name": "certificatePem",
+          "label": "Client certificate (PEM)",
+          "secret": true,
+          "placeholder": "-----BEGIN CERTIFICATE-----",
+          "configured": true
+        },
+        {
+          "name": "privateKeyPem",
+          "label": "Private key (PEM)",
+          "secret": true,
+          "placeholder": "-----BEGIN PRIVATE KEY-----",
+          "configured": true
+        }
+      ],
+      "environments": [
+        "production"
+      ],
+      "testable": true,
+      "reconnectAvailable": false,
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/adp/credentials",
+      "lastSuccessAt": "2026-09-22T01:12:01+00:00",
+      "lastCheckedAt": "2026-09-22T01:12:01+00:00",
       "lastError": null,
+      "lastAutomatedSyncAt": null,
+      "nextRunAt": null,
+      "lastSyncSummary": null,
       "sessionExpiresAt": null,
       "reauthRequiredAt": null,
-      "latestUpload": null
+      "latestUpload": null,
+      "environment": "production"
     },
     {
       "id": "financial_charges",
@@ -50,81 +92,108 @@
         "CSV or spreadsheet"
       ],
       "reauthNote": "Upload the export each period. The provider is detected automatically and no accounting credentials are shared with the platform.",
-      "status": "not_connected",
-      "configured": false,
+      "reconnectAvailable": false,
+      "credentialFields": [],
+      "status": "healthy",
+      "configured": true,
       "secretReference": null,
-      "lastSuccessAt": null,
+      "lastSuccessAt": "2026-09-22T03:12:47+00:00",
       "lastCheckedAt": null,
       "lastError": null,
+      "lastAutomatedSyncAt": null,
+      "nextRunAt": null,
+      "lastSyncSummary": null,
       "sessionExpiresAt": null,
       "reauthRequiredAt": null,
-      "latestUpload": null
+      "latestUpload": {
+        "id": "044342689643d17e",
+        "tenant": "jecs",
+        "source": "financial_charges",
+        "originalFilename": "digits-ledger-2026-08.csv",
+        "storageKey": "tenants/jecs/financial_charges/044342689643-digits-ledger-2026-08.csv",
+        "contentSha256": "044342689643d17ede22c7363270a42cf14d0fc05f846130a6b2ad016bb54c3f",
+        "byteSize": 3487,
+        "status": "confirmed",
+        "parseSummary": {
+          "total": 30,
+          "included": 19,
+          "excluded": 11,
+          "includedTotal": 32828.14,
+          "excludedTotal": 49867.29,
+          "unmatchedVin": 19,
+          "byVendor": [
+            {
+              "vendor": "Enterprise Rent-A-Car",
+              "count": 15,
+              "total": 16148.63,
+              "coverageClass": "Rental + lease coverage"
+            },
+            {
+              "vendor": "MerchAuto9150 Corp",
+              "count": 1,
+              "total": 13915.39,
+              "coverageClass": "Amazon LMR coverage"
+            },
+            {
+              "vendor": "Hertz",
+              "count": 2,
+              "total": 2681.24,
+              "coverageClass": "Rental + lease coverage"
+            },
+            {
+              "vendor": "Element Fleet",
+              "count": 1,
+              "total": 82.88,
+              "coverageClass": "Unallocated"
+            }
+          ],
+          "unmappedVendors": [],
+          "periods": [
+            "2026-08"
+          ],
+          "provider": "digits",
+          "providerLabel": "Digits"
+        },
+        "uploadedBy": "gateway-owner",
+        "uploadedAt": "2026-09-22T03:12:35+00:00",
+        "confirmedAt": "2026-09-22T03:12:47+00:00",
+        "periodKey": "2026-08",
+        "provider": "digits"
+      },
+      "environment": null
     },
     {
-      "id": "fleet_portal",
-      "displayName": "Amazon Fleet Portal / PAVE",
+      "id": "amazon",
+      "displayName": "Amazon DSP",
       "authKind": "browser_session",
       "category": "Amazon",
-      "schedule": "Daily 04:00",
-      "description": "Vehicle roster, ownership, registration, PM and inspection evidence.",
-      "feeds": [
-        "Fleet Compliance"
-      ],
-      "reauthNote": "Shares the Amazon session strategy; reconnect when prompted.",
-      "status": "not_connected",
-      "configured": false,
-      "secretReference": null,
-      "lastSuccessAt": null,
-      "lastCheckedAt": null,
-      "lastError": null,
-      "sessionExpiresAt": null,
-      "reauthRequiredAt": null,
-      "latestUpload": null
-    },
-    {
-      "id": "amazon_logistics",
-      "displayName": "Amazon Logistics",
-      "authKind": "browser_session",
-      "category": "Amazon",
-      "schedule": "Weekly scorecard + daily checks",
-      "description": "Scorecards, driver performance, DVIC, capacity and reliability.",
+      "schedule": "Daily checks + weekly reports",
+      "description": "One Amazon sign-in for Logistics, Payments, Fleet Portal, routes, scorecards, disputes and reimbursements.",
       "feeds": [
         "Weekly Evaluation",
         "Driver Performance",
-        "Fleet Compliance"
-      ],
-      "reauthNote": "Amazon can revoke a saved session at any time. Reconnect takes about a minute and no credential is stored by the platform.",
-      "status": "not_connected",
-      "configured": false,
-      "secretReference": null,
-      "lastSuccessAt": null,
-      "lastCheckedAt": null,
-      "lastError": null,
-      "sessionExpiresAt": null,
-      "reauthRequiredAt": null,
-      "latestUpload": null
-    },
-    {
-      "id": "amazon_payments",
-      "displayName": "Amazon Payments",
-      "authKind": "browser_session",
-      "category": "Amazon",
-      "schedule": "Daily 05:00",
-      "description": "Weekly invoices, fixed monthly fleet reconciliation, AFS entitlement.",
-      "feeds": [
-        "Reimbursement Review",
+        "Routes",
+        "Disputes",
+        "Fleet Compliance",
         "Fleet Costs"
       ],
-      "reauthNote": "Kept separate from the Logistics session so a health check cannot overwrite payment authorization.",
-      "status": "not_connected",
-      "configured": false,
-      "secretReference": null,
-      "lastSuccessAt": null,
-      "lastCheckedAt": null,
+      "reauthNote": "Amazon may revoke the shared session. Complete MFA once to restore all Amazon-backed feeds.",
+      "reconnectLabel": "Amazon",
+      "reconnectAvailable": true,
+      "credentialFields": [],
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/amazon/browser-session",
+      "lastSuccessAt": "2026-09-22T04:31:43+00:00",
+      "lastCheckedAt": "2026-09-22T04:31:43+00:00",
       "lastError": null,
+      "lastAutomatedSyncAt": null,
+      "nextRunAt": null,
+      "lastSyncSummary": null,
       "sessionExpiresAt": null,
       "reauthRequiredAt": null,
-      "latestUpload": null
+      "latestUpload": null,
+      "environment": null
     },
     {
       "id": "digits_api",
@@ -140,16 +209,137 @@
         "client-id",
         "client-secret"
       ],
+      "credentialFields": [
+        {
+          "name": "clientId",
+          "label": "Client ID",
+          "secret": false,
+          "placeholder": "Digits client ID",
+          "configured": true
+        },
+        {
+          "name": "clientSecret",
+          "label": "Client secret",
+          "secret": true,
+          "placeholder": "Digits client secret",
+          "configured": true
+        }
+      ],
+      "environments": [
+        "development",
+        "production"
+      ],
+      "testable": true,
       "reauthNote": "OAuth client credentials stored in managed secret storage. Runs unattended once configured; no browser session is involved.",
-      "status": "not_connected",
-      "configured": false,
-      "secretReference": null,
-      "lastSuccessAt": null,
-      "lastCheckedAt": null,
+      "reconnectAvailable": false,
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/digits-api/credentials",
+      "lastSuccessAt": "2026-09-22T04:31:45+00:00",
+      "lastCheckedAt": "2026-09-22T04:31:45+00:00",
       "lastError": null,
+      "lastAutomatedSyncAt": null,
+      "nextRunAt": null,
+      "lastSyncSummary": null,
       "sessionExpiresAt": null,
       "reauthRequiredAt": null,
-      "latestUpload": null
+      "latestUpload": null,
+      "environment": "development"
+    },
+    {
+      "id": "pave",
+      "displayName": "PAVE",
+      "authKind": "browser_session",
+      "category": "Fleet",
+      "schedule": "Daily 04:00",
+      "description": "Separate PAVE website connection for vehicle assessments, inspection evidence and wear-and-tear results.",
+      "feeds": [
+        "Vans",
+        "Fleet Compliance",
+        "Wear & Tear"
+      ],
+      "reauthNote": "PAVE authentication is separate from Amazon. Reconnect when PAVE revokes the saved browser session.",
+      "reconnectLabel": "PAVE",
+      "credentialFields": [
+        {
+          "name": "username",
+          "label": "PAVE username",
+          "secret": false,
+          "placeholder": "PAVE username",
+          "configured": true
+        },
+        {
+          "name": "password",
+          "label": "PAVE password",
+          "secret": true,
+          "placeholder": "PAVE password",
+          "configured": true
+        }
+      ],
+      "environments": [
+        "production"
+      ],
+      "testable": false,
+      "reconnectAvailable": true,
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/pave/credentials",
+      "lastSuccessAt": "2026-09-22T04:31:45+00:00",
+      "lastCheckedAt": "2026-09-22T04:31:45+00:00",
+      "lastError": null,
+      "lastAutomatedSyncAt": "2026-09-22T02:50:56+00:00",
+      "nextRunAt": "2026-09-23T02:50:56+00:00",
+      "lastSyncSummary": {
+        "rows": 56,
+        "uniqueVins": 28
+      },
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": {
+        "id": "f26ffe402e6dd4b4",
+        "tenant": "jecs",
+        "source": "pave",
+        "originalFilename": "vehicles_fleet_2026-09-22T01-04-50.csv",
+        "storageKey": "tenants/jecs/pave/f26ffe402e6d-vehicles_fleet_2026-09-22T01-04-50.csv",
+        "contentSha256": "f26ffe402e6dd4b4ea9ba1f58ebda1bb2913af37bf791c49f3e4fd73e9a36b08",
+        "byteSize": 6430,
+        "status": "confirmed",
+        "parseSummary": {
+          "rowsRead": 56,
+          "rowsParsed": 56,
+          "rowsRejected": 0,
+          "completedRows": 53,
+          "incompleteRows": 3,
+          "uniqueVins": 28,
+          "latestAssessments": 28,
+          "currentFairOrBetter": 18,
+          "currentPoor": 10,
+          "currentGroundingRisk": 10,
+          "currentNewDamage": 13,
+          "gradeCounts": {
+            "4-Good": 13,
+            "2-Poor": 32,
+            "3-Fair": 3,
+            "5-Great": 5
+          },
+          "currentGradeCounts": {
+            "2-Poor": 10,
+            "4-Good": 11,
+            "5-Great": 5,
+            "3-Fair": 2
+          },
+          "earliestAt": "2026-06-29T14:55:53",
+          "latestAt": "2026-09-21T15:24:50",
+          "provider": "pave",
+          "providerLabel": "PAVE Fleet Dashboard"
+        },
+        "uploadedBy": "scheduled-pave-sync",
+        "uploadedAt": "2026-09-22T01:04:50+00:00",
+        "confirmedAt": "2026-09-22T02:50:56+00:00",
+        "periodKey": "2026-09",
+        "provider": "pave"
+      },
+      "environment": "production"
     },
     {
       "id": "email_imap",
@@ -164,18 +354,249 @@
         "LSC cases"
       ],
       "reauthNote": "An app password runs unattended and is the preferred path wherever Amazon emails the report.",
-      "status": "not_connected",
-      "configured": false,
-      "secretReference": null,
-      "lastSuccessAt": null,
-      "lastCheckedAt": null,
+      "credentialFields": [
+        {
+          "name": "host",
+          "label": "IMAP host",
+          "secret": false,
+          "placeholder": "imap.example.com",
+          "configured": true
+        },
+        {
+          "name": "port",
+          "label": "IMAP port",
+          "secret": false,
+          "placeholder": "993",
+          "configured": true
+        },
+        {
+          "name": "username",
+          "label": "Mailbox username",
+          "secret": false,
+          "placeholder": "reports@company.com",
+          "configured": true
+        },
+        {
+          "name": "appPassword",
+          "label": "App password",
+          "secret": true,
+          "placeholder": "Mailbox app password",
+          "configured": true
+        }
+      ],
+      "environments": [
+        "production"
+      ],
+      "testable": true,
+      "reconnectAvailable": false,
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/email-imap/credentials",
+      "lastSuccessAt": "2026-09-22T04:31:53+00:00",
+      "lastCheckedAt": "2026-09-22T04:31:53+00:00",
       "lastError": null,
+      "lastAutomatedSyncAt": "2026-09-22T04:31:53+00:00",
+      "nextRunAt": "2026-09-22T04:46:53+00:00",
+      "lastSyncSummary": {
+        "attachmentsArchived": 6
+      },
       "sessionExpiresAt": null,
       "reauthRequiredAt": null,
-      "latestUpload": null
+      "latestUpload": null,
+      "environment": "production"
     }
   ],
-  "uploads": [],
+  "uploads": [
+    {
+      "id": "044342689643d17e",
+      "tenant": "jecs",
+      "source": "financial_charges",
+      "originalFilename": "digits-ledger-2026-08.csv",
+      "storageKey": "tenants/jecs/financial_charges/044342689643-digits-ledger-2026-08.csv",
+      "contentSha256": "044342689643d17ede22c7363270a42cf14d0fc05f846130a6b2ad016bb54c3f",
+      "byteSize": 3487,
+      "status": "confirmed",
+      "parseSummary": {
+        "total": 30,
+        "included": 19,
+        "excluded": 11,
+        "includedTotal": 32828.14,
+        "excludedTotal": 49867.29,
+        "unmatchedVin": 19,
+        "byVendor": [
+          {
+            "vendor": "Enterprise Rent-A-Car",
+            "count": 15,
+            "total": 16148.63,
+            "coverageClass": "Rental + lease coverage"
+          },
+          {
+            "vendor": "MerchAuto9150 Corp",
+            "count": 1,
+            "total": 13915.39,
+            "coverageClass": "Amazon LMR coverage"
+          },
+          {
+            "vendor": "Hertz",
+            "count": 2,
+            "total": 2681.24,
+            "coverageClass": "Rental + lease coverage"
+          },
+          {
+            "vendor": "Element Fleet",
+            "count": 1,
+            "total": 82.88,
+            "coverageClass": "Unallocated"
+          }
+        ],
+        "unmappedVendors": [],
+        "periods": [
+          "2026-08"
+        ],
+        "provider": "digits",
+        "providerLabel": "Digits"
+      },
+      "uploadedBy": "gateway-owner",
+      "uploadedAt": "2026-09-22T03:12:35+00:00",
+      "confirmedAt": "2026-09-22T03:12:47+00:00",
+      "periodKey": "2026-08",
+      "provider": "digits"
+    },
+    {
+      "id": "f26ffe402e6dd4b4",
+      "tenant": "jecs",
+      "source": "pave",
+      "originalFilename": "vehicles_fleet_2026-09-22T01-04-50.csv",
+      "storageKey": "tenants/jecs/pave/f26ffe402e6d-vehicles_fleet_2026-09-22T01-04-50.csv",
+      "contentSha256": "f26ffe402e6dd4b4ea9ba1f58ebda1bb2913af37bf791c49f3e4fd73e9a36b08",
+      "byteSize": 6430,
+      "status": "confirmed",
+      "parseSummary": {
+        "rowsRead": 56,
+        "rowsParsed": 56,
+        "rowsRejected": 0,
+        "completedRows": 53,
+        "incompleteRows": 3,
+        "uniqueVins": 28,
+        "latestAssessments": 28,
+        "currentFairOrBetter": 18,
+        "currentPoor": 10,
+        "currentGroundingRisk": 10,
+        "currentNewDamage": 13,
+        "gradeCounts": {
+          "4-Good": 13,
+          "2-Poor": 32,
+          "3-Fair": 3,
+          "5-Great": 5
+        },
+        "currentGradeCounts": {
+          "2-Poor": 10,
+          "4-Good": 11,
+          "5-Great": 5,
+          "3-Fair": 2
+        },
+        "earliestAt": "2026-06-29T14:55:53",
+        "latestAt": "2026-09-21T15:24:50",
+        "provider": "pave",
+        "providerLabel": "PAVE Fleet Dashboard"
+      },
+      "uploadedBy": "scheduled-pave-sync",
+      "uploadedAt": "2026-09-22T01:04:50+00:00",
+      "confirmedAt": "2026-09-22T02:50:56+00:00",
+      "periodKey": "2026-09",
+      "provider": "pave"
+    },
+    {
+      "id": "4e2a881826a739f3",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "sign in and out 9-21-26.pdf",
+      "storageKey": "tenants/jecs/email_reports/4e2a881826a7-sign_in_and_out_9-21-26.pdf",
+      "contentSha256": "4e2a881826a739f3536980151f070b232948c6385fcd167c8d947a4a2acb58de",
+      "byteSize": 526827,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-22T01:00:53+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    },
+    {
+      "id": "c0d788a39201c2f1",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "PAYROLL CORRECTIONS.xlsx",
+      "storageKey": "tenants/jecs/email_reports/c0d788a39201-PAYROLL_CORRECTIONS.xlsx",
+      "contentSha256": "c0d788a39201c2f17fd618f129c191b992f985b9c431d5a5d436af596e4bf490",
+      "byteSize": 31681,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-22T01:00:51+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    },
+    {
+      "id": "565bef7f14b1e66b",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "US-JECS-DFH7-Week37-2026-Capacity-Reliability.xlsx",
+      "storageKey": "tenants/jecs/email_reports/565bef7f14b1-US-JECS-DFH7-Week37-2026-Capacity-Reliability.xlsx",
+      "contentSha256": "565bef7f14b1e66b3b2d393eef6b333bd53bfb1a8cdc75df97215d575c4a8e25",
+      "byteSize": 27873,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-22T01:00:50+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    },
+    {
+      "id": "9c613746a2c92aa5",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "sign in and out 9-20-26.pdf",
+      "storageKey": "tenants/jecs/email_reports/9c613746a2c9-sign_in_and_out_9-20-26.pdf",
+      "contentSha256": "9c613746a2c92aa54b746c0d02004d919726fb076b555faeaeed691ceff9a1ca",
+      "byteSize": 518433,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-22T01:00:49+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    },
+    {
+      "id": "f8ddf0bd3ce13b76",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "JECS CR 6-19 SEP.xlsx",
+      "storageKey": "tenants/jecs/email_reports/f8ddf0bd3ce1-JECS_CR_6-19_SEP.xlsx",
+      "contentSha256": "f8ddf0bd3ce13b76134a882a135cf71c47c6512dab2a353eece63717228b937a",
+      "byteSize": 36610,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-22T01:00:48+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    },
+    {
+      "id": "27997e9cfcf7025d",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "JECS Combine Lunch Report 6-19 Sept.xlsx",
+      "storageKey": "tenants/jecs/email_reports/27997e9cfcf7-JECS_Combine_Lunch_Report_6-19_Sept.xlsx",
+      "contentSha256": "27997e9cfcf7025d9ce14e0bedf2212bcbaecfe9b376c46217375baf0c6abbcc",
+      "byteSize": 104900,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-22T01:00:48+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    }
+  ],
   "secretPolicy": {
     "storage": "AWS Secrets Manager",
     "pathTemplate": "secret://{tenant}/aws-secrets/{connection}/{name}",

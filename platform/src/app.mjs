@@ -25,9 +25,10 @@ import { assistantRoutes } from './api/assistant-routes.mjs';
 const API_FEATURE_PREFIXES = Object.freeze([
   ['/api/connections', 'connections'], ['/api/uploads', 'connections'], ['/api/vendor-rules', 'connections'],
   ['/api/members', 'users'], ['/api/fleet-compliance', 'fleet_compliance'], ['/api/fleet-costs', 'fleet_costs'],
-  ['/api/disputes', 'disputes'], ['/api/payroll', 'payroll'], ['/api/routes', 'route_monitor'],
+  ['/api/disputes', 'disputes'], ['/api/payroll', 'payroll'], ['/api/route-monitor', 'route_monitor'], ['/api/routes', 'route_monitor'],
+  ['/api/time-attendance', 'time_attendance'],
   ['/api/drivers', 'drivers'], ['/api/pave', 'fleet_compliance'], ['/api/dashboard', 'dashboard']
-  ,['/api/assistant', 'dashboard']
+  ,['/api/assistant/config', 'ai_admin'], ['/api/assistant', 'dashboard']
 ]);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -278,7 +279,7 @@ export async function createApp({
   payrollRoutes(app, { repository, registry, logger });
 
   // React application compatibility endpoints backed by the tenant repository.
-  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, includeConnectionSnapshot: !connectionService });
+  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, connectionService, includeConnectionSnapshot: !connectionService });
 
   app.setErrorHandler((error, request, reply) => {
     request.log?.warn({ err: error, requestId: request.id }, 'request failed');

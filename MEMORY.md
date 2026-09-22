@@ -1,7 +1,7 @@
 # Long-Term Memory
 
 ## Working Preferences
-- Never publish or deploy dashboard/application changes to AWS unless the owner explicitly says to publish to AWS. Build and test locally by default.
+- Never publish or deploy dashboard/application changes to AWS unless the owner explicitly approves that specific deployment by saying **yes** (for example, “yes, deploy to AWS”). Approval does not carry forward to later deployments. Build and test locally by default, report readiness, and wait for a fresh explicit yes every time.
 - When the user asks to evaluate a DSP week, the standard process is: run the weekly download/validation first, then generate the canonical deliverables `weekXX-summary.md/pdf` and `weekXX-disputes.md/pdf`.
 - Present JECS KPI dashboard links using the canonical Tailscale base URL `https://oc-agents-mac-mini-1.tailee63c6.ts.net:8443/amazon-dsp-kpi-dashboard.html`, optionally with a cache-busting query parameter. Do not give the owner localhost or temporary portal URLs.
 - Exclude `NO RTS CODE SELECTED` when evaluating driver performance unless the user explicitly asks for raw portal scoring.

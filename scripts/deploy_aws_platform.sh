@@ -138,6 +138,7 @@ bundle_root="$temp_root/source"
 mkdir -p "$bundle_root/data/dashboards"
 
 cp "$PROJECT_ROOT/package.json" "$PROJECT_ROOT/package-lock.json" "$PROJECT_ROOT/.dockerignore" "$bundle_root/"
+cp "$PROJECT_ROOT/AGENTS.md" "$PROJECT_ROOT/SOUL.md" "$PROJECT_ROOT/IDENTITY.md" "$bundle_root/"
 rsync -a --exclude '.DS_Store' "$PROJECT_ROOT/platform/" "$bundle_root/platform/"
 cp "$PROJECT_ROOT/data/dashboards/amazon-dsp-kpi-dashboard.html" "$bundle_root/data/dashboards/"
 

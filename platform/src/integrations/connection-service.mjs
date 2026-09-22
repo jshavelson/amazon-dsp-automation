@@ -16,6 +16,9 @@ function publicConnection(definition, stored) {
     })),
     configured: definition.id === 'pave' ? Boolean(stored?.secret_reference) && fullyConfigured : Boolean(stored?.secret_reference),
     status: stored?.status || 'not_connected',
+    setupStatus: stored?.setup_status || stored?.status || 'not_connected',
+    dataAvailable: stored?.status === 'healthy',
+    sourceMode: stored?.source_mode || (stored?.secret_reference ? 'aws_managed' : null),
     lastSuccessAt: stored?.last_success_at || null,
     lastCheckedAt: stored?.last_checked_at || null,
     lastError: stored?.last_error || null,
@@ -49,13 +52,14 @@ export class ConnectionService {
   #repository;
   #secretProvider;
 
-  constructor({ repository, secretProvider }) {
+  constructor({ repository, secretProvider, baseline = null }) {
     if (!repository?.listIntegrationConnections || !repository?.upsertIntegrationConnection) {
       throw new Error('connection repository is required');
     }
     if (!secretProvider?.write || !secretProvider?.read) throw new Error('managed secret provider is required');
     this.#repository = repository;
     this.#secretProvider = secretProvider;
+    this.baseline = baseline;
   }
 
   async list(context) {
@@ -69,18 +73,35 @@ export class ConnectionService {
         byType.set('amazon', legacy.sort((a, b) => (rank[a.status] ?? 2) - (rank[b.status] ?? 2))[0]);
       }
     }
-    const connections = CONNECTION_CATALOG.map((definition) => publicConnection(definition, byType.get(definition.id)));
-    const active = connections.filter((item) => item.status === 'healthy').length;
+    const baselineByType = new Map((this.baseline?.connections || []).map((item) => [item.id, item]));
+    const connections = CONNECTION_CATALOG.map((definition) => {
+      const persisted = byType.get(definition.id);
+      const baseline = baselineByType.get(definition.id);
+      const baselineHealthy = baseline?.status === 'healthy' && baseline?.lastSuccessAt;
+      const persistedRequiresAttention = ['needs_reauth', 'degraded'].includes(persisted?.status);
+      const effective = {
+        ...(persisted || {}),
+        status: persistedRequiresAttention ? persisted.status : baselineHealthy ? 'healthy' : persisted?.status,
+        setup_status: persisted?.status || 'not_connected',
+        last_success_at: persisted?.last_success_at || baseline?.lastSuccessAt || null,
+        last_checked_at: persisted?.last_checked_at || baseline?.lastCheckedAt || null,
+        source_mode: baselineHealthy && !persisted?.last_success_at ? 'deployment_snapshot' : (persisted?.secret_reference ? 'aws_managed' : null)
+      };
+      return publicConnection(definition, effective);
+    });
+    const persistentConnections = connections.filter((item) => item.authKind !== 'manual_upload');
+    const active = persistentConnections.filter((item) => item.status === 'healthy').length;
     return {
       tenant: context.principal.tenantId,
       servedAt: new Date().toISOString(),
       summary: {
         total: connections.length,
+        connectionTotal: persistentConnections.length,
         connected: active,
         active,
-        health: connections.length && active === connections.length ? 'green' : active ? 'yellow' : 'red',
-        needsAttention: connections.filter((item) => ['needs_reauth', 'degraded'].includes(item.status)).length,
-        notConnected: connections.filter((item) => item.status === 'not_connected').length
+        health: persistentConnections.length && active === persistentConnections.length ? 'green' : active ? 'yellow' : 'red',
+        needsAttention: persistentConnections.filter((item) => ['needs_reauth', 'degraded'].includes(item.status)).length,
+        notConnected: persistentConnections.filter((item) => item.status === 'not_connected').length
       },
       connections,
       uploads: [],
@@ -89,6 +110,22 @@ export class ConnectionService {
         pathTemplate: 'secret://{tenant}/aws/{connection}/credentials',
         note: 'Credential values are write-only. The browser and database receive only configuration status and a secret reference.'
       }
+    };
+  }
+
+  async refresh(context) {
+    const payload = await this.list(context);
+    return {
+      status: 'completed',
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      sources: payload.connections.filter((item) => item.authKind !== 'manual_upload').map((item) => ({
+        id: item.id,
+        status: item.status,
+        message: item.sourceMode === 'deployment_snapshot'
+          ? 'Latest verified deployment snapshot retained'
+          : item.status === 'healthy' ? 'AWS-managed source is healthy' : 'Source requires setup or attention'
+      }))
     };
   }
 

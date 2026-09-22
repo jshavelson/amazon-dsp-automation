@@ -11,6 +11,7 @@ type Charge = { month: string; datePosted: string | null; vendor: string; accoun
 type Payload = {
   period: string; asOf: string; source: string; tenant?: string; needsData?: boolean;
   dataSources?: { side: string; label: string; kind: string; reference: string | null; asOf: string | null; contentSha256?: string; uploadedBy?: string }[];
+  currentPeriod?: { period: string; asOf: string; status: string; invoiceNumber: string | null; rentalLmrLeaseCoverage: number; fullFleetCoverage: number; source: string; costStatus: string } | null;
   summary: { threeMonthIncludedCost: number; threeMonthAmazonCoverage: number; threeMonthDifference: number; coverageRate: number; augustDifference: number; thirdPartyRentalCost: number; rentalLeaseCoverage: number; lmrCost: number; lmrCoverage: number; elementCost: number; acuraExcluded: number; fullAmazonCoverage: number; includedTransactions: number; excludedTransactions: number; unmatchedVinCharges: number };
   months: MonthRow[]; vendors: Vendor[]; amazonClasses: AmazonClass[]; invoiceBridge: Bridge[]; charges: Charge[]; notes: { topic: string; detail: string }[]; caveats: string[];
 };
@@ -92,8 +93,12 @@ const FleetCostsPage: React.FC = () => {
       <Kpi label="August difference" value={ms(s.augustDifference, 2)} valueClass={tone(s.augustDifference)} detail="Provisional — August final reconciliation not yet posted" icon={<AlertTriangle size={20} />} />
     </section>
 
+    {data.currentPeriod && <section className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+      <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide">Latest Amazon fleet payment · {data.currentPeriod.status}</p><h2 className="mt-1 text-lg font-bold">{data.currentPeriod.period} · {data.currentPeriod.invoiceNumber}</h2><p className="mt-1 text-sm">Rental + LMR + lease coverage: <strong>{m(data.currentPeriod.rentalLmrLeaseCoverage, 2)}</strong> · Full fleet coverage: <strong>{m(data.currentPeriod.fullFleetCoverage, 2)}</strong></p><p className="mt-1 text-xs">{data.currentPeriod.costStatus}; no unsupported difference is calculated.</p></div><div className="text-right text-xs"><p>Through {new Date(`${data.currentPeriod.asOf}T12:00:00`).toLocaleDateString('en-US', { dateStyle: 'medium' })}</p><p className="mt-1 font-mono">{data.currentPeriod.source}</p></div></div>
+    </section>}
+
     {data.dataSources && <section className="grid gap-3 sm:grid-cols-2">{data.dataSources.map((src) => (
-      <article key={src.side} className={'rounded-xl border p-4 ' + (src.kind === 'tenant_upload' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900')}>
+      <article key={`${src.side}-${src.label}`} className={'rounded-xl border p-4 ' + (src.kind === 'tenant_upload' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900')}>
         <div className="flex items-start justify-between gap-2">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{src.side}</p><p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">{src.label}</p></div>
           <span className={'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ' + (src.kind === 'tenant_upload' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300')}>{src.kind === 'tenant_upload' ? 'Your upload' : 'Reference'}</span>

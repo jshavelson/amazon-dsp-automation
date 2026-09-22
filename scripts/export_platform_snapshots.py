@@ -20,6 +20,8 @@ from scripts.jecs_api_server import (
     build_connections_payload,
     build_fleet_compliance_payload,
     build_fleet_cost_reconciliation,
+    build_performance_dashboard_payload,
+    build_route_monitor_payload,
     build_reimbursement_review_payload,
 )
 
@@ -38,6 +40,7 @@ def write(name, payload):
 
 def main():
     files = [
+        write("performance.json", build_performance_dashboard_payload()),
         write("fleet-compliance.json", build_fleet_compliance_payload()),
         write("fleet-costs.json", build_fleet_cost_reconciliation(TENANT)),
         write("connections.json", build_connections_payload(TENANT)),
@@ -47,6 +50,7 @@ def main():
             "providers": PROVIDER_LABELS,
         }),
         write("modules.json", build_reimbursement_review_payload()),
+        write("route-monitor.json", build_route_monitor_payload()),
     ]
     for path in files:
         print(path.relative_to(ROOT))

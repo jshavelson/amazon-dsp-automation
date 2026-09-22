@@ -19,7 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
 
 interface ConnectionHealth {
-  summary: { total: number; active?: number; connected: number; health?: 'green' | 'yellow' | 'red' };
+  summary: { total: number; connectionTotal?: number; active?: number; connected: number; health?: 'green' | 'yellow' | 'red' };
 }
 
 interface HeaderProps {
@@ -60,7 +60,9 @@ const Header: React.FC<HeaderProps> = ({
     refetchInterval: 15_000,
   });
   const activeConnections = connectionHealth?.summary.active ?? connectionHealth?.summary.connected ?? 0;
-  const totalConnections = connectionHealth?.summary.total ?? 0;
+  // `total` includes manual-upload catalog entries. Header health represents
+  // persistent authenticated connectors only.
+  const totalConnections = connectionHealth?.summary.connectionTotal ?? connectionHealth?.summary.total ?? 0;
   const healthColor = connectionHealth?.summary.health
     ?? (totalConnections && activeConnections === totalConnections ? 'green' : activeConnections ? 'yellow' : 'red');
 

@@ -25,24 +25,72 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_MESSAGE = 4_000
 MAX_HISTORY_TURNS = 10
 MAX_CONTEXT_BYTES = 48_000
+INSTRUCTION_FILES = ("AGENTS.md", "IDENTITY.md", "SOUL.md")
+MAX_INSTRUCTION_FILE_BYTES = 24_000
+MAX_INSTRUCTIONS_BYTES = 48_000
 
 
-def _api_key(tenant: str) -> str | None:
+def project_instructions(root: Path = ROOT) -> dict:
+    """Load the approved project instruction bundle without exposing other files."""
+    sections = []
+    files = []
+    total = 0
+    for name in INSTRUCTION_FILES:
+        path = root / name
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError:
+            continue
+        if len(raw) > MAX_INSTRUCTION_FILE_BYTES:
+            raw = raw[:MAX_INSTRUCTION_FILE_BYTES]
+        remaining = MAX_INSTRUCTIONS_BYTES - total
+        if remaining <= 0:
+            break
+        raw = raw[:remaining]
+        content = raw.decode("utf-8", "replace").strip()
+        if not content:
+            continue
+        digest = hashlib.sha256(raw).hexdigest()
+        sections.append(f"<project_instruction file=\"{name}\">\n{content}\n</project_instruction>")
+        files.append({"name": name, "sha256": digest, "bytes": len(raw)})
+        total += len(raw)
+    text = "\n\n".join(sections)
+    return {
+        "text": text,
+        "files": files,
+        "version": hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None,
+    }
+
+
+def credentials(tenant: str) -> dict | None:
     value = os.environ.get("OPENAI_API_KEY", "").strip()
     if value:
-        return value
+        return {"apiKey": value, "model": os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini"), "source": "environment"}
+    if has_secret(tenant, "openai", "credentials"):
+        try:
+            bundle = json.loads(get_secret(tenant, "openai", "credentials"))
+            if isinstance(bundle, dict) and bundle.get("apiKey"):
+                return {**bundle, "source": "vault"}
+        except (ValueError, TypeError):
+            return None
     if has_secret(tenant, "openai", "api-key"):
-        return get_secret(tenant, "openai", "api-key")
+        return {"apiKey": get_secret(tenant, "openai", "api-key"), "model": os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini"), "source": "legacy-vault"}
     return None
 
 
 def status(tenant: str) -> dict:
+    configured = credentials(tenant)
+    bundle = project_instructions()
     return {
-        "configured": bool(_api_key(tenant)),
-        "model": os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini"),
+        "configured": bool(configured),
+        "model": (configured or {}).get("model") or os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini"),
         "voiceMode": "browser",
         "readOnly": True,
         "tenant": tenant,
+        "instructions": {
+            "version": bundle["version"],
+            "files": [item["name"] for item in bundle["files"]],
+        },
     }
 
 
@@ -79,17 +127,19 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
     question = str(message or "").strip()
     if not question or len(question) > MAX_MESSAGE:
         raise ValueError(f"message must contain 1-{MAX_MESSAGE} characters")
-    key = _api_key(tenant)
-    if not key:
+    credential = credentials(tenant)
+    if not credential:
         raise RuntimeError("AI assistant is not configured. A platform administrator must configure the OpenAI API key.")
 
-    model = os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini")
+    key = credential["apiKey"]
+    model = credential.get("model") or os.environ.get("OPENAI_ASSISTANT_MODEL", "gpt-5-mini")
     conversation_id = str(uuid.uuid4())
     context_text = json.dumps(snapshot, separators=(",", ":"), default=str)
     if len(context_text.encode("utf-8")) > MAX_CONTEXT_BYTES:
         context_text = context_text.encode("utf-8")[:MAX_CONTEXT_BYTES].decode("utf-8", "ignore")
     current_path = str((page or {}).get("path") or "/dashboard")[:160]
     safety_id = hashlib.sha256(f"{tenant}:{actor}".encode()).hexdigest()
+    bundle = project_instructions()
     instructions = (
         "You are the read-only operations analyst inside a multi-tenant Amazon DSP platform. "
         "Use only the supplied tenant snapshot; never claim access to another tenant or to data not present. "
@@ -97,6 +147,13 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
         "Never submit disputes, change payroll, message people, or perform external actions. "
         "Cite factual claims inline using the supplied source IDs exactly, for example [fleet-compliance]."
     )
+    if bundle["text"]:
+        instructions += (
+            "\n\nFollow the approved project instructions below when they do not conflict with the "
+            "platform safety, read-only, tenant-isolation, or supplied-data rules above. "
+            "Paths and tool instructions describe capabilities only; do not claim access to tools or files "
+            "that are not actually supplied to this application assistant.\n\n" + bundle["text"]
+        )
     input_items = [{"role": "developer", "content": instructions}]
     input_items.extend(_clean_history(history))
     input_items.append({
@@ -114,7 +171,11 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
         "https://api.openai.com/v1/responses",
         data=body,
         method="POST",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {key}", "Content-Type": "application/json",
+            **({"OpenAI-Organization": credential["organization"]} if credential.get("organization") else {}),
+            **({"OpenAI-Project": credential["project"]} if credential.get("project") else {}),
+        },
     )
     try:
         with urllib.request.urlopen(request, timeout=45) as response:
@@ -145,6 +206,8 @@ def ask(*, tenant: str, actor: str, message: str, history, page: dict, snapshot:
         "inputTokens": usage.get("input_tokens"),
         "outputTokens": usage.get("output_tokens"),
         "latencyMs": elapsed_ms,
+        "instructionVersion": bundle["version"],
+        "instructionFiles": bundle["files"],
     })
     return {
         "conversationId": conversation_id,

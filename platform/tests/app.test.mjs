@@ -39,6 +39,13 @@ const repository = {
   async listCases(_context, moduleId) { return [{ id: 'case-1', module_id: moduleId }]; },
   async latestDashboardSnapshot() { return { period_key: '2026-W37', stale_sources: [] }; },
   async listIntegrationConnections() { return [{ id: 'connection-1', integration_type: 'adp', status: 'healthy' }]; }
+  ,async listAttendanceExceptions() {
+    return {
+      startDate: '2026-09-13', endDate: '2026-09-19', capturedAt: '2026-09-20T01:00:00Z',
+      employees: 26, dailyAssignments: 0, routeReconciliationAvailable: false,
+      items: [{ employee: 'Example Driver', date: '2026-09-15', issueType: 'Long shift', details: '10.25 hours' }]
+    };
+  }
   ,async listFeatureOverrides() { return []; }
   ,async listMembers() { return [{ identitySubject: 'user-1', email: 'owner@example.com', role: 'owner', status: 'active' }]; }
   ,async inviteMember(_context, value) { return { identitySubject: 'invited:1', ...value, status: 'invited' }; }
@@ -90,6 +97,93 @@ test('authenticated React session endpoint returns the current tenant user', asy
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().email, 'owner@example.com');
   assert.equal(response.json().role, 'dsp_owner');
+});
+
+test('operations dashboard is assembled from connected scorecard and operational sources', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/dashboard/operations',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.match(payload.performance.period, /^\d{4}-wk\d{2}$/);
+  assert.ok(payload.performance.drivers.length > 0);
+  assert.ok(payload.performance.history.length > 0);
+  assert.ok(payload.sources.some((source) => source.id === 'amazon'));
+});
+
+test('time and attendance returns tenant-scoped ADP exceptions and honest route coverage', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/time-attendance/exceptions',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(payload.sourcePeriod, '2026-09-13 to 2026-09-19');
+  assert.equal(payload.coverage.employees, 26);
+  assert.equal(payload.coverage.routeReconciliationAvailable, false);
+  assert.equal(payload.exceptions[0].issueType, 'Long shift');
+  assert.match(payload.message, /route-based exceptions are withheld/);
+});
+
+test('route monitor returns the object contract from packaged evidence when the route table is unavailable', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/route-monitor',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(Array.isArray(payload), false);
+  assert.equal(Array.isArray(payload.routes), true);
+  assert.ok(payload.routes.length > 0);
+  assert.equal(payload.routeCount, payload.routes.length);
+  assert.match(payload.source, /Amazon/);
+});
+
+test('vans returns the paginated contract with the packaged fleet roster when the van table is unavailable', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/vans',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.equal(Array.isArray(payload.data), true);
+  assert.ok(payload.data.length >= 40);
+  assert.equal(payload.meta.totalItems, payload.data.length);
+  assert.ok(payload.data.every((van) => van.vin && van.van_number && van.status && van.ownership));
+});
+
+test('payroll returns a needs-data contract instead of HTTP 500 when its table is unavailable', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/payroll',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().needsData, true);
+  assert.deepEqual(response.json().timecards, []);
+});
+
+test('implemented header destinations are present in the visible feature context', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/context',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  const routes = response.json().features.map((feature) => feature.route);
+  assert.ok(routes.includes('/notifications'));
+  assert.ok(routes.includes('/security'));
 });
 
 test('assistant is tenant-authenticated and fails closed when no platform model is configured', async (t) => {

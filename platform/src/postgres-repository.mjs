@@ -133,8 +133,15 @@ export class PostgresRepository {
         [context.principal.tenantDbId, exchange.conversationId, exchange.providerRequestId, exchange.model, exchange.inputTokens || null, exchange.outputTokens || null, exchange.latencyMs]
       );
       await client.query(
-        `insert into app.audit_events (tenant_id,actor_subject,action,resource_type,resource_id,request_id,metadata) values ($1,$2,'assistant.response','ai_conversation',$3,$4,jsonb_build_object('model',$5,'inputTokens',$6,'outputTokens',$7,'path',$8))`,
-        [context.principal.tenantDbId, context.principal.userId, exchange.conversationId, exchange.requestId, exchange.model, exchange.inputTokens || null, exchange.outputTokens || null, exchange.path]
+        `insert into app.audit_events (tenant_id,actor_subject,action,resource_type,resource_id,request_id,metadata) values ($1,$2,'assistant.response','ai_conversation',$3,$4,$5::jsonb)`,
+        [context.principal.tenantDbId, context.principal.userId, exchange.conversationId, exchange.requestId, JSON.stringify({
+          model: exchange.model,
+          inputTokens: exchange.inputTokens || null,
+          outputTokens: exchange.outputTokens || null,
+          path: exchange.path,
+          instructionVersion: exchange.instructionVersion || null,
+          instructionFiles: exchange.instructionFiles || []
+        })]
       );
     });
   }
@@ -379,6 +386,49 @@ export class PostgresRepository {
         items: result.rows,
         total: parseInt(countResult.rows[0].total, 10)
       };
+    });
+  }
+
+  async listAttendanceExceptions(context, { limit = 500 } = {}) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const coverage = await client.query(
+        `select min(work_date) as "startDate", max(work_date) as "endDate",
+                max(captured_at) as "capturedAt", count(distinct employee_external_id)::int as employees,
+                (select count(*)::int from app.daily_route_assignments where tenant_id = $1) as "dailyAssignments"
+           from app.attendance_day_entries where tenant_id = $1`,
+        [context.principal.tenantDbId]
+      );
+      const meta = coverage.rows[0];
+      const routeCoverage = Number(meta.dailyAssignments) > 0;
+      const result = await client.query(
+        `select employee_name as employee, work_date::text as date,
+                case
+                  when duration_hours > 10 then 'Long shift'
+                  when duration_hours = 0 and route_code is not null then 'Missed punch'
+                  when duration_hours > 0 and route_code is null and $2::boolean then 'Unassigned shift'
+                end as "issueType",
+                case
+                  when duration_hours > 10 then trim(to_char(duration_hours, 'FM999990.00')) || ' hours'
+                  when duration_hours = 0 and route_code is not null then 'No ADP time recorded for assigned Amazon route on ' || work_date::text
+                  when duration_hours > 0 and route_code is null and $2::boolean then 'ADP time but no Amazon route assignment'
+                end as details
+           from (
+             select a.*, r.route_code
+               from app.attendance_day_entries a
+               left join app.daily_route_assignments r
+                 on r.tenant_id = a.tenant_id
+                and r.employee_external_id = a.employee_external_id
+                and r.route_date = a.work_date
+              where a.tenant_id = $1
+           ) reconciled
+          where duration_hours > 10
+             or (duration_hours = 0 and route_code is not null)
+             or (duration_hours > 0 and route_code is null and $2::boolean)
+          order by work_date desc, employee_name
+          limit $3`,
+        [context.principal.tenantDbId, routeCoverage, limit]
+      );
+      return { items: result.rows, ...meta, routeReconciliationAvailable: routeCoverage };
     });
   }
 

@@ -36,7 +36,12 @@ const DashboardLayout: React.FC = () => {
   // Check if mobile
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // A mobile route change closes the drawer. Re-open the persistent shell
+      // when the viewport returns to desktop so navigation cannot become
+      // unreachable until a full page refresh.
+      if (!mobile) setSidebarOpen(true);
     };
 
     checkMobile();

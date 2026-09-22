@@ -83,70 +83,32 @@ export function payrollRoutes(app, { repository, logger }) {
         });
       }
       
-      // Final fallback to mock data
-      const timecards = [
-        {
-          id: 'TC-001',
-          driver_id: 'A11030SMNGIQYH',
-          driver_name: 'Jayden Julius Tavera',
-          week: '2026-wk37',
-          hours: 45,
-          regular_hours: 40,
-          overtime_hours: 5,
-          regular_earnings: 820.00,
-          overtime_earnings: 127.50,
-          total_earnings: 947.50,
-          status: 'approved',
-          submitted_date: '2026-09-15',
-          approved_date: '2026-09-16'
-        },
-        {
-          id: 'TC-002',
-          driver_id: 'A2DWYPL507YLX0',
-          driver_name: 'Danjay Steve Blackburn',
-          week: '2026-wk37',
-          hours: 51,
-          regular_hours: 45,
-          overtime_hours: 6,
-          regular_earnings: 922.50,
-          overtime_earnings: 153.00,
-          total_earnings: 1075.50,
-          status: 'submitted',
-          submitted_date: '2026-09-16',
-          approved_date: null
-        },
-        {
-          id: 'TC-003',
-          driver_id: 'A33SU2XRPGI1M5',
-          driver_name: 'Demaury Juvar Brown',
-          week: '2026-wk37',
-          hours: 42,
-          regular_hours: 42,
-          overtime_hours: 0,
-          regular_earnings: 861.00,
-          overtime_earnings: 0,
-          total_earnings: 861.00,
-          status: 'approved',
-          submitted_date: '2026-09-14',
-          approved_date: '2026-09-15'
-        }
-      ];
-      
       return reply.send({
-        week: week || '2026-wk37',
+        week: week || timecardData.week,
         period: period || 'weekly',
-        timecards,
+        timecards: [],
+        needsData: true,
+        source: 'ADP Workforce Now',
+        sourceStatus: 'No tenant-scoped timecards have been ingested',
         summary: {
-          totalDrivers: timecards.length,
-          totalRegularHours: timecards.reduce((sum, t) => sum + (t.regular_hours || 0), 0),
-          totalOvertimeHours: timecards.reduce((sum, t) => sum + (t.overtime_hours || 0), 0),
-          totalEarnings: timecards.reduce((sum, t) => sum + (t.total_earnings || 0), 0),
-          averageEarnings: timecards.reduce((sum, t) => sum + (t.total_earnings || 0), 0) / timecards.length
+          totalDrivers: 0, totalRegularHours: 0, totalOvertimeHours: 0,
+          totalEarnings: 0, averageEarnings: 0
         }
       });
     } catch (error) {
-      logger.error('Failed to get payroll data:', error);
-      return reply.code(500).send({ error: 'Failed to get payroll data' });
+      request.log?.warn?.({ err: error }, 'payroll source unavailable; returning explicit needs-data state');
+      return reply.send({
+        week: week || null,
+        period: period || 'weekly',
+        timecards: [],
+        needsData: true,
+        source: 'ADP Workforce Now',
+        sourceStatus: 'No tenant-scoped payroll register has been ingested',
+        summary: {
+          totalDrivers: 0, totalRegularHours: 0, totalOvertimeHours: 0,
+          totalEarnings: 0, averageEarnings: 0
+        }
+      });
     }
   });
 
@@ -179,38 +141,10 @@ export function payrollRoutes(app, { repository, logger }) {
         return reply.send(discrepancies);
       }
       
-      // Fallback to mock discrepancies
-      const discrepancies = [
-        {
-          id: 'DISC-001',
-          driver_id: 'A11030SMNGIQYH',
-          driver_name: 'Jayden Julius Tavera',
-          week: week || '2026-wk37',
-          date: '2026-09-17',
-          adp_hours: 45,
-          route_hours: 40,
-          issue: 'Hours mismatch between ADP and route assignments',
-          severity: 'high',
-          type: 'hours_mismatch'
-        },
-        {
-          id: 'DISC-002',
-          driver_id: 'A2DWYPL507YLX0',
-          driver_name: 'Danjay Steve Blackburn',
-          week: week || '2026-wk37',
-          date: '2026-09-16',
-          adp_hours: 0,
-          route_hours: 0,
-          issue: 'No route assigned but ADP shows hours',
-          severity: 'medium',
-          type: 'missing_route'
-        }
-      ];
-      
-      return reply.send(discrepancies);
+      return reply.send([]);
     } catch (error) {
-      logger.error('Failed to get payroll discrepancies:', error);
-      return reply.code(500).send({ error: 'Failed to get payroll discrepancies' });
+      request.log?.warn?.({ err: error }, 'payroll discrepancy source unavailable; returning empty result');
+      return reply.send([]);
     }
   });
 }

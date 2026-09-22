@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
@@ -23,7 +23,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
 } from 'lucide-react';
-import { usePerformanceDashboard, useDriverPerformance, useTeamPerformance } from '@/hooks/usePerformance';
+import { usePerformanceDashboard } from '@/hooks/usePerformance';
 import { DriverPerformanceScore, TeamPerformance, DSPPerformance, PerformanceAlert } from '@/types/performance';
 import { Button, IconButton } from '@/components/shared/Button';
 import { Input } from '@/components/shared/Input';
@@ -43,15 +43,15 @@ const PerformancePage: React.FC = () => {
 
   // Fetch performance data
   const { data: dashboardData, isLoading: isDashboardLoading, error: dashboardError, refetch: refetchDashboard } = usePerformanceDashboard(periodFilter);
-  const { data: driverPerformanceData, isLoading: isDriverLoading, error: driverError } = useDriverPerformance('', periodFilter);
-  const { data: teamPerformanceData, isLoading: isTeamLoading, error: teamError } = useTeamPerformance('', periodFilter);
+  const connectedData = dashboardData as (typeof dashboardData & { drivers?: DriverPerformanceScore[]; generatedAt?: string; source?: string }) | undefined;
+  const drivers = useMemo(() => connectedData?.drivers || [
+    ...(dashboardData?.topDrivers || []), ...(dashboardData?.bottomDrivers || [])
+  ].filter((row, index, all) => all.findIndex((candidate) => candidate.driverId === row.driverId) === index), [connectedData?.drivers, dashboardData?.topDrivers, dashboardData?.bottomDrivers]);
+  const teams: TeamPerformance[] = dashboardData?.teamPerformance || [];
+  const dspPerformance: DSPPerformance | null = dashboardData?.dspPerformance || null;
+  const alerts: PerformanceAlert[] = [];
 
-  // Mock data for demonstration
-  const [drivers, setDrivers] = useState<DriverPerformanceScore[]>([]);
-  const [teams, setTeams] = useState<TeamPerformance[]>([]);
-  const [dspPerformance, setDspPerformance] = useState<DSPPerformance | null>(null);
-  const [alerts, setAlerts] = useState<PerformanceAlert[]>([]);
-
+  /* Legacy demo fixture removed from execution; retained temporarily for a focused cleanup diff.
   // Load mock data
   useEffect(() => {
     // Mock drivers
@@ -304,6 +304,7 @@ const PerformancePage: React.FC = () => {
     setDspPerformance(mockDspPerformance);
     setAlerts(mockAlerts);
   }, []);
+  */
 
   // Handle sort
   const handleSort = useCallback((key: string) => {
@@ -481,7 +482,7 @@ const PerformancePage: React.FC = () => {
   ];
 
   // Loading state
-  if (isDashboardLoading || isDriverLoading || isTeamLoading) {
+  if (isDashboardLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <LoadingSpinner size="lg" text="Loading performance data..." />
@@ -490,7 +491,7 @@ const PerformancePage: React.FC = () => {
   }
 
   // Error state
-  if (dashboardError || driverError || teamError) {
+  if (dashboardError) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">

@@ -5,11 +5,30 @@ import { api } from '@/services/api';
 import { MetricCard, OperationalSourceBanner } from '@/components/shared/OperationalSourceBanner';
 
 type Van = { id: string; van_number: string; vin: string; make: string; model: string; year: number; status: string; ownership: string };
+type VanApiRow = Partial<Van> & { licensePlate?: string; unit?: string; operationalStatus?: string };
+type VanApiResponse = VanApiRow[] | { data?: VanApiRow[]; items?: VanApiRow[] };
+
+export const normalizeVans = (response: VanApiResponse): Van[] => {
+  const rows = Array.isArray(response) ? response : response.data || response.items || [];
+  return rows.map((van, index) => ({
+    id: String(van.id || van.vin || `van-${index + 1}`),
+    van_number: String(van.van_number || van.unit || van.licensePlate || van.vin?.slice(-7) || 'Unassigned'),
+    vin: String(van.vin || ''),
+    make: String(van.make || ''),
+    model: String(van.model || ''),
+    year: Number(van.year || 0),
+    status: String(van.status || van.operationalStatus || 'UNKNOWN').toUpperCase(),
+    ownership: String(van.ownership || 'UNKNOWN').toUpperCase(),
+  }));
+};
 
 const VansPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [ownership, setOwnership] = useState('all');
-  const { data = [], isLoading, error, refetch } = useQuery<Van[]>({ queryKey: ['operational-vans'], queryFn: () => api.get<Van[]>('/vans') });
+  const { data = [], isLoading, error, refetch } = useQuery<Van[]>({
+    queryKey: ['operational-vans'],
+    queryFn: async () => normalizeVans(await api.get<VanApiResponse>('/vans')),
+  });
   const ownerships = useMemo(() => [...new Set(data.map(v => v.ownership))].sort(), [data]);
   const rows = useMemo(() => data.filter(v => {
     const q = search.toLowerCase();

@@ -5,7 +5,19 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/app/' : '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'local-app-asset-compatibility',
+      configureServer(server) {
+        server.middlewares.use((request, _response, next) => {
+          if (request.url === '/app/favicon.svg') request.url = '/favicon.svg';
+          if (request.url === '/app/manifest.json') request.url = '/manifest.json';
+          next();
+        });
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

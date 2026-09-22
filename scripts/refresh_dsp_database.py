@@ -169,13 +169,13 @@ def init_database(conn: sqlite3.Connection):
             a.date,
             a.duration_hours,
             CASE
-                WHEN a.duration_hours = 0 THEN 'Missed punch'
+                WHEN a.duration_hours = 0 AND ra.route_code IS NOT NULL THEN 'Missed punch'
                 WHEN a.duration_hours > 10 THEN 'Long shift'
                 WHEN ra.route_code IS NULL AND a.duration_hours > 0 THEN 'Unassigned shift'
                 ELSE NULL
             END AS issue_type,
             CASE
-                WHEN a.duration_hours = 0 THEN 'No time recorded for ' || a.date
+                WHEN a.duration_hours = 0 AND ra.route_code IS NOT NULL THEN 'No ADP time recorded for assigned Amazon route on ' || a.date
                 WHEN a.duration_hours > 10 THEN printf('%.2f hours', a.duration_hours)
                 WHEN ra.route_code IS NULL THEN 'ADP time but no Amazon route assignment'
                 ELSE NULL
@@ -185,7 +185,7 @@ def init_database(conn: sqlite3.Connection):
         LEFT JOIN driver_route_assignments ra ON a.driver_id = ra.driver_id AND a.date = ra.date
         WHERE a.duration_hours IS NOT NULL
           AND (
-            a.duration_hours = 0
+            (a.duration_hours = 0 AND ra.route_code IS NOT NULL)
             OR a.duration_hours > 10
             OR (ra.route_code IS NULL AND a.duration_hours > 0)
           )
@@ -234,7 +234,7 @@ def import_adp_timecards(conn: sqlite3.Connection, adp_path: Path):
     for associate in timecards_data:
         person = associate.get("personLegalName", {})
         name = person.get("formattedName", "Unknown")
-        adp_oid = associate.get("personId", "")
+        adp_oid = associate.get("associateOID") or associate.get("personId", "")
         driver_id = adp_oid
         
         cursor.execute("""
@@ -247,7 +247,7 @@ def import_adp_timecards(conn: sqlite3.Connection, adp_path: Path):
                 date_str = day.get("entryDate", "")
                 duration = day.get("totalPeriodTimeDuration", "PT0H")
                 total_hours = parse_iso_duration(duration)
-                timecard_id = timecard.get("timeCardId", "")
+                timecard_id = timecard.get("timeCardID") or timecard.get("timeCardId", "")
                 pay_code = day.get("payCode", "")
                 
                 if date_str and total_hours is not None:
@@ -260,6 +260,38 @@ def import_adp_timecards(conn: sqlite3.Connection, adp_path: Path):
     
     conn.commit()
     return imported
+
+
+def rebuild_time_attendance_view(conn: sqlite3.Connection):
+    """Keep attendance rules aligned without rebuilding unrelated operations data."""
+    conn.execute("DROP VIEW IF EXISTS time_attendance_issues")
+    conn.execute("""
+        CREATE VIEW time_attendance_issues AS
+        SELECT a.driver_id, d.name AS employee, a.date, a.duration_hours,
+          CASE
+            WHEN a.duration_hours = 0 AND ra.route_code IS NOT NULL THEN 'Missed punch'
+            WHEN a.duration_hours > 10 THEN 'Long shift'
+            WHEN ra.route_code IS NULL AND a.duration_hours > 0 THEN 'Unassigned shift'
+          END AS issue_type,
+          CASE
+            WHEN a.duration_hours = 0 AND ra.route_code IS NOT NULL
+              THEN 'No ADP time recorded for assigned Amazon route on ' || a.date
+            WHEN a.duration_hours > 10 THEN printf('%.2f hours', a.duration_hours)
+            WHEN ra.route_code IS NULL AND a.duration_hours > 0
+              THEN 'ADP time but no Amazon route assignment'
+          END AS details
+        FROM adp_timecards a
+        JOIN drivers d ON a.driver_id = d.id
+        LEFT JOIN driver_route_assignments ra
+          ON a.driver_id = ra.driver_id AND a.date = ra.date
+        WHERE a.duration_hours IS NOT NULL AND (
+          (a.duration_hours = 0 AND ra.route_code IS NOT NULL)
+          OR a.duration_hours > 10
+          OR (ra.route_code IS NULL AND a.duration_hours > 0)
+        )
+        ORDER BY d.name, a.date
+    """)
+    conn.commit()
 
 
 def import_amazon_routes(conn: sqlite3.Connection, week_folder: Path):
@@ -535,11 +567,19 @@ def incremental_refresh():
                     if date_str and (latest_file_date is None or date_str > latest_file_date):
                         latest_file_date = date_str
         
-        if latest_file_date and latest_db_date and latest_file_date <= latest_db_date:
+        cursor.execute("SELECT COUNT(*) FROM adp_timecards WHERE driver_id IS NULL OR driver_id = ''")
+        malformed_rows = cursor.fetchone()[0]
+        if malformed_rows:
+            cursor.execute("DELETE FROM adp_timecards")
+            count = import_adp_timecards(conn, adp_timecard_path)
+            print(f"Repaired malformed ADP identity fields and imported {count} timecard days")
+        elif latest_file_date and latest_db_date and latest_file_date <= latest_db_date:
             print(f"ADP timecards already up to date (latest: {latest_file_date})")
         else:
             count = import_adp_timecards(conn, adp_timecard_path)
             print(f"Imported {count} ADP timecards from {adp_timecard_path.name}")
+
+    rebuild_time_attendance_view(conn)
     
     # Import all weeks (skip if weekly scorecard already exists)
     scorecard_root = ROOT / "data/scorecard_data"

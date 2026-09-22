@@ -1,6 +1,6 @@
 {
   "asOf": "2026-09-17",
-  "generatedAt": "2026-09-20T21:32:00",
+  "generatedAt": "2026-09-22T00:41:16",
   "summary": {
     "registeredFleet": 50,
     "operational": 41,
@@ -15,10 +15,10 @@
     "openMaintenanceIssues": 0,
     "statusCounts": {
       "grounded": 9,
-      "action_required": 9,
+      "action_required": 14,
       "monitor": 4,
       "evidence_gap": 6,
-      "ready": 22
+      "ready": 17
     },
     "ownershipCounts": {
       "AMAZON_OWNED": 25,
@@ -36,11 +36,11 @@
       "registrationNumber": "27BIUT",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "LP",
       "ownershipEndDate": "2043-06-19",
-      "ownershipDaysRemaining": 6116,
+      "ownershipDaysRemaining": 6114,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "grounded",
@@ -63,11 +63,23 @@
           "category": "Inspection evidence",
           "severity": "info",
           "label": "No DVIC record in the September 7 evidence pull"
+        },
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
         }
       ],
-      "nextAction": "Keep out of service; confirm repair disposition and dispatch release.",
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "CUSTOM_DELIVERY_VAN_SIXTEEN_FT",
-      "lastRouteCompletedInDays": 8
+      "lastRouteCompletedInDays": 8,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 20,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-09-10T12:16:40",
+      "paveSessionKey": "AMWT-BRDN9WIUAO"
     },
     {
       "vin": "7FCEHEB26RN025943",
@@ -78,11 +90,11 @@
       "registrationNumber": "DU00WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-20",
-      "ownershipDaysRemaining": 6756,
+      "ownershipDaysRemaining": 6754,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "grounded",
@@ -110,7 +122,14 @@
       ],
       "nextAction": "Keep out of service; confirm repair disposition and dispatch release.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 1
+      "lastRouteCompletedInDays": 1,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 3,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-09-17T14:39:27",
+      "paveSessionKey": "AMWT-KPUPFEKZXH"
     },
     {
       "vin": "7FCEHEB27RN025949",
@@ -121,11 +140,11 @@
       "registrationNumber": "DU01WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-18",
-      "ownershipDaysRemaining": 6754,
+      "ownershipDaysRemaining": 6752,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "grounded",
@@ -146,11 +165,23 @@
           "category": "Readiness",
           "severity": "critical",
           "label": "Grounded by dispatch"
+        },
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
         }
       ],
-      "nextAction": "Keep out of service; confirm repair disposition and dispatch release.",
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 9,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-07-02T12:55:29",
+      "paveSessionKey": "AMWT-TBNVQD1GII"
     },
     {
       "vin": "7FCEHEB2XSN031699",
@@ -161,11 +192,11 @@
       "registrationNumber": "Y143093",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-16",
-      "ownershipDaysRemaining": -4,
+      "ownershipDaysRemaining": -6,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "grounded",
@@ -188,12 +219,12 @@
         {
           "category": "Ownership",
           "severity": "critical",
-          "label": "Ownership term ended 4 days ago"
+          "label": "Ownership term ended 6 days ago"
         },
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         },
         {
           "category": "Inspection evidence",
@@ -214,11 +245,11 @@
       "registrationNumber": "Y147670",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-29",
-      "ownershipDaysRemaining": 9,
+      "ownershipDaysRemaining": 7,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "GROUNDED",
       "complianceStatus": "grounded",
@@ -241,12 +272,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 9 days"
+          "label": "Ownership term ends in 7 days"
         },
         {
           "category": "Portal health",
@@ -272,11 +303,11 @@
       "registrationNumber": "16280A14",
       "registrationState": "UNKO - Unknown",
       "registrationExpiryDate": "2026-08-24",
-      "registrationDaysRemaining": -27,
+      "registrationDaysRemaining": -29,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-28",
-      "ownershipDaysRemaining": 8,
+      "ownershipDaysRemaining": 6,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "grounded",
@@ -301,12 +332,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 27 days ago"
+          "label": "Registration expired 29 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 8 days"
+          "label": "Ownership term ends in 6 days"
         }
       ],
       "nextAction": "Keep out of service; confirm repair disposition and dispatch release.",
@@ -322,11 +353,11 @@
       "registrationNumber": "Y143103",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-30",
-      "ownershipDaysRemaining": 10,
+      "ownershipDaysRemaining": 8,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "GROUNDED",
       "complianceStatus": "grounded",
@@ -349,12 +380,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 10 days"
+          "label": "Ownership term ends in 8 days"
         },
         {
           "category": "Portal health",
@@ -365,11 +396,23 @@
           "category": "Inspection evidence",
           "severity": "info",
           "label": "No DVIC record in the September 7 evidence pull"
+        },
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
         }
       ],
-      "nextAction": "Keep out of service; confirm repair disposition and dispatch release.",
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 38
+      "lastRouteCompletedInDays": 38,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 22,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-08-01T16:40:06",
+      "paveSessionKey": "AMWT-CHTTDA8QFE"
     },
     {
       "vin": "3C6MRVJG6ME563431",
@@ -380,11 +423,11 @@
       "registrationNumber": "QNJQ03",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2027-06-29",
-      "registrationDaysRemaining": 282,
+      "registrationDaysRemaining": 280,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2041-09-20",
-      "ownershipDaysRemaining": 5479,
+      "ownershipDaysRemaining": 5477,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "grounded",
@@ -407,11 +450,23 @@
           "category": "Inspection evidence",
           "severity": "info",
           "label": "No DVIC record in the September 7 evidence pull"
+        },
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
         }
       ],
-      "nextAction": "Keep out of service; confirm repair disposition and dispatch release.",
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "EXTRA_LARGE_CARGO_VAN",
-      "lastRouteCompletedInDays": 1
+      "lastRouteCompletedInDays": 1,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 15,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-08-31T13:10:41",
+      "paveSessionKey": "AMWT-FKEXNFJQHV"
     },
     {
       "vin": "3C6MRVJG7ME563552",
@@ -422,11 +477,11 @@
       "registrationNumber": "QNJI99",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2027-06-29",
-      "registrationDaysRemaining": 282,
+      "registrationDaysRemaining": 280,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2041-09-20",
-      "ownershipDaysRemaining": 5479,
+      "ownershipDaysRemaining": 5477,
       "operationalStatus": "GROUNDED",
       "portalOperationalStatus": "GROUNDED",
       "complianceStatus": "grounded",
@@ -481,10 +536,55 @@
       "registrationNumber": "Y147669",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-13",
+      "ownershipDaysRemaining": -9,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "action_required",
+      "priority": 85,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [
+        {
+          "category": "Ownership",
+          "severity": "critical",
+          "label": "Ownership term ended 9 days ago"
+        },
+        {
+          "category": "Registration",
+          "severity": "critical",
+          "label": "Registration expired 266 days ago"
+        }
+      ],
+      "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0
+    },
+    {
+      "vin": "7FCEHEB28SN031331",
+      "unit": "EDV-LMR-10",
+      "year": 2025,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "Y143113",
+      "registrationState": "OR - Oregon",
+      "registrationExpiryDate": "2025-12-30",
+      "registrationDaysRemaining": -266,
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipEndDate": "2026-09-15",
       "ownershipDaysRemaining": -7,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
@@ -510,7 +610,7 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         }
       ],
       "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
@@ -518,18 +618,63 @@
       "lastRouteCompletedInDays": 0
     },
     {
-      "vin": "7FCEHEB28SN031331",
-      "unit": "EDV-LMR-10",
+      "vin": "7FCEHEB24TN047110",
+      "unit": "EDV-LMR-11",
+      "year": 2026,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "16279A85",
+      "registrationState": "UNKO - Unknown",
+      "registrationExpiryDate": "2026-08-24",
+      "registrationDaysRemaining": -29,
+      "ownership": "AMAZON_RENTAL",
+      "provider": "MERCHANTS",
+      "ownershipEndDate": "2026-09-29",
+      "ownershipDaysRemaining": 7,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "action_required",
+      "priority": 85,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [
+        {
+          "category": "Registration",
+          "severity": "critical",
+          "label": "Registration expired 29 days ago"
+        },
+        {
+          "category": "Ownership",
+          "severity": "warning",
+          "label": "Ownership term ends in 7 days"
+        }
+      ],
+      "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0
+    },
+    {
+      "vin": "7FCEHEB28SN031765",
+      "unit": "EDV-LMR-13",
       "year": 2025,
       "make": "Rivian",
       "model": "EDV 700",
-      "registrationNumber": "Y143113",
+      "registrationNumber": "Y143092",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
-      "ownershipEndDate": "2026-09-15",
+      "ownershipEndDate": "2026-09-17",
       "ownershipDaysRemaining": -5,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
@@ -555,97 +700,7 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
-        }
-      ],
-      "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB24TN047110",
-      "unit": "EDV-LMR-11",
-      "year": 2026,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "16279A85",
-      "registrationState": "UNKO - Unknown",
-      "registrationExpiryDate": "2026-08-24",
-      "registrationDaysRemaining": -27,
-      "ownership": "AMAZON_RENTAL",
-      "provider": "MERCHANTS",
-      "ownershipEndDate": "2026-09-29",
-      "ownershipDaysRemaining": 9,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "action_required",
-      "priority": 85,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [
-        {
-          "category": "Registration",
-          "severity": "critical",
-          "label": "Registration expired 27 days ago"
-        },
-        {
-          "category": "Ownership",
-          "severity": "warning",
-          "label": "Ownership term ends in 9 days"
-        }
-      ],
-      "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB28SN031765",
-      "unit": "EDV-LMR-13",
-      "year": 2025,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "Y143092",
-      "registrationState": "OR - Oregon",
-      "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
-      "ownership": "AMAZON_RENTAL",
-      "provider": "MERCHANTS",
-      "ownershipEndDate": "2026-09-17",
-      "ownershipDaysRemaining": -3,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "action_required",
-      "priority": 85,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [
-        {
-          "category": "Ownership",
-          "severity": "critical",
-          "label": "Ownership term ended 3 days ago"
-        },
-        {
-          "category": "Registration",
-          "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         }
       ],
       "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
@@ -661,11 +716,11 @@
       "registrationNumber": "16279A80",
       "registrationState": "UNKO - Unknown",
       "registrationExpiryDate": "2026-08-24",
-      "registrationDaysRemaining": -27,
+      "registrationDaysRemaining": -29,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-26",
-      "ownershipDaysRemaining": 6,
+      "ownershipDaysRemaining": 4,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "action_required",
@@ -685,12 +740,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 27 days ago"
+          "label": "Registration expired 29 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 6 days"
+          "label": "Ownership term ends in 4 days"
         }
       ],
       "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
@@ -706,11 +761,11 @@
       "registrationNumber": "Y147676",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-29",
-      "ownershipDaysRemaining": 9,
+      "ownershipDaysRemaining": 7,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "action_required",
@@ -731,12 +786,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 9 days"
+          "label": "Ownership term ends in 7 days"
         }
       ],
       "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
@@ -752,11 +807,11 @@
       "registrationNumber": "Y143114",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-28",
-      "ownershipDaysRemaining": 8,
+      "ownershipDaysRemaining": 6,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "action_required",
@@ -776,12 +831,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 8 days"
+          "label": "Ownership term ends in 6 days"
         }
       ],
       "nextAction": "Resolve expired documentation or overdue maintenance before assignment.",
@@ -797,11 +852,11 @@
       "registrationNumber": "Y143097",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2025-12-30",
-      "registrationDaysRemaining": -264,
+      "registrationDaysRemaining": -266,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-10-02",
-      "ownershipDaysRemaining": 12,
+      "ownershipDaysRemaining": 10,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "action_required",
@@ -819,12 +874,12 @@
         {
           "category": "Registration",
           "severity": "critical",
-          "label": "Registration expired 264 days ago"
+          "label": "Registration expired 266 days ago"
         },
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 12 days"
+          "label": "Ownership term ends in 10 days"
         },
         {
           "category": "Inspection evidence",
@@ -845,11 +900,11 @@
       "registrationNumber": "Y140039",
       "registrationState": "OR - Oregon",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-17",
-      "ownershipDaysRemaining": -3,
+      "ownershipDaysRemaining": -5,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "action_required",
@@ -867,7 +922,7 @@
         {
           "category": "Ownership",
           "severity": "critical",
-          "label": "Ownership term ended 3 days ago"
+          "label": "Ownership term ended 5 days ago"
         },
         {
           "category": "Inspection evidence",
@@ -892,7 +947,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-12-03",
-      "ownershipDaysRemaining": 74,
+      "ownershipDaysRemaining": 72,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "GROUNDED",
       "complianceStatus": "monitor",
@@ -931,11 +986,11 @@
       "registrationNumber": "FQZN38",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_RENTAL",
       "provider": "MERCHANTS",
       "ownershipEndDate": "2026-09-26",
-      "ownershipDaysRemaining": 6,
+      "ownershipDaysRemaining": 4,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "monitor",
@@ -955,7 +1010,7 @@
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 6 days"
+          "label": "Ownership term ends in 4 days"
         }
       ],
       "nextAction": "Schedule the due item and confirm completion evidence.",
@@ -975,7 +1030,7 @@
       "ownership": "RENTAL",
       "provider": "enterprise",
       "ownershipEndDate": "2026-10-08",
-      "ownershipDaysRemaining": 18,
+      "ownershipDaysRemaining": 16,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "monitor",
@@ -995,7 +1050,7 @@
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 18 days"
+          "label": "Ownership term ends in 16 days"
         }
       ],
       "nextAction": "Schedule the due item and confirm completion evidence.",
@@ -1015,7 +1070,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-09-25",
-      "ownershipDaysRemaining": 5,
+      "ownershipDaysRemaining": 3,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "monitor",
@@ -1035,7 +1090,7 @@
         {
           "category": "Ownership",
           "severity": "warning",
-          "label": "Ownership term ends in 5 days"
+          "label": "Ownership term ends in 3 days"
         }
       ],
       "nextAction": "Schedule the due item and confirm completion evidence.",
@@ -1051,11 +1106,11 @@
       "registrationNumber": "DU03WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-17",
-      "ownershipDaysRemaining": 6753,
+      "ownershipDaysRemaining": 6751,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "evidence_gap",
@@ -1078,7 +1133,14 @@
       ],
       "nextAction": "Confirm DVIC completion in the current inspection window.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 1
+      "lastRouteCompletedInDays": 1,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 5,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-01T16:19:57",
+      "paveSessionKey": "AMWT-OJBDJYLNKJ"
     },
     {
       "vin": "7FCEHEB20RN026151",
@@ -1089,11 +1151,11 @@
       "registrationNumber": "DZ60SD",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-06-15",
-      "ownershipDaysRemaining": 6843,
+      "ownershipDaysRemaining": 6841,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "evidence_gap",
@@ -1116,7 +1178,14 @@
       ],
       "nextAction": "Confirm DVIC completion in the current inspection window.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 1
+      "lastRouteCompletedInDays": 1,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 2,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-26T22:38:13",
+      "paveSessionKey": "AMWT-4OJFSH1VCS"
     },
     {
       "vin": "7FCEHEB24RN025939",
@@ -1127,11 +1196,11 @@
       "registrationNumber": "DU04WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
+      "ownershipDaysRemaining": 6750,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "evidence_gap",
@@ -1154,7 +1223,14 @@
       ],
       "nextAction": "Confirm DVIC completion in the current inspection window.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 11
+      "lastRouteCompletedInDays": 11,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 4,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-09-10T20:10:59",
+      "paveSessionKey": "AMWT-MTVFQWNEGQ"
     },
     {
       "vin": "3C6LRVDG5TE152267",
@@ -1169,7 +1245,7 @@
       "ownership": "RENTAL",
       "provider": "Hertz",
       "ownershipEndDate": "2026-12-24",
-      "ownershipDaysRemaining": 95,
+      "ownershipDaysRemaining": 93,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "evidence_gap",
@@ -1192,7 +1268,14 @@
       ],
       "nextAction": "Confirm DVIC completion in the current inspection window.",
       "serviceTier": "EXTRA_LARGE_CARGO_VAN",
-      "lastRouteCompletedInDays": 2
+      "lastRouteCompletedInDays": 2,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 4,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-07-07T18:36:46",
+      "paveSessionKey": "AMWT-ML37K6LCUL"
     },
     {
       "vin": "1FTBR1X84TKA65376",
@@ -1207,7 +1290,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-11-13",
-      "ownershipDaysRemaining": 54,
+      "ownershipDaysRemaining": 52,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "evidence_gap",
@@ -1245,7 +1328,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-12-03",
-      "ownershipDaysRemaining": 74,
+      "ownershipDaysRemaining": 72,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "evidence_gap",
@@ -1268,7 +1351,14 @@
       ],
       "nextAction": "Confirm DVIC completion in the current inspection window.",
       "serviceTier": "EXTRA_LARGE_CARGO_VAN",
-      "lastRouteCompletedInDays": 7
+      "lastRouteCompletedInDays": 7,
+      "paveGrade": 5,
+      "paveGradeLabel": "5-Great",
+      "paveConditionScore": 0,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-03T13:38:43",
+      "paveSessionKey": "AMWT-78QBWMPSTU"
     },
     {
       "vin": "1FDDF6P80NKA46224",
@@ -1279,15 +1369,15 @@
       "registrationNumber": "55DEEW",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2042-10-03",
-      "ownershipDaysRemaining": 5857,
+      "ownershipDaysRemaining": 5855,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
+      "complianceStatus": "action_required",
+      "priority": 4,
       "inspectionCount": 1,
       "inspectionTypes": [
         "PRE_TRIP_DVIC"
@@ -1298,10 +1388,23 @@
         "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
         "AVS": "OPERATIONAL"
       },
-      "issues": [],
-      "nextAction": "No immediate action.",
+      "issues": [
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
+        }
+      ],
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "CUSTOM_DELIVERY_VAN_FOURTEEN_FT",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 15,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-07-25T15:03:39",
+      "paveSessionKey": "AMWT-RUH5XWF3F4"
     },
     {
       "vin": "1FDDF6P83NKA51532",
@@ -1312,15 +1415,15 @@
       "registrationNumber": "91DEEI",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2042-10-03",
-      "ownershipDaysRemaining": 5857,
+      "ownershipDaysRemaining": 5855,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
+      "complianceStatus": "action_required",
+      "priority": 4,
       "inspectionCount": 1,
       "inspectionTypes": [
         "PRE_TRIP_DVIC"
@@ -1331,44 +1434,23 @@
         "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
         "AVS": "OPERATIONAL"
       },
-      "issues": [],
-      "nextAction": "No immediate action.",
+      "issues": [
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
+        }
+      ],
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "CUSTOM_DELIVERY_VAN_FOURTEEN_FT",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB23RN025947",
-      "unit": "EDV 1",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DU07WK",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 21,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-07-02T12:55:47",
+      "paveSessionKey": "AMWT-ANMG9GTA8G"
     },
     {
       "vin": "7FCEHEB20RN025940",
@@ -1379,15 +1461,15 @@
       "registrationNumber": "DU05WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-17",
-      "ownershipDaysRemaining": 6753,
+      "ownershipDaysRemaining": 6751,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
+      "complianceStatus": "action_required",
+      "priority": 4,
       "inspectionCount": 1,
       "inspectionTypes": [
         "PRE_TRIP_DVIC"
@@ -1399,248 +1481,23 @@
         "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
         "AVS": "OPERATIONAL"
       },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB22RN025941",
-      "unit": "EDV 12",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "RCZC66",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-03-17",
-      "ownershipDaysRemaining": 6753,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
+      "issues": [
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
+        }
       ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB25RN025948",
-      "unit": "EDV 13",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DU06WK",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-03-20",
-      "ownershipDaysRemaining": 6756,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB20RN026201",
-      "unit": "EDV 16",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DW33ZB",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-06-15",
-      "ownershipDaysRemaining": 6843,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB20RN025422",
-      "unit": "EDV 17",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DW71YU",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-06-15",
-      "ownershipDaysRemaining": 6843,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB29RN025421",
-      "unit": "EDV 19",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DW66ZB",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-10-21",
-      "ownershipDaysRemaining": 6971,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB23RN025950",
-      "unit": "EDV 2",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DU02WK",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "7FCEHEB24RN025942",
-      "unit": "EDV 4",
-      "year": 2024,
-      "make": "Rivian",
-      "model": "EDV 700",
-      "registrationNumber": "DR34VB",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "ELEMENT",
-      "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
-        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 11,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-08-20T12:22:06",
+      "paveSessionKey": "AMWT-ISSKBVEKFT"
     },
     {
       "vin": "7FCEHEB29RN025936",
@@ -1651,11 +1508,104 @@
       "registrationNumber": "DU10WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
+      "ownershipDaysRemaining": 6750,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "action_required",
+      "priority": 4,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
+        }
+      ],
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 4,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-07-02T12:55:38",
+      "paveSessionKey": "AMWT-BCT3DZOKP6"
+    },
+    {
+      "vin": "1FTBR3X89LKB03972",
+      "unit": "Van 18",
+      "year": 2020,
+      "make": "Ford",
+      "model": "Transit",
+      "registrationNumber": "0789AR",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "LP",
+      "ownershipEndDate": "2042-07-14",
+      "ownershipDaysRemaining": 5774,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "action_required",
+      "priority": 4,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [
+        {
+          "category": "PAVE",
+          "severity": "critical",
+          "label": "Latest PAVE assessment identifies grounding risk"
+        }
+      ],
+      "nextAction": "Review PAVE grounding evidence and repair before dispatch.",
+      "serviceTier": "EXTRA_LARGE_CARGO_VAN",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 2,
+      "paveGradeLabel": "2-Poor",
+      "paveConditionScore": 23,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": true,
+      "paveAssessedAt": "2026-09-10T12:16:25",
+      "paveSessionKey": "AMWT-SQO0ZV1F34"
+    },
+    {
+      "vin": "7FCEHEB23RN025947",
+      "unit": "EDV 1",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DU07WK",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-03-16",
+      "ownershipDaysRemaining": 6750,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1674,7 +1624,301 @@
       "issues": [],
       "nextAction": "No immediate action.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 9,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-15T12:39:33",
+      "paveSessionKey": "AMWT-20X42H6YMY"
+    },
+    {
+      "vin": "7FCEHEB22RN025941",
+      "unit": "EDV 12",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "RCZC66",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-03-17",
+      "ownershipDaysRemaining": 6751,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 6,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-28T15:09:21",
+      "paveSessionKey": "AMWT-MOZV1RIO6K"
+    },
+    {
+      "vin": "7FCEHEB25RN025948",
+      "unit": "EDV 13",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DU06WK",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-03-20",
+      "ownershipDaysRemaining": 6754,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 3,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-07T15:54:43",
+      "paveSessionKey": "AMWT-APSNERICC8"
+    },
+    {
+      "vin": "7FCEHEB20RN026201",
+      "unit": "EDV 16",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DW33ZB",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-06-15",
+      "ownershipDaysRemaining": 6841,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 5,
+      "paveGradeLabel": "5-Great",
+      "paveConditionScore": 0,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-20T12:22:20",
+      "paveSessionKey": "AMWT-M8LDHREWON"
+    },
+    {
+      "vin": "7FCEHEB20RN025422",
+      "unit": "EDV 17",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DW71YU",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-06-15",
+      "ownershipDaysRemaining": 6841,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 3,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-20T12:22:33",
+      "paveSessionKey": "AMWT-N2SAXOHW5U"
+    },
+    {
+      "vin": "7FCEHEB29RN025421",
+      "unit": "EDV 19",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DW66ZB",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-10-21",
+      "ownershipDaysRemaining": 6969,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 3,
+      "paveGradeLabel": "3-Fair",
+      "paveConditionScore": 11,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-15T12:41:05",
+      "paveSessionKey": "AMWT-TWWZOT74L5"
+    },
+    {
+      "vin": "7FCEHEB23RN025950",
+      "unit": "EDV 2",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DU02WK",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-03-16",
+      "ownershipDaysRemaining": 6750,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 5,
+      "paveGradeLabel": "5-Great",
+      "paveConditionScore": 0,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-20T12:21:37",
+      "paveSessionKey": "AMWT-WROCQBUYLB"
+    },
+    {
+      "vin": "7FCEHEB24RN025942",
+      "unit": "EDV 4",
+      "year": 2024,
+      "make": "Rivian",
+      "model": "EDV 700",
+      "registrationNumber": "DR34VB",
+      "registrationState": "FL - Florida",
+      "registrationExpiryDate": "2026-12-30",
+      "registrationDaysRemaining": 99,
+      "ownership": "AMAZON_OWNED",
+      "provider": "ELEMENT",
+      "ownershipEndDate": "2045-03-16",
+      "ownershipDaysRemaining": 6750,
+      "operationalStatus": "OPERATIONAL",
+      "portalOperationalStatus": "OPERATIONAL",
+      "complianceStatus": "ready",
+      "priority": 0,
+      "inspectionCount": 1,
+      "inspectionTypes": [
+        "PRE_TRIP_DVIC"
+      ],
+      "pmIssues": [],
+      "healthStatuses": {
+        "INSPECTION": "OPERATIONAL",
+        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
+        "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
+        "AVS": "OPERATIONAL"
+      },
+      "issues": [],
+      "nextAction": "No immediate action.",
+      "serviceTier": "ELECTRIC_RPV_MEDIUM",
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 4,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-09-21T15:24:50",
+      "paveSessionKey": "AMWT-7H41MWPJEF"
     },
     {
       "vin": "7FCEHEB2XRN025945",
@@ -1685,11 +1929,11 @@
       "registrationNumber": "DZ34SD",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
+      "ownershipDaysRemaining": 6750,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1708,7 +1952,14 @@
       "issues": [],
       "nextAction": "No immediate action.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 3,
+      "paveGradeLabel": "3-Fair",
+      "paveConditionScore": 13,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-21T13:11:58",
+      "paveSessionKey": "AMWT-C2MVBUBWDH"
     },
     {
       "vin": "7FCEHEB21RN025946",
@@ -1719,11 +1970,11 @@
       "registrationNumber": "RCZC91",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
+      "ownershipDaysRemaining": 6750,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1742,7 +1993,14 @@
       "issues": [],
       "nextAction": "No immediate action.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 5,
+      "paveGradeLabel": "5-Great",
+      "paveConditionScore": 0,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-21T13:11:40",
+      "paveSessionKey": "AMWT-PEXXDIEM7B"
     },
     {
       "vin": "7FCEHEB28RN025944",
@@ -1753,11 +2011,11 @@
       "registrationNumber": "DU09WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-16",
-      "ownershipDaysRemaining": 6752,
+      "ownershipDaysRemaining": 6750,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1776,7 +2034,14 @@
       "issues": [],
       "nextAction": "No immediate action.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 4,
+      "paveGradeLabel": "4-Good",
+      "paveConditionScore": 5,
+      "paveHasNewDamage": true,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-29T15:53:38",
+      "paveSessionKey": "AMWT-VCIH0X8UWE"
     },
     {
       "vin": "7FCEHEB20RN025937",
@@ -1787,11 +2052,11 @@
       "registrationNumber": "DU11WK",
       "registrationState": "FL - Florida",
       "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
+      "registrationDaysRemaining": 99,
       "ownership": "AMAZON_OWNED",
       "provider": "ELEMENT",
       "ownershipEndDate": "2045-03-17",
-      "ownershipDaysRemaining": 6753,
+      "ownershipDaysRemaining": 6751,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1810,7 +2075,14 @@
       "issues": [],
       "nextAction": "No immediate action.",
       "serviceTier": "ELECTRIC_RPV_MEDIUM",
-      "lastRouteCompletedInDays": 0
+      "lastRouteCompletedInDays": 0,
+      "paveGrade": 5,
+      "paveGradeLabel": "5-Great",
+      "paveConditionScore": 0,
+      "paveHasNewDamage": false,
+      "paveGroundingRisk": false,
+      "paveAssessedAt": "2026-08-15T12:40:01",
+      "paveSessionKey": "AMWT-7VXXCNIQJZ"
     },
     {
       "vin": "3C6LRVDGXTE152281",
@@ -1825,7 +2097,7 @@
       "ownership": "RENTAL",
       "provider": "Hertz",
       "ownershipEndDate": "2026-11-26",
-      "ownershipDaysRemaining": 67,
+      "ownershipDaysRemaining": 65,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1859,7 +2131,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2027-04-24",
-      "ownershipDaysRemaining": 216,
+      "ownershipDaysRemaining": 214,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1893,7 +2165,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-11-27",
-      "ownershipDaysRemaining": 68,
+      "ownershipDaysRemaining": 66,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1927,7 +2199,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-11-11",
-      "ownershipDaysRemaining": 52,
+      "ownershipDaysRemaining": 50,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1961,7 +2233,7 @@
       "ownership": "RENTAL",
       "provider": "Enterprise",
       "ownershipEndDate": "2026-11-13",
-      "ownershipDaysRemaining": 54,
+      "ownershipDaysRemaining": 52,
       "operationalStatus": "OPERATIONAL",
       "portalOperationalStatus": "OPERATIONAL",
       "complianceStatus": "ready",
@@ -1975,39 +2247,6 @@
         "INSPECTION": "OPERATIONAL",
         "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
         "MANDATORY_PERIODIC_INSPECTIONS": "OPERATIONAL",
-        "AVS": "OPERATIONAL"
-      },
-      "issues": [],
-      "nextAction": "No immediate action.",
-      "serviceTier": "EXTRA_LARGE_CARGO_VAN",
-      "lastRouteCompletedInDays": 0
-    },
-    {
-      "vin": "1FTBR3X89LKB03972",
-      "unit": "Van 18",
-      "year": 2020,
-      "make": "Ford",
-      "model": "Transit",
-      "registrationNumber": "0789AR",
-      "registrationState": "FL - Florida",
-      "registrationExpiryDate": "2026-12-30",
-      "registrationDaysRemaining": 101,
-      "ownership": "AMAZON_OWNED",
-      "provider": "LP",
-      "ownershipEndDate": "2042-07-14",
-      "ownershipDaysRemaining": 5776,
-      "operationalStatus": "OPERATIONAL",
-      "portalOperationalStatus": "OPERATIONAL",
-      "complianceStatus": "ready",
-      "priority": 0,
-      "inspectionCount": 1,
-      "inspectionTypes": [
-        "PRE_TRIP_DVIC"
-      ],
-      "pmIssues": [],
-      "healthStatuses": {
-        "INSPECTION": "OPERATIONAL",
-        "PREVENTATIVE_MAINTENANCE": "OPERATIONAL",
         "AVS": "OPERATIONAL"
       },
       "issues": [],
@@ -2077,7 +2316,7 @@
       "messageId": "<010001a0bb488d39-d037657f-2788-4c6e-ad0a-6276e35ea75b-000000@email.amazonses.com>",
       "archive": "data/email_inbox/owner/2026-09-19/jason@jeclogs.com.json"
     },
-    "planningBasis": "The forwarded September 18 Fleet Condition Assessment report lists 25 eligible vehicles. Fifteen have W&T grade 3 (Fair) or better and ten have grade 2 (Poor), producing the reported 60.0%. Target updated to 80% for compliance.",
+    "planningBasis": "The forwarded September 18 Fleet Condition Assessment report lists 25 eligible vehicles. Fifteen have W&T grade 3 (Fair) or better and ten have grade 2 (Poor), producing the reported 60.0%.",
     "dueDate": "2026-09-30",
     "poorGradeVehicles": [
       {
@@ -2314,19 +2553,52 @@
       },
       {
         "id": "complete-minimum",
-        "title": "Close at least 3 additional compliant assessments",
-        "detail": "The exact report threshold is 18 of 25 Fair+ vehicles. Upload complete FCA evidence and confirm the rolling metric posts."
+        "title": "Close at least 5 additional compliant assessments",
+        "detail": "The exact report threshold is 20 of 25 Fair+ vehicles. Upload complete FCA evidence and confirm the rolling metric posts."
       },
       {
         "id": "build-buffer",
-        "title": "Schedule 4 completions for a 75% buffer",
-        "detail": "19 of 25 equals 76.0%, protecting against rejected evidence and posting lag."
+        "title": "Schedule 7 completions for a 85% buffer",
+        "detail": "22 of 25 equals 88.0%, protecting against rejected evidence and posting lag."
       },
       {
         "id": "close-lsc-evidence",
         "title": "Advance open LSC cases without crediting them as complete",
         "detail": "Attach repair/FCA evidence to each case and keep the vehicle outside the compliant numerator until Amazon accepts the assessment."
       }
+    ]
+  },
+  "paveAssessments": {
+    "rowsRead": 56,
+    "rowsParsed": 56,
+    "rowsRejected": 0,
+    "completedRows": 53,
+    "incompleteRows": 3,
+    "uniqueVins": 28,
+    "latestAssessments": 28,
+    "currentFairOrBetter": 18,
+    "currentPoor": 10,
+    "currentGroundingRisk": 10,
+    "currentNewDamage": 13,
+    "gradeCounts": {
+      "4-Good": 13,
+      "2-Poor": 32,
+      "3-Fair": 3,
+      "5-Great": 5
+    },
+    "currentGradeCounts": {
+      "2-Poor": 10,
+      "4-Good": 11,
+      "5-Great": 5,
+      "3-Fair": 2
+    },
+    "earliestAt": "2026-06-29T14:55:53",
+    "latestAt": "2026-09-21T15:24:50",
+    "filename": "vehicles_fleet_2026-09-22T01-04-50.csv",
+    "uploadedAt": "2026-09-22T01:04:50+00:00",
+    "confirmedAt": "2026-09-22T02:50:56+00:00",
+    "unmatchedVins": [
+      "1FTBR3X8XLKB27763"
     ]
   },
   "sources": [
@@ -2359,6 +2631,11 @@
       "label": "Wear & Tear LSC case register",
       "asOf": "2026-09-19",
       "path": "data/fleet_reviews/2026-09-19/wear-and-tear-lsc-cases.json"
+    },
+    {
+      "label": "PAVE Fleet Dashboard CSV",
+      "asOf": "2026-09-21",
+      "path": "tenants/jecs/pave/f26ffe402e6d-vehicles_fleet_2026-09-22T01-04-50.csv"
     }
   ],
   "reconciliation": {

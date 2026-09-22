@@ -8,6 +8,16 @@ export function connectionRoutes(app, { connectionService }) {
     return connectionService.list(request.tenantContext);
   });
 
+  app.get('/api/connections/refresh', async (request) => {
+    requirePermission(request.tenantContext.principal, 'integration.manage');
+    return connectionService.refresh(request.tenantContext);
+  });
+
+  app.post('/api/connections/refresh', async (request) => {
+    requirePermission(request.tenantContext.principal, 'integration.manage');
+    return connectionService.refresh(request.tenantContext);
+  });
+
   app.put('/api/connections/:connectionId/credentials', async (request, reply) => {
     requirePermission(request.tenantContext.principal, 'integration.manage');
     try {

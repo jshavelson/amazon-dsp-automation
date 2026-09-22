@@ -18,10 +18,11 @@ const FEATURES = [
   ['maintenance', 'Maintenance', '/maintenance', null, 'planned'],
   ['fuel', 'Fuel Tracking', '/fuel', null, 'planned'],
   ['settings', 'Settings', '/settings', null, 'implemented'],
-  ['security', 'Security', '/security', null, 'planned'],
-  ['notifications', 'Notifications', '/notifications', null, 'planned'],
+  ['security', 'Security', '/security', null, 'implemented'],
+  ['notifications', 'Notifications', '/notifications', null, 'implemented'],
   ['help', 'Help & Support', '/help', null, 'implemented'],
-  ['feature_admin', 'Feature Management', '/admin/features', null, 'implemented', 'feature.manage']
+  ['feature_admin', 'Feature Management', '/admin/features', null, 'implemented', 'feature.manage'],
+  ['ai_admin', 'AI Assistant Setup', '/admin/ai', null, 'implemented', 'ai.configure']
 ];
 
 export const FEATURE_CATALOG = Object.freeze(FEATURES.map(([id, displayName, route, moduleId, status, permission = 'module.read']) =>

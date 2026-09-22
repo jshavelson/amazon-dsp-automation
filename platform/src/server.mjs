@@ -5,6 +5,7 @@ import { PostgresRepository } from './postgres-repository.mjs';
 import { createAwsSecretsManagerProvider } from './secrets/aws-secrets-manager-provider.mjs';
 import { ConnectionService } from './integrations/connection-service.mjs';
 import { AssistantService } from './assistant-service.mjs';
+import fs from 'node:fs/promises';
 
 const config = loadConfig();
 const repository = new PostgresRepository({ connectionString: config.DATABASE_URL });
@@ -26,8 +27,10 @@ const secretProvider = createAwsSecretsManagerProvider({
     }, 'connector secret access');
   }
 });
-const connectionService = new ConnectionService({ repository, secretProvider });
-const assistantService = new AssistantService({ repository });
+const connectionBaseline = await fs.readFile(new URL('../operational-snapshots/connections.json', import.meta.url), 'utf8')
+  .then((value) => JSON.parse(value)).catch(() => null);
+const connectionService = new ConnectionService({ repository, secretProvider, baseline: connectionBaseline });
+const assistantService = new AssistantService({ repository, secretProvider });
 const app = await createApp({
   authenticator,
   repository,

@@ -23,6 +23,7 @@ import {
   ClipboardCheck,
   Landmark,
   Link2,
+  Bot,
 } from 'lucide-react';
 import { usePlatformContext } from '@/hooks/usePlatformContext';
 
@@ -76,7 +77,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       { label: 'Connections', href: '/connections', icon: <Link2 size={20} />, featureId: 'connections' },
       { label: 'Users & Roles', href: '/users', icon: <Users size={20} />, featureId: 'users' },
       ...(platform?.user.isPlatformAdmin
-        ? [{ label: 'Feature Management', href: '/admin/features', icon: <ShieldCheck size={20} />, featureId: 'feature_admin' }]
+        ? [
+          { label: 'Feature Management', href: '/admin/features', icon: <ShieldCheck size={20} />, featureId: 'feature_admin' },
+          { label: 'AI Assistant Setup', href: '/admin/ai', icon: <Bot size={20} />, featureId: 'ai_admin' },
+        ]
         : []),
     ] },
     { label: 'Support & Settings', items: [
