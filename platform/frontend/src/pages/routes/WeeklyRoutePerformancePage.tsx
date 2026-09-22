@@ -5,7 +5,7 @@ import { api } from '@/services/api';
 import { MetricCard, OperationalSourceBanner } from '@/components/shared/OperationalSourceBanner';
 
 type RouteRow = { route_code:string; driver_id:string; driver_name:string; date:string; packages:number; overall_score:number|null; pod:number|null; cdf:number|null; dsb:number|null };
-type Payload = { period:string; routes:RouteRow[]; routeCount:number; source:string };
+type Payload = { period:string|null; routes:RouteRow[]; routeCount:number; source:string; needsData?:boolean };
 
 const WeeklyRoutePerformancePage: React.FC = () => {
   const [search,setSearch]=useState('');
@@ -17,6 +17,7 @@ const WeeklyRoutePerformancePage: React.FC = () => {
   const avg=scored.length?scored.reduce((n,r)=>n+Number(r.overall_score),0)/scored.length:0;
   if(isLoading)return <div className="rounded-xl border bg-white p-8">Loading weekly performance…</div>;
   if(error)return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">Weekly route performance could not be loaded. <button className="underline" onClick={()=>refetch()}>Retry</button></div>;
+  if(data?.needsData)return <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900"><h1 className="text-xl font-semibold text-gray-900 dark:text-white">No weekly route performance for this tenant</h1><p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Connect or upload this tenant’s Amazon route-performance source to populate this screen.</p></div>;
   return <div className="space-y-6"><header><h1 className="text-2xl font-bold dark:text-white">Weekly Route Performance</h1><p className="text-sm text-gray-500">Amazon scorecard aggregates for {data?.period||'the latest available week'}—not live route execution.</p></header>
     <OperationalSourceBanner source="Amazon weekly scorecard" detail="Use this view for driver coaching and weekly trend review. Use Live Route Monitor for same-day dispatch decisions." />
     <div className="grid gap-4 sm:grid-cols-3"><MetricCard label="Drivers" value={routes.length}/><MetricCard label="Packages" value={packages.toLocaleString()}/><MetricCard label="Average DA score" value={avg?`${avg.toFixed(1)}%`:'—'}/></div>

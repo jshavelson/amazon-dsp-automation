@@ -98,7 +98,7 @@ function warnFallback(request, error, resource) {
 
 export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connectionService = null, includeConnectionSnapshot = true, referenceTenantSlug = 'jec-logistics' }) {
   const hasReferenceData = (request) => request.tenantContext.principal.tenantId === referenceTenantSlug;
-  const emptyPerformance = () => ({ period: null, generatedAt: new Date().toISOString(), source: 'No tenant-scoped scorecard source available', needsData: true, drivers: [], history: [], dspPerformance: { overallScore: null, deliveryScore: 0, safetyScore: 0, qualityScore: 0, driverCount: 0, totalDeliveries: 0 } });
+  const emptyPerformance = () => ({ period: null, generatedAt: new Date().toISOString(), source: 'No tenant-scoped scorecard source available', needsData: true, drivers: [], history: [], dspPerformance: { overallScore: 0, deliveryScore: 0, safetyScore: 0, efficiencyScore: 0, qualityScore: 0, complianceScore: 0, driverCount: 0, totalDeliveries: 0 } });
   const emptyFleet = () => ({ asOf: null, generatedAt: new Date().toISOString(), needsData: true, message: 'No tenant-scoped fleet source has been ingested', summary: { registeredFleet: 0, operational: 0, grounded: 0, ready: 0 }, vehicles: [] });
   const emptyCosts = () => ({ asOf: null, period: null, needsData: true, message: 'No tenant-scoped accounting source has been ingested', months: [], charges: [], summary: {} });
   app.get('/api/auth/me', async (request) => {
@@ -244,7 +244,11 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
   app.get('/api/fleet-compliance', async (request) => hasReferenceData(request) ? operationalSnapshot('fleet-compliance') : emptyFleet());
   if (includeConnectionSnapshot) app.get('/api/connections', async () => operationalSnapshot('connections'));
   app.get('/api/vendor-rules', async (request) => hasReferenceData(request) ? operationalSnapshot('vendor-rules') : { rules: [], needsData: true });
-  app.get('/api/modules', async () => operationalSnapshot('modules'));
+  app.get('/api/modules', async (request) => hasReferenceData(request) ? operationalSnapshot('modules') : {
+    generatedAt: null, servedAt: new Date().toISOString(), needsData: true,
+    summary: { modules: 0, active: 0, readyForImport: 0, cases: 0, openCases: 0, recoveredValue: 0, submitted: 0 },
+    modules: [], cases: [], schedules: []
+  });
 
   app.get('/api/fleet-costs/records', async (request) => page(hasReferenceData(request) ? ((await operationalSnapshot('fleet-costs')).charges || []) : []));
   app.get('/api/fleet-costs/summary', async (request) => {

@@ -143,6 +143,29 @@ test('a non-reference tenant never receives the reference tenant operational sna
   const evaluations = await app.inject({ method: 'GET', url: '/api/weekly-evaluations', headers });
   assert.equal(evaluations.statusCode, 200);
   assert.deepEqual(evaluations.json().weeks, []);
+
+  const performance = await app.inject({ method: 'GET', url: '/api/performance/dashboard', headers });
+  assert.equal(performance.statusCode, 200);
+  assert.equal(performance.json().needsData, true);
+  assert.deepEqual(performance.json().drivers, []);
+
+  const routePerformance = await app.inject({ method: 'GET', url: '/api/route-performance', headers });
+  assert.equal(routePerformance.statusCode, 200);
+  assert.equal(routePerformance.json().needsData, true);
+  assert.deepEqual(routePerformance.json().routes, []);
+
+  const disputes = await app.inject({ method: 'GET', url: '/api/disputes', headers });
+  assert.equal(disputes.statusCode, 200);
+  assert.deepEqual(disputes.json(), []);
+
+  const candidates = await app.inject({ method: 'GET', url: '/api/disputes/candidates', headers });
+  assert.equal(candidates.statusCode, 200);
+  assert.deepEqual(candidates.json(), []);
+
+  const modules = await app.inject({ method: 'GET', url: '/api/modules', headers });
+  assert.equal(modules.statusCode, 200);
+  assert.equal(modules.json().needsData, true);
+  assert.deepEqual(modules.json().cases, []);
 });
 
 test('operations dashboard is assembled from connected scorecard and operational sources', async (t) => {

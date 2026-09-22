@@ -7,7 +7,7 @@ type Finding = { label?: string; value?: string | number | null; detail?: string
 type Evidence = { label?: string; path?: string; sha256?: string; source?: string; name?: string; [k: string]: unknown };
 type ModuleCase = { moduleId: string; externalKey: string; status: string; disposition?: string | null; createdAt?: string; candidateCount: number; recoveredRoutes?: number | null; recoveredValue?: number | null; blockingEvidence: unknown[]; externalActionAuthorized: boolean; approvalStatus?: string | null; approvedBy?: string | null; submissionStatus?: string | null; submissionConfirmation?: string | null; findings: Finding[]; evidence: Evidence[]; sourcePath: string };
 type Module = { id: string; displayName: string; description?: string; state: string; headline?: string; detail?: string; runner?: string; runnerExists: boolean; requiredInputs: unknown[]; hasSubmissionAdapter: boolean; schedule: string; caseCount: number; openCaseCount: number; recoveredValue: number; latestCase: ModuleCase | null };
-type Payload = { generatedAt?: string; servedAt: string; summary: { modules: number; active: number; readyForImport: number; cases: number; openCases: number; recoveredValue: number; submitted: number }; modules: Module[]; cases: ModuleCase[]; schedules: { id: string; name: string; cadence: string }[] };
+type Payload = { generatedAt?: string; servedAt: string; needsData?: boolean; summary: { modules: number; active: number; readyForImport: number; cases: number; openCases: number; recoveredValue: number; submitted: number }; modules: Module[]; cases: ModuleCase[]; schedules: { id: string; name: string; cadence: string }[] };
 
 const usd = (v?: number | null) => v == null ? '—' : v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const when = (s?: string | null) => s ? new Date(s).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -28,6 +28,7 @@ const ReimbursementReviewPage: React.FC = () => {
 
   if (isLoading) return <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">Loading reimbursement modules…</div>;
   if (error || !data) return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"><strong>Module status could not be loaded.</strong><button onClick={() => refetch()} className="ml-3 underline">Retry</button></div>;
+  if (data.needsData) return <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900"><h1 className="text-xl font-semibold text-gray-900 dark:text-white">No reimbursement review data for this tenant</h1><p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Connect this tenant’s Amazon Payments and accounting evidence sources to activate reimbursement review.</p></div>;
 
   const s = data.summary;
   const live = data.modules.filter((m) => m.state === 'active' && m.id !== 'executive_dashboard');

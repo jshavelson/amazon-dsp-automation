@@ -785,8 +785,17 @@ def _load_module_cases():
     return cases
 
 
-def build_reimbursement_review_payload():
+def build_reimbursement_review_payload(tenant='jecs'):
     """Go HQ replacement view: module registry + status feed + every case on disk."""
+    if tenant != 'jecs':
+        return {
+            'generatedAt': None, 'servedAt': datetime.now().isoformat(timespec='seconds'),
+            'tenant': tenant, 'needsData': True,
+            'source': 'No tenant-scoped reimbursement source available',
+            'summary': {'modules': 0, 'active': 0, 'readyForImport': 0, 'cases': 0,
+                        'openCases': 0, 'recoveredValue': 0, 'submitted': 0},
+            'modules': [], 'cases': [], 'schedules': [],
+        }
     status = _read_json(MODULE_STATUS_PATH) if MODULE_STATUS_PATH.exists() else {'modules': []}
     status_by_id = {m['id']: m for m in status.get('modules', [])}
     cases = _load_module_cases()
@@ -1717,7 +1726,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.send_json({'tenant': tenant, 'rules': load_vendor_rules(tenant),
                                 'providers': PROVIDER_LABELS})
             elif path == '/api/modules':
-                self.send_json(build_reimbursement_review_payload())
+                self.send_json(build_reimbursement_review_payload(
+                    _tenant_from_headers(self.headers)))
             elif path == '/api/context':
                 tenant = _tenant_from_headers(self.headers)
                 support = _LOCAL_SUPPORT_SESSIONS.get(self.headers.get('x-support-session'))
@@ -1787,13 +1797,24 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.send_json_status(200 if tenant else 404, {'tenant': tenant} if tenant else {'error': 'tenant not found'})
             elif path.startswith('/api/modules/') and path.endswith('/cases'):
                 module_id = path.split('/')[3]
-                self.send_json({'cases': [c for c in _load_module_cases() if c['moduleId'] == module_id]})
+                tenant = _tenant_from_headers(self.headers)
+                self.send_json({'cases': [] if tenant != DEFAULT_TENANT else
+                                [c for c in _load_module_cases() if c['moduleId'] == module_id],
+                                'needsData': tenant != DEFAULT_TENANT})
             
             # Route Monitoring endpoints
             elif path == '/api/route-monitor':
                 self.handle_get_live_route_monitor(query)
             elif path == '/api/route-performance':
-                self.handle_get_route_monitor(query)
+                tenant = _tenant_from_headers(self.headers)
+                self.send_json(build_route_monitor_payload(
+                    (query.get('period') or query.get('date') or [None])[0])
+                    if tenant == DEFAULT_TENANT else {
+                        'period': None, 'routes': [], 'routeCount': 0,
+                        'source': 'No tenant-scoped route performance source available',
+                        'generatedAt': datetime.now(timezone.utc).isoformat(),
+                        'needsData': True,
+                    })
             elif path == '/api/routes':
                 self.send_paginated([])
 
@@ -1803,8 +1824,9 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                     'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
                     'source': 'No tenant-scoped scorecard source available', 'needsData': True,
                     'drivers': [], 'history': [],
-                    'dspPerformance': {'overallScore': None, 'deliveryScore': 0, 'safetyScore': 0,
-                                       'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0},
+                    'dspPerformance': {'overallScore': 0, 'deliveryScore': 0, 'safetyScore': 0,
+                                       'efficiencyScore': 0, 'qualityScore': 0, 'complianceScore': 0,
+                                       'driverCount': 0, 'totalDeliveries': 0},
                 })
 
             # Incumbent dashboard compatibility endpoints
@@ -2247,6 +2269,9 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     
     def handle_get_driver_performance(self, query):
         """Return driver performance summary."""
+        if _tenant_from_headers(self.headers) != DEFAULT_TENANT:
+            self.send_json([])
+            return
         week = query.get('week', ['2026-wk37'])[0]
         
         conn = get_connection()
@@ -2344,6 +2369,9 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     
     def handle_get_disputes(self, query):
         """Return existing disputes."""
+        if _tenant_from_headers(self.headers) != DEFAULT_TENANT:
+            self.send_json([])
+            return
         conn = get_connection()
         cursor = conn.cursor()
         
@@ -2373,6 +2401,9 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     
     def handle_get_dispute_candidates(self, query):
         """Return auto-detected dispute candidates."""
+        if _tenant_from_headers(self.headers) != DEFAULT_TENANT:
+            self.send_json([])
+            return
         week = query.get('week', ['2026-wk37'])[0]
         
         # Normalize week format: 2026-wk37 -> 2026-W37

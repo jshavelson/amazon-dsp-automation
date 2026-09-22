@@ -43,7 +43,7 @@ const PerformancePage: React.FC = () => {
 
   // Fetch performance data
   const { data: dashboardData, isLoading: isDashboardLoading, error: dashboardError, refetch: refetchDashboard } = usePerformanceDashboard(periodFilter);
-  const connectedData = dashboardData as (typeof dashboardData & { drivers?: DriverPerformanceScore[]; generatedAt?: string; source?: string }) | undefined;
+  const connectedData = dashboardData as (typeof dashboardData & { drivers?: DriverPerformanceScore[]; generatedAt?: string; source?: string; needsData?: boolean }) | undefined;
   const drivers = useMemo(() => connectedData?.drivers || [
     ...(dashboardData?.topDrivers || []), ...(dashboardData?.bottomDrivers || [])
   ].filter((row, index, all) => all.findIndex((candidate) => candidate.driverId === row.driverId) === index), [connectedData?.drivers, dashboardData?.topDrivers, dashboardData?.bottomDrivers]);
@@ -504,6 +504,13 @@ const PerformancePage: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  if (connectedData?.needsData) {
+    return <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900">
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-white">No driver performance data for this tenant</h1>
+      <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Connect or upload this tenant’s Amazon scorecard source to populate driver performance.</p>
+    </div>;
   }
 
   return (

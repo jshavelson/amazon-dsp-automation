@@ -4,7 +4,7 @@
 
 import { getDriverPerformance } from '../services/scorecard-data-service.mjs';
 
-export function driverPerformanceRoutes(app, { repository, logger }) {
+export function driverPerformanceRoutes(app, { repository, logger, referenceTenantSlug = 'jec-logistics' }) {
 
   /**
    * GET /api/driver-performance
@@ -13,6 +13,7 @@ export function driverPerformanceRoutes(app, { repository, logger }) {
   app.get('/api/driver-performance', async (request, reply) => {
     const { tenantContext } = request;
     const { week } = request.query;
+    if (tenantContext.principal.tenantId !== referenceTenantSlug) return reply.send([]);
     
     try {
       // Try to get real data from scorecard files

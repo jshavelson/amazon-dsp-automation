@@ -4,7 +4,7 @@
 
 import { getDisputeCandidates } from '../services/scorecard-data-service.mjs';
 
-export function disputesRoutes(app, { repository, registry, logger }) {
+export function disputesRoutes(app, { repository, registry, logger, referenceTenantSlug = 'jec-logistics' }) {
 
   /**
    * GET /api/disputes/candidates
@@ -13,6 +13,7 @@ export function disputesRoutes(app, { repository, registry, logger }) {
   app.get('/api/disputes/candidates', async (request, reply) => {
     const { tenantContext } = request;
     const { week } = request.query;
+    if (tenantContext.principal.tenantId !== referenceTenantSlug) return reply.send([]);
     
     try {
       // Try to get real dispute candidates from weekly analysis
@@ -92,6 +93,7 @@ export function disputesRoutes(app, { repository, registry, logger }) {
    */
   app.get('/api/disputes', async (request, reply) => {
     const { tenantContext } = request;
+    if (tenantContext.principal.tenantId !== referenceTenantSlug) return reply.send([]);
     
     try {
       // Try to get real disputes from database

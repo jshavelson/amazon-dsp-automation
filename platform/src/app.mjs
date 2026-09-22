@@ -267,22 +267,23 @@ export async function createApp({
   paveRoutes(app, { repository, registry, logger });
 
   // Register Driver Performance routes
-  driverPerformanceRoutes(app, { repository, registry, logger });
+  const referenceTenantSlug = authConfig?.tenantSlug || 'jec-logistics';
+  driverPerformanceRoutes(app, { repository, registry, logger, referenceTenantSlug });
 
   // Register Fleet Costs routes
   fleetCostsRoutes(app, { repository, registry, logger });
 
   // Register Disputes routes
-  disputesRoutes(app, { repository, registry, logger });
+  disputesRoutes(app, { repository, registry, logger, referenceTenantSlug });
 
   // Register Route Monitor routes
-  routeMonitorRoutes(app, { repository, registry, logger });
+  routeMonitorRoutes(app, { repository, registry, logger, referenceTenantSlug });
 
   // Register Payroll routes
   payrollRoutes(app, { repository, registry, logger });
 
   // React application compatibility endpoints backed by the tenant repository.
-  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, connectionService, includeConnectionSnapshot: !connectionService, referenceTenantSlug: authConfig?.tenantSlug || 'jec-logistics' });
+  reactCompatRoutes(app, { repository, dashboardHtmlPath, logger, connectionService, includeConnectionSnapshot: !connectionService, referenceTenantSlug });
 
   app.setErrorHandler((error, request, reply) => {
     request.log?.warn({ err: error, requestId: request.id }, 'request failed');

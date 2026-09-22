@@ -11,7 +11,7 @@ const emptyLivePayload = (message, needsReauth = false) => ({
   routes: [],
 });
 
-export function routeMonitorRoutes(app, { repository, logger }) {
+export function routeMonitorRoutes(app, { repository, logger, referenceTenantSlug = 'jec-logistics' }) {
   app.get('/api/route-monitor', async (request, reply) => {
     try {
       const result = await repository.listLiveRoutes(request.tenantContext, {
@@ -44,7 +44,10 @@ export function routeMonitorRoutes(app, { repository, logger }) {
     }
   });
 
-  app.get('/api/route-performance', async (_request, reply) => {
+  app.get('/api/route-performance', async (request, reply) => {
+    if (request.tenantContext.principal.tenantId !== referenceTenantSlug) {
+      return reply.send({ period: null, routes: [], routeCount: 0, source: 'No tenant-scoped route performance source available', needsData: true });
+    }
     try { return reply.send(JSON.parse(await fs.readFile(PERFORMANCE_SNAPSHOT, 'utf8'))); }
     catch (error) {
       logger?.error?.({ err: error }, 'weekly route performance snapshot unavailable');
