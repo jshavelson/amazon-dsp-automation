@@ -530,31 +530,17 @@ def _dispatch_catalog(tenant, route_payload=None):
                 "SELECT id, van_number, vin, status FROM vans ORDER BY van_number")]
         finally:
             conn.close()
-        # Amazon's route-progress response currently exposes transporter IDs but
-        # not names. Resolve those IDs from the newest Amazon workforce export,
-        # and include only portal rows Amazon marks as actively delivering.
-        workforce_files = list((ROOT / 'data' / 'scorecard_data').glob(
-            '20??-wk??/*tenure_workforce_das_Report.csv'))
-        if workforce_files:
-            def workforce_week(path):
-                match = re.search(r'(\d{4})-wk(\d{2})', str(path))
-                return tuple(map(int, match.groups())) if match else (0, 0)
-            latest_workforce = max(workforce_files, key=workforce_week)
-            with latest_workforce.open(encoding='utf-8-sig', newline='') as stream:
-                for row in csv.DictReader(stream):
-                    driver_id = str(row.get('transporter id') or '').strip()
-                    driver_name = str(row.get('name') or '').strip()
-                    delivery_status = str(row.get('delivery status') or '').strip().lower()
-                    driver_status = str(row.get('driver status') or '').strip().upper()
-                    if driver_id and driver_name and delivery_status == 'actively delivering' and driver_status not in {'INACTIVE', 'OFFBOARDED'}:
-                        drivers.append({'id': driver_id, 'name': driver_name, 'status': 'ACTIVE'})
+        # Driver choices come only from the selected same-day Delivery Execution
+        # capture. Never mix a weekly workforce export into a live dispatch board.
     known_driver_ids = {row['id'] for row in drivers}
     for route in (route_payload or {}).get('routes', []):
-        driver_id = str(route.get('transporterId') or '')
-        driver_name = str(route.get('driverName') or '').strip()
-        if driver_id and driver_name and driver_id not in known_driver_ids:
-            drivers.append({'id': driver_id, 'name': driver_name, 'status': 'ACTIVE'})
-            known_driver_ids.add(driver_id)
+        current_transporters = [route, *(route.get('additionalTransporters') or [])]
+        for transporter in current_transporters:
+            driver_id = str(transporter.get('transporterId') or '')
+            driver_name = str(transporter.get('driverName') or '').strip()
+            if driver_id and driver_name and driver_id not in known_driver_ids:
+                drivers.append({'id': driver_id, 'name': driver_name, 'status': 'ACTIVE'})
+                known_driver_ids.add(driver_id)
     drivers.sort(key=lambda row: row['name'].lower())
     return {
         'drivers': [{'id': str(row['id']), 'label': row.get('name') or str(row['id']),
@@ -584,10 +570,23 @@ def _canonical_live_routes(payload):
         selected = max(rows, key=lambda row: (int(row.get('totalStops') or 0),
                                               int(row.get('completedStops') or 0)))
         primary = dict(selected)
-        primary['additionalTransporters'] = [
-            {'transporterId': row.get('transporterId', ''),
-             'driverName': row.get('driverName', ''), 'vin': row.get('vin', '')}
-            for row in rows if row is not selected and row.get('transporterId') != primary.get('transporterId')]
+        primary['additionalTransporters'] = []
+        for row in rows:
+            if row is selected or row.get('transporterId') == primary.get('transporterId'):
+                continue
+            associated = row.get('associatedRoutes') or []
+            role = ('Sweeper / multi-route' if len(associated) > 1 else
+                    'Rescuer' if row.get('rescueCount') or int(row.get('totalStops') or 0) < int(primary.get('totalStops') or 0) else
+                    'Additional driver')
+            primary['additionalTransporters'].append({
+                'transporterId': row.get('transporterId', ''),
+                'driverName': row.get('driverName', ''),
+                'vin': row.get('vin', ''),
+                'role': role,
+                'completedStops': row.get('completedStops', 0),
+                'totalStops': row.get('totalStops', 0),
+                'stopsLastHour': row.get('stopsLastHour', 0),
+            })
         primary['transporterCount'] = len(rows)
         routes.append(primary)
     return sorted(routes, key=lambda row: row.get('routeCode', ''))
@@ -2738,16 +2737,26 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 payload['message'] = 'Saved Cortex route data is stale. Refresh pulls today’s routes and drivers from Amazon Delivery Execution.'
             day_plan = board.get('dates', {}).get(payload.get('period'), {})
             period_assignments = day_plan.get('assignments', {})
+            catalog = _dispatch_catalog(tenant, payload)
+            driver_names = {item['id']: item['label'] for item in catalog['drivers']}
             for route in payload.get('routes', []):
+                route['driverName'] = route.get('driverName') or driver_names.get(str(route.get('transporterId') or ''), '')
+                for additional in route.get('additionalTransporters', []):
+                    additional['driverName'] = additional.get('driverName') or driver_names.get(
+                        str(additional.get('transporterId') or ''), '')
                 assignment = period_assignments.get(route.get('routeCode'))
                 if assignment is None:
                     legacy_prefix = f"{route.get('routeId')}|"
                     assignment = next((value for key, value in period_assignments.items()
                                        if key.startswith(legacy_prefix)), {})
+                assignment = dict(assignment or {})
+                if not assignment.get('driverId') and route.get('transporterId'):
+                    assignment['driverId'] = str(route['transporterId'])
+                    assignment['driverName'] = route.get('driverName', '')
                 route['dispatchAssignment'] = assignment
             payload['dispatchPlan'] = {'expectedRoutes': day_plan.get('expectedRoutes', 0),
                                        'sweepers': day_plan.get('sweepers', 0)}
-            payload['assignmentOptions'] = _dispatch_catalog(tenant, payload)
+            payload['assignmentOptions'] = catalog
             self.send_json(payload)
         except (OSError, ValueError, KeyError) as error:
             self.send_json({'error': f'Live route snapshot is invalid: {error}'}, status=500)

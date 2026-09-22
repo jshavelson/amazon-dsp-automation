@@ -8,6 +8,10 @@ function routeStatus(transporter, progress) {
 
 export function normalizeRouteSummaries(payload, { tenant = 'jecs', capturedAt = new Date().toISOString(), deliveryDate } = {}) {
   const capturedMs = Date.parse(capturedAt);
+  const liveDriverNames = new Map((payload?.transporters || []).map((transporter) => [
+    String(transporter.transporterId || ''),
+    [transporter.firstName, transporter.lastName].filter(Boolean).join(' ').trim(),
+  ]).filter(([transporterId, name]) => transporterId && name));
   const rows = [];
   for (const summary of payload?.rmsRouteSummaries || []) {
     for (const transporter of summary.transporters || []) {
@@ -43,7 +47,7 @@ export function normalizeRouteSummaries(payload, { tenant = 'jecs', capturedAt =
         routeCode: summary.routeCode || summary.routeId || 'Unknown',
         deliveryDate: deliveryDate || (summary.localDate || []).join('-'),
         transporterId: transporter.transporterId || '',
-        driverName: transporter.transporterName || '',
+        driverName: transporter.transporterName || liveDriverNames.get(String(transporter.transporterId || '')) || '',
         vin: transporter.vin || '',
         status,
         risk,

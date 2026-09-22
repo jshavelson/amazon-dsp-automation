@@ -16,7 +16,20 @@ const canonicalRoutes = (rows) => [...rows.reduce((groups, row) => {
   current.push(row); groups.set(code, current); return groups;
 }, new Map()).entries()].map(([, rows]) => {
   const primary = [...rows].sort((a, b) => Number(b.totalStops || 0) - Number(a.totalStops || 0))[0];
-  return { ...primary, transporterCount: rows.length, additionalTransporters: rows.filter((row) => row !== primary).map((row) => ({ transporterId: row.transporterId, driverName: row.driverName, vin: row.vin })) };
+  const additionalTransporters = rows.filter((row) => row !== primary && row.transporterId !== primary.transporterId).map((row) => {
+    const associatedRouteCount = row.associatedRoutes?.length || 0;
+    const role = associatedRouteCount > 1
+      ? 'Sweeper / multi-route'
+      : row.rescueCount || Number(row.totalStops || 0) < Number(primary.totalStops || 0)
+        ? 'Rescuer'
+        : 'Additional driver';
+    return {
+      transporterId: row.transporterId, driverName: row.driverName, vin: row.vin, role,
+      completedStops: row.completedStops || 0, totalStops: row.totalStops || 0,
+      stopsLastHour: row.stopsLastHour || 0,
+    };
+  });
+  return { ...primary, transporterCount: rows.length, additionalTransporters };
 }).sort((a, b) => a.routeCode.localeCompare(b.routeCode));
 
 export function routeMonitorRoutes(app, { repository, logger, referenceTenantSlug = 'jec-logistics' }) {
@@ -58,8 +71,23 @@ export function routeMonitorRoutes(app, { repository, logger, referenceTenantSlu
         repository.getDispatchDayPlan?.(request.tenantContext, deliveryDate) || { expectedRoutes: 0, sweepers: 0 },
       ]);
       const assignmentByRoute = new Map(assignments.map((item) => [item.routeCode, item]));
-      for (const route of routes) route.dispatchAssignment = assignmentByRoute.get(route.routeCode) || {};
-      const activeDrivers = [...new Map(result.items.filter((item) => item.transporterId && item.driverName).map((item) => [item.transporterId, { id: item.transporterId, label: item.driverName, status: 'ACTIVE', source: 'Amazon portal' }])).values()];
+      for (const route of routes) {
+        const saved = assignmentByRoute.get(route.routeCode) || {};
+        route.dispatchAssignment = {
+          ...saved,
+          driverId: saved.driverId || route.transporterId || '',
+          driverName: saved.driverName || route.driverName || '',
+        };
+      }
+      const activeDrivers = [...new Map(result.items.filter((item) => item.transporterId && item.driverName).map((item) => [item.transporterId, { id: item.transporterId, label: item.driverName, status: 'ACTIVE', source: 'Amazon Delivery Execution · same-day' }])).values()];
+      const driverNames = new Map(activeDrivers.map((driver) => [driver.id, driver.label]));
+      for (const route of routes) {
+        route.driverName ||= driverNames.get(route.transporterId) || '';
+        for (const additional of route.additionalTransporters || []) {
+          additional.driverName ||= driverNames.get(additional.transporterId) || '';
+        }
+        route.dispatchAssignment.driverName ||= route.driverName;
+      }
       return reply.send({
         period: deliveryDate, capturedAt, source: 'Amazon Delivery Execution', live: !stale, stale,
         needsData: false, needsReauth: false, routeCount: routes.length,

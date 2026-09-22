@@ -219,12 +219,16 @@ test('live route monitor returns only same-day execution data with freshness and
   assert.equal(Array.isArray(payload.routes), true);
   assert.equal(payload.routes.length, 1);
   assert.equal(payload.routes[0].transporterCount, 2);
+  assert.equal(payload.routes[0].dispatchAssignment.driverId, 'A123');
+  assert.equal(payload.routes[0].dispatchAssignment.driverName, 'Example Driver');
+  assert.equal(payload.routes[0].additionalTransporters.length, 1);
+  assert.equal(payload.routes[0].additionalTransporters[0].driverName, 'Rescue Driver');
+  assert.equal(payload.routes[0].additionalTransporters[0].role, 'Rescuer');
   assert.equal(payload.routeCount, payload.routes.length);
   assert.equal(payload.source, 'Amazon Delivery Execution');
   assert.equal(payload.summary.behind, 1);
   assert.equal(payload.needsData, false);
   assert.equal(payload.assignmentOptions.phones.length, 50);
-  assert.deepEqual(payload.routes[0].dispatchAssignment, {});
 });
 
 test('dispatcher can persist a tenant-scoped driver, van, and phone assignment', async (t) => {

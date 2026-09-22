@@ -624,7 +624,7 @@ const DashboardOverviewPage: React.FC = () => {
       />
       <section className="grid gap-4 xl:grid-cols-2">
         <TrendChart
-          title="DSP overall standing score and POD"
+          title="DSP overall standing score"
           labels={labels}
           series={[
             {
@@ -633,6 +633,12 @@ const DashboardOverviewPage: React.FC = () => {
               values: history.slice(start).map((row) => row.overallScore),
               format: (v) => v.toFixed(1),
             },
+          ]}
+        />
+        <TrendChart
+          title="POD"
+          labels={labels}
+          series={[
             {
               label: "POD",
               color: "#0ea5e9",
