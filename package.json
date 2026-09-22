@@ -11,6 +11,8 @@
     "adp:probe": "node scripts/adp_api_probe.mjs",
     "amazon:login": "node scripts/amazon_logistics_login.mjs",
     "amazon:session-check": "node scripts/amazon_session_check.mjs",
+    "amazon:live-routes": "node scripts/amazon_session_check.mjs && node scripts/amazon_live_routes.mjs",
+    "amazon:live-routes-daemon": "python3 scripts/run_live_route_sync.py --interval 300",
     "amazon:download": "node scripts/amazon_session_check.mjs && node scripts/amazon_logistics_download.mjs",
     "amazon:download-payments": "node scripts/amazon_payments_session_check.mjs && node scripts/amazon_payments_download.mjs",
     "amazon:payments-session-check": "node scripts/amazon_payments_session_check.mjs",

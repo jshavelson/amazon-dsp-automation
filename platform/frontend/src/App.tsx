@@ -22,6 +22,7 @@ import DisputeDetailPage from './pages/disputes/DisputeDetailPage';
 import PayrollPage from './pages/payroll/PayrollPage';
 import PayrollPeriodDetailPage from './pages/payroll/PayrollPeriodDetailPage';
 import RoutesPage from './pages/routes/RoutesPage';
+import WeeklyRoutePerformancePage from './pages/routes/WeeklyRoutePerformancePage';
 import RouteDetailPage from './pages/routes/RouteDetailPage';
 import PerformancePage from './pages/performance/PerformancePage';
 import FleetCostsPage from './pages/fleet-costs/FleetCostsPage';
@@ -138,6 +139,7 @@ const App: React.FC = () => {
               {/* Routes */}
               <Route path="/routes" element={<RoutesPage />} />
               <Route path="/routes/:id" element={<RouteDetailPage />} />
+              <Route path="/route-performance" element={<WeeklyRoutePerformancePage />} />
 
               {/* Performance */}
               <Route path="/performance" element={<PerformancePage />} />

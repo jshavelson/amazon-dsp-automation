@@ -433,6 +433,32 @@ export class PostgresRepository {
   }
 
   // Route methods
+  async listLiveRoutes(context, { date, limit = 250 } = {}) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const selected = date || (await client.query(`select max(delivery_date)::text as date from app.live_routes where tenant_id = $1`, [context.principal.tenantDbId])).rows[0]?.date;
+      if (!selected) return { items: [], total: 0 };
+      const result = await client.query(
+        `select route_id as "routeId", route_code as "routeCode", delivery_date::text as "deliveryDate",
+                transporter_id as "transporterId", driver_name as "driverName", vin, status, risk,
+                planned_departure_at as "plannedDepartureAt", actual_departure_at as "actualDepartureAt",
+                projected_completion_at as "projectedCompletionAt", scheduled_end_at as "scheduledEndAt",
+                last_event_at as "lastEventAt", total_stops as "totalStops", completed_stops as "completedStops",
+                greatest(total_stops - completed_stops, 0) as "remainingStops",
+                case when total_stops > 0 then round(completed_stops * 100.0 / total_stops, 1) else 0 end as "completionPct",
+                total_packages as "totalPackages", delivered_packages as "deliveredPackages",
+                greatest(total_packages - delivered_packages, 0) as "remainingPackages",
+                stops_last_hour as "stopsLastHour", late_departure_minutes as "lateDepartureMinutes",
+                projected_late_minutes as "projectedLateMinutes", inactive_minutes as "inactiveMinutes",
+                on_break as "onBreak", route_paused as "routePaused", rescue_count as "rescueCount",
+                associated_routes as "associatedRoutes", is_multi_route as "isMultiRoute", captured_at as "capturedAt"
+           from app.live_routes where tenant_id = $1 and delivery_date = $2::date
+          order by case risk when 'stalled' then 1 when 'behind' then 2 when 'late_departure' then 3 else 4 end, route_code, transporter_id limit $3`,
+        [context.principal.tenantDbId, selected, limit]
+      );
+      return { items: result.rows, total: result.rows.length };
+    });
+  }
+
   async listRoutes(context, { date, limit = 100, skip = 0 } = {}) {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
       let query = `

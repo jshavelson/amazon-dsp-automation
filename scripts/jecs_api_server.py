@@ -31,6 +31,7 @@ import threading
 import ssl
 import base64
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
@@ -829,7 +830,8 @@ LOCAL_FEATURES = [
     ('drivers', 'Drivers', '/drivers', 'implemented'),
     ('fleet_compliance', 'Fleet Compliance', '/fleet-compliance', 'implemented'),
     ('vans', 'Vans', '/vans', 'implemented'),
-    ('route_monitor', 'Route Monitor', '/routes', 'implemented'),
+    ('route_monitor', 'Live Route Monitor', '/routes', 'implemented'),
+    ('route_performance', 'Weekly Route Performance', '/route-performance', 'implemented'),
     ('disputes', 'Dispute Center', '/disputes', 'implemented'),
     ('payroll', 'Payroll', '/payroll', 'implemented'),
     ('weekly_evaluation', 'Weekly Evaluation', '/weekly-evaluation', 'implemented'),
@@ -1133,7 +1135,8 @@ def build_assistant_snapshot(tenant, current_path='/dashboard'):
         {'id': 'fleet-costs', 'label': 'Fleet Costs', 'route': '/fleet-costs'},
         {'id': 'disputes', 'label': 'Dispute Center', 'route': '/disputes'},
         {'id': 'driver-performance', 'label': 'Driver Performance', 'route': '/performance'},
-        {'id': 'routes', 'label': 'Route Monitor', 'route': '/routes'},
+        {'id': 'routes', 'label': 'Live Route Monitor', 'route': '/routes'},
+        {'id': 'route-performance', 'label': 'Weekly Route Performance', 'route': '/route-performance'},
         {'id': 'payroll', 'label': 'Payroll', 'route': '/payroll'},
     ]
     connections = build_connections_payload(tenant)
@@ -1609,6 +1612,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             
             # Route Monitoring endpoints
             elif path == '/api/route-monitor':
+                self.handle_get_live_route_monitor(query)
+            elif path == '/api/route-performance':
                 self.handle_get_route_monitor(query)
             elif path == '/api/routes':
                 self.send_paginated([])
@@ -2227,9 +2232,33 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_json(candidates)
 
     # ========== Route Monitoring Handlers ==========
+
+    def handle_get_live_route_monitor(self, query):
+        """Return only same-day Amazon Delivery Execution data; never substitute weekly scorecards."""
+        tenant = _tenant_from_headers(self.headers)
+        snapshot_path = ROOT / 'data' / 'tenants' / tenant / 'amazon' / 'live-routes' / 'latest.json'
+        if not snapshot_path.exists():
+            self.send_json({
+                'period': None, 'capturedAt': None, 'source': 'Amazon Delivery Execution',
+                'live': False, 'stale': True, 'needsData': True, 'needsReauth': False,
+                'message': 'No same-day route execution snapshot has been captured. Run npm run amazon:live-routes.',
+                'routeCount': 0,
+                'summary': {'assigned': 0, 'inProgress': 0, 'completed': 0, 'behind': 0, 'stalled': 0, 'lateDepartures': 0, 'multiRoute': 0},
+                'routes': [],
+            })
+            return
+        try:
+            payload = json.loads(snapshot_path.read_text())
+            captured = datetime.fromisoformat(payload['capturedAt'].replace('Z', '+00:00'))
+            eastern_today = datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+            payload['stale'] = payload.get('period') != eastern_today or datetime.now(timezone.utc) - captured > timedelta(minutes=15)
+            payload['live'] = not payload['stale']
+            self.send_json(payload)
+        except (OSError, ValueError, KeyError) as error:
+            self.send_json({'error': f'Live route snapshot is invalid: {error}'}, status=500)
     
     def handle_get_route_monitor(self, query):
-        """Return the requested or latest available route operating period."""
+        """Return weekly scorecard route performance history."""
         conn = get_connection()
         cursor = conn.cursor()
         

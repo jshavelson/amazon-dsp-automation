@@ -8,7 +8,8 @@ const citations = [
   { id: 'fleet-costs', label: 'Fleet Costs', route: '/fleet-costs' },
   { id: 'disputes', label: 'Dispute Center', route: '/disputes' },
   { id: 'payroll', label: 'Payroll', route: '/payroll' },
-  { id: 'routes', label: 'Route Monitor', route: '/routes' }
+  { id: 'routes', label: 'Live Route Monitor', route: '/routes' },
+  { id: 'route-performance', label: 'Weekly Route Performance', route: '/route-performance' }
 ];
 
 const instructionFiles = ['AGENTS.md', 'IDENTITY.md', 'SOUL.md'];

@@ -55,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       { label: 'Dashboard', href: '/dashboard', icon: <Home size={20} />, featureId: 'dashboard' },
     ] },
     { label: 'Operations', items: [
-      { label: 'Route Monitor', href: '/routes', icon: <Route size={20} />, featureId: 'route_monitor' },
+      { label: 'Live Route Monitor', href: '/routes', icon: <Route size={20} />, featureId: 'route_monitor' },
       { label: 'Drivers', href: '/drivers', icon: <Users size={20} />, featureId: 'drivers' },
       { label: 'Time & Attendance', href: '/time-attendance', icon: <CalendarCheck size={20} />, featureId: 'time_attendance' },
       { label: 'Payroll', href: '/payroll', icon: <DollarSign size={20} />, featureId: 'payroll' },
@@ -70,6 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
     { label: 'Performance & Finance', items: [
       { label: 'Weekly Evaluation', href: '/weekly-evaluation', icon: <FileBarChart size={20} />, featureId: 'weekly_evaluation' },
       { label: 'Driver Performance', href: '/performance', icon: <BarChart3 size={20} />, featureId: 'driver_performance' },
+      { label: 'Weekly Route Performance', href: '/route-performance', icon: <Route size={20} />, featureId: 'route_performance' },
       { label: 'Dispute Center', href: '/disputes', icon: <FileText size={20} />, badge: 5, featureId: 'disputes' },
       { label: 'Reimbursement Review', href: '/reimbursement-review', icon: <Landmark size={20} />, featureId: 'reimbursement_review' },
     ] },

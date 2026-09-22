@@ -39,6 +39,14 @@ const repository = {
   async listCases(_context, moduleId) { return [{ id: 'case-1', module_id: moduleId }]; },
   async latestDashboardSnapshot() { return { period_key: '2026-W37', stale_sources: [] }; },
   async listIntegrationConnections() { return [{ id: 'connection-1', integration_type: 'adp', status: 'healthy' }]; }
+  ,async listLiveRoutes() { return { items: [{
+    routeId: 'route-1', routeCode: 'CX101', deliveryDate: '2026-09-22', transporterId: 'A123',
+    driverName: 'Example Driver', vin: 'VIN123', status: 'in_progress', risk: 'behind',
+    completedStops: 42, totalStops: 100, completionPct: 42, deliveredPackages: 95, totalPackages: 220,
+    stopsLastHour: 8, projectedCompletionAt: '2026-09-22T23:00:00Z', projectedLateMinutes: 25,
+    inactiveMinutes: 5, onBreak: false, routePaused: false, rescueCount: 0,
+    associatedRoutes: [{ routeCode: 'CX101' }], isMultiRoute: false, capturedAt: new Date().toISOString()
+  }], total: 1 }; }
   ,async listAttendanceExceptions() {
     return {
       startDate: '2026-09-13', endDate: '2026-09-19', capturedAt: '2026-09-20T01:00:00Z',
@@ -130,7 +138,7 @@ test('time and attendance returns tenant-scoped ADP exceptions and honest route 
   assert.match(payload.message, /route-based exceptions are withheld/);
 });
 
-test('route monitor returns the object contract from packaged evidence when the route table is unavailable', async (t) => {
+test('live route monitor returns only same-day execution data with freshness and exception summary', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());
   const response = await app.inject({
@@ -141,9 +149,20 @@ test('route monitor returns the object contract from packaged evidence when the 
   const payload = response.json();
   assert.equal(Array.isArray(payload), false);
   assert.equal(Array.isArray(payload.routes), true);
-  assert.ok(payload.routes.length > 0);
+  assert.equal(payload.routes.length, 1);
   assert.equal(payload.routeCount, payload.routes.length);
-  assert.match(payload.source, /Amazon/);
+  assert.equal(payload.source, 'Amazon Delivery Execution');
+  assert.equal(payload.summary.behind, 1);
+  assert.equal(payload.needsData, false);
+});
+
+test('weekly route performance remains available on a separately named endpoint', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({ method: 'GET', url: '/api/route-performance', headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' } });
+  assert.equal(response.statusCode, 200);
+  assert.match(response.json().source, /scorecard/i);
+  assert.ok(response.json().routes.length > 0);
 });
 
 test('vans returns the paginated contract with the packaged fleet roster when the van table is unavailable', async (t) => {
