@@ -27,11 +27,11 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('auth_token') || sessionStorage.getItem('dsp-platform-id-token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-      config.headers['x-tenant-id'] = sessionStorage.getItem('dsp-active-tenant') || 'jecs';
+    if (config.headers) {
+      if (!config.headers['x-tenant-id']) config.headers['x-tenant-id'] = sessionStorage.getItem('dsp-active-tenant') || 'jecs';
       const supportSession = sessionStorage.getItem('dsp-support-session');
       if (supportSession) config.headers['x-support-session'] = supportSession;
+      if (token) config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },

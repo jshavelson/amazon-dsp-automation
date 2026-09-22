@@ -9,6 +9,11 @@ Parameters:
   CognitoDomainPrefix:
     Type: String
     AllowedPattern: '^[a-z0-9-]{8,50}$'
+  ApplicationSignInUrl:
+    Type: String
+    Default: 'https://dpgr55hwybqff.cloudfront.net/'
+    AllowedPattern: '^https://.*$'
+    Description: HTTPS application URL included in tenant member invitation emails
 
 Resources:
   Vpc:
@@ -310,7 +315,23 @@ Resources:
       AccountRecoverySetting:
         RecoveryMechanisms:
           - {Name: verified_email, Priority: 1}
-      AdminCreateUserConfig: {AllowAdminCreateUserOnly: true}
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: 'You are invited to the DSP Operations Platform'
+          EmailMessage: !Sub |
+            <p>Hello,</p>
+            <p>You have been invited to the DSP Operations Platform.</p>
+            <p><strong>Next steps</strong></p>
+            <ol>
+              <li>Open <a href="${ApplicationSignInUrl}">${ApplicationSignInUrl}</a>.</li>
+              <li>Sign in with username <strong>{username}</strong> and temporary password <strong>{####}</strong>.</li>
+              <li>Create a permanent password with at least 14 characters, including uppercase, lowercase, a number, and a symbol.</li>
+              <li>Set up software-token MFA using your authenticator app.</li>
+              <li>Confirm that the correct tenant dashboard and role are displayed.</li>
+            </ol>
+            <p>The temporary password expires in 3 days. If it expires, ask your tenant administrator to resend the invitation.</p>
+            <p>For security, never send your temporary password or MFA code by email, chat, or text.</p>
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Properties: {Domain: !Ref CognitoDomainPrefix, UserPoolId: !Ref UserPool}

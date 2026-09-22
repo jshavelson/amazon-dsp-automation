@@ -1830,6 +1830,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_post_assistant_config_test()
             elif path == '/api/members/invitations':
                 self.handle_post_member_invitation()
+            elif re.fullmatch(r'/api/members/[^/]+/resend-invitation', path):
+                self.handle_post_member_invitation_resend(urllib.parse.unquote(path.split('/')[3]))
             elif path == '/api/super-admin/tenants':
                 self.handle_post_super_admin_tenant()
             elif path == '/api/super-admin/impersonate':
@@ -3366,6 +3368,20 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         members.append(member)
         _save_local_members(tenant, members)
         self.send_json_status(201, {'member': member, 'invitationSent': False})
+
+    def handle_post_member_invitation_resend(self, identity_subject):
+        tenant = _tenant_from_headers(self.headers)
+        members = _local_members(tenant)
+        member = next((item for item in members if item.get('identitySubject') == identity_subject), None)
+        if not member:
+            self.send_json_status(404, {'error': 'member not found'})
+            return
+        if member.get('status') != 'invited':
+            self.send_json_status(409, {'error': 'only pending invitations can be resent'})
+            return
+        member['lastInvitationResentAt'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        _save_local_members(tenant, members)
+        self.send_json_status(200, {'member': member, 'invitationSent': False, 'deliveryMode': 'development'})
 
     def handle_put_member(self, identity_subject):
         tenant = _tenant_from_headers(self.headers)

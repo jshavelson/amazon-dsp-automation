@@ -36,4 +36,14 @@ export class CognitoMemberProvisioner {
       return { identitySubject: attribute(existing, 'sub'), invitationSent: false };
     }
   }
+
+  async resend({ email }) {
+    await this.client.send(new AdminCreateUserCommand({
+      UserPoolId: this.userPoolId,
+      Username: email,
+      MessageAction: 'RESEND',
+      DesiredDeliveryMediums: ['EMAIL'],
+    }));
+    return { invitationSent: true };
+  }
 }

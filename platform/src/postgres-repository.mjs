@@ -193,6 +193,16 @@ export class PostgresRepository {
     });
   }
 
+  async auditMemberInvitationResent(context, member) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      await client.query(
+        `insert into app.audit_events (tenant_id, actor_subject, action, resource_type, resource_id, request_id, metadata)
+         values ($1,$2,'member.invitation_resend','membership',$3,gen_random_uuid(),jsonb_build_object('email',$4,'role',$5))`,
+        [context.principal.tenantDbId, context.principal.userId, member.identitySubject, member.email, member.role]
+      );
+    });
+  }
+
   async auditImpersonation(context, action, target, metadata) {
     const actor = context.principal.impersonation?.actor || context.principal;
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: actor.userId }, async (client) => {

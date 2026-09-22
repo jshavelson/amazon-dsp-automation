@@ -61,6 +61,29 @@ export function accessControlRoutes(app, { repository, registry, memberProvision
     }
   });
 
+  app.post('/api/members/:identitySubject/resend-invitation', async (request, reply) => {
+    requirePermission(request.tenantContext.principal, 'member.manage');
+    if (!memberProvisioner) return reply.code(503).send({ error: 'invitation delivery is not configured' });
+    const members = await repository.listMembers(request.tenantContext);
+    const member = members.find((item) => item.identitySubject === request.params.identitySubject);
+    if (!member) return reply.code(404).send({ error: 'member not found' });
+    if (member.status !== 'invited') return reply.code(409).send({ error: 'only pending invitations can be resent' });
+    try {
+      await memberProvisioner.resend({ email: member.email });
+      if (repository.auditMemberInvitationResent) {
+        await repository.auditMemberInvitationResent(request.tenantContext, member);
+      }
+      return { member, invitationSent: true };
+    } catch (error) {
+      if (error.name === 'UserNotFoundException') return reply.code(404).send({ error: 'the invited identity no longer exists' });
+      if (error.name === 'NotAuthorizedException') return reply.code(409).send({ error: 'this user has already completed the invitation' });
+      if (error.name === 'LimitExceededException' || error.name === 'TooManyRequestsException') {
+        return reply.code(429).send({ error: 'invitation delivery is temporarily rate limited; try again shortly' });
+      }
+      throw error;
+    }
+  });
+
   app.put('/api/members/:identitySubject', async (request, reply) => {
     requirePermission(request.tenantContext.principal, 'member.manage');
     const role = String(request.body?.role || '');

@@ -1,6 +1,6 @@
 import React, { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CheckCircle2, CircleAlert, Database, Eye, Plus, ShieldCheck, Users } from 'lucide-react';
+import { Building2, CheckCircle2, CircleAlert, Database, Eye, Mail, Plus, ShieldCheck, Users } from 'lucide-react';
 import { api } from '@/services/api';
 import { usePlatformContext } from '@/hooks/usePlatformContext';
 
@@ -82,6 +82,15 @@ const SuperAdminPage: React.FC = () => {
     },
     onError: (error) => setNotice({ kind: 'error', text: messageFor(error) })
   });
+  const resendInvitation = useMutation({
+    mutationFn: (member: Member) => api.post<{ member: Member; invitationSent: boolean }>(
+      `/members/${encodeURIComponent(member.identitySubject)}/resend-invitation`,
+      undefined,
+      { headers: { 'x-tenant-id': member.tenantSlug } }
+    ),
+    onSuccess: (result) => setNotice({ kind: 'success', text: result.invitationSent ? `Invitation email resent to ${result.member.email}.` : `Invitation resend validated for ${result.member.email}; local development does not send email.` }),
+    onError: (error) => setNotice({ kind: 'error', text: messageFor(error) })
+  });
   const downloadChecklist = useMutation({
     mutationFn: () => api.get<Blob>('/super-admin/onboarding-checklist.pdf', undefined, { responseType: 'blob' }),
     onSuccess: (document) => {
@@ -112,7 +121,7 @@ const SuperAdminPage: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><div><h2 className="font-semibold dark:text-white">{selectedTenant.displayName}</h2><p className="text-xs text-gray-500">{selectedTenant.slug} · created {new Date(selectedTenant.createdAt).toLocaleDateString()}</p></div><select aria-label="Tenant status" value={selectedTenant.status} onChange={(event) => updateStatus.mutate(event.target.value as Tenant['status'])} className="rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="active">Active</option><option value="suspended">Suspended</option><option value="closed">Closed</option></select></div>
         <div className="grid gap-5 lg:grid-cols-2">
           <Panel icon={<ShieldCheck size={18}/>} title="Features"><div className="space-y-2">{(features.data?.features || []).map((feature) => <div key={feature.id} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm dark:border-slate-700"><div><p className="font-medium dark:text-white">{feature.displayName}</p><p className="text-xs text-gray-500">{feature.route}</p></div><button role="switch" aria-checked={feature.enabled} onClick={() => toggleFeature.mutate(feature)} className={`rounded-full px-3 py-1 text-xs font-semibold ${feature.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'}`}>{feature.enabled ? 'Enabled' : 'Disabled'}</button></div>)}</div></Panel>
-          <Panel icon={<Users size={18}/>} title={`Members (${members.data?.total || 0})`}><div className="space-y-2">{(members.data?.members || []).map((member) => <div key={member.identitySubject} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm dark:border-slate-700"><div><p className="font-medium dark:text-white">{member.email}</p><p className="text-xs capitalize text-gray-500">{member.role} · {member.status}</p></div>{member.status === 'active' && <button onClick={() => impersonate.mutate(member)} className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900"><Eye size={14}/>View</button>}</div>)}</div></Panel>
+          <Panel icon={<Users size={18}/>} title={`Members (${members.data?.total || 0})`}><div className="space-y-2">{(members.data?.members || []).map((member) => <div key={member.identitySubject} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm dark:border-slate-700"><div><p className="font-medium dark:text-white">{member.email}</p><p className="text-xs capitalize text-gray-500">{member.role} · {member.status}</p></div>{member.status === 'invited' ? <button disabled={resendInvitation.isPending && resendInvitation.variables?.identitySubject === member.identitySubject} onClick={() => resendInvitation.mutate(member)} className="flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2 py-1 text-xs text-blue-900 disabled:opacity-50"><Mail size={14}/>{resendInvitation.isPending && resendInvitation.variables?.identitySubject === member.identitySubject ? 'Sending…' : 'Resend invite'}</button> : member.status === 'active' && <button onClick={() => impersonate.mutate(member)} className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900"><Eye size={14}/>View</button>}</div>)}</div></Panel>
           <Panel icon={<Database size={18}/>} title="Connection metadata"><div className="space-y-2">{(connections.data?.connections || []).length ? connections.data?.connections.map((connection) => <div key={connection.id} className="rounded-lg border p-3 text-sm dark:border-slate-700"><div className="flex justify-between"><strong className="dark:text-white">{connection.displayName}</strong><span className="capitalize text-gray-500">{connection.status.replace('_',' ')}</span></div><p className="mt-1 text-xs text-gray-500">{connection.integrationType} · {connection.authKind.replace('_',' ')}</p><p className="mt-1 truncate text-[11px] text-gray-400">{connection.secretReference}</p></div>) : <p className="text-sm text-gray-500">No connections configured. Add them through the tenant Connections screen so credentials stay write-only.</p>}</div></Panel>
           <Panel icon={<CheckCircle2 size={18}/>} title="Onboarding"><p className="text-sm text-gray-600 dark:text-slate-300">Use the tenant onboarding checklist for company, station, fleet, driver, connection, feature, and approval information.</p><button onClick={() => downloadChecklist.mutate()} className="mt-3 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white">{downloadChecklist.isPending ? 'Preparing…' : 'Download checklist'}</button></Panel>
         </div>

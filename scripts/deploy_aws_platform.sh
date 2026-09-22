@@ -62,6 +62,47 @@ wait_for_build() {
   [[ "$build_state" == "SUCCEEDED" ]]
 }
 
+update_foundation_infrastructure() {
+  local template_path="$PROJECT_ROOT/platform/infra/foundation.yaml"
+  local raw_keys
+  local update_output
+  local update_rc
+  local -a parameter_keys
+  local -a parameter_args
+
+  aws_cmd cloudformation validate-template --template-body "file://$template_path" >/dev/null
+  raw_keys="$(aws_cmd cloudformation describe-stacks \
+    --stack-name "$FOUNDATION_STACK" \
+    --query 'Stacks[0].Parameters[].ParameterKey' --output text)"
+  parameter_keys=(${=raw_keys})
+  parameter_args=()
+  for key in "${parameter_keys[@]}"; do
+    parameter_args+=("ParameterKey=$key,UsePreviousValue=true")
+  done
+
+  set +e
+  update_output="$(aws_cmd cloudformation update-stack \
+    --stack-name "$FOUNDATION_STACK" \
+    --template-body "file://$template_path" \
+    --parameters "${parameter_args[@]}" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --query StackId --output text 2>&1)"
+  update_rc=$?
+  set -e
+
+  if (( update_rc == 0 )); then
+    print "Updating foundation infrastructure..."
+    aws_cmd cloudformation wait stack-update-complete --stack-name "$FOUNDATION_STACK"
+    return
+  fi
+  if [[ "$update_output" == *"No updates are to be performed"* ]]; then
+    print "Foundation infrastructure is already current."
+    return
+  fi
+  print -u2 "$update_output"
+  return "$update_rc"
+}
+
 update_application_infrastructure() {
   local template_path="$PROJECT_ROOT/platform/infra/application.yaml"
   local raw_keys
@@ -110,6 +151,8 @@ aws_cmd sts get-caller-identity --query Arn --output text
 print "Running tests..."
 cd "$PROJECT_ROOT"
 npm test
+
+update_foundation_infrastructure
 
 print "Refreshing packaged operational snapshots..."
 python3 scripts/export_platform_snapshots.py

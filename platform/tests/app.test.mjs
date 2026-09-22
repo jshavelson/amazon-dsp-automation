@@ -304,6 +304,28 @@ test('add user provisions Cognito identity before creating tenant membership', a
   assert.equal(calls[1][1].identitySubject, 'cognito-sub-1');
 });
 
+test('tenant admin can resend only a pending member invitation and the action is audited', async (t) => {
+  const calls = [];
+  const invitedMember = { identitySubject: 'cognito-sub-1', email: 'analyst@example.com', role: 'analyst', status: 'invited' };
+  const resendRepository = {
+    ...repository,
+    async listMembers() { return [invitedMember, { ...invitedMember, identitySubject: 'active-sub', email: 'active@example.com', status: 'active' }]; },
+    async auditMemberInvitationResent(_context, member) { calls.push(['audit', member.email]); }
+  };
+  const memberProvisioner = {
+    async resend({ email }) { calls.push(['resend', email]); return { invitationSent: true }; }
+  };
+  const app = await createApp({ authenticator, repository: resendRepository, registry, memberProvisioner });
+  t.after(() => app.close());
+  const headers = { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' };
+  const resent = await app.inject({ method: 'POST', url: '/api/members/cognito-sub-1/resend-invitation', headers });
+  assert.equal(resent.statusCode, 200);
+  assert.equal(resent.json().invitationSent, true);
+  assert.deepEqual(calls, [['resend', 'analyst@example.com'], ['audit', 'analyst@example.com']]);
+  const active = await app.inject({ method: 'POST', url: '/api/members/active-sub/resend-invitation', headers });
+  assert.equal(active.statusCode, 409);
+});
+
 test('platform admin support session assumes target visibility but remains read-only and audited', async (t) => {
   const audits = [];
   const adminRepository = {
