@@ -19,6 +19,14 @@ export type PlatformContext = {
   impersonation: null | { active: true; actorEmail: string; targetEmail: string; targetRole: string; reason: string; expiresAt: number };
 };
 
+export const ROOT_TENANT_ID = 'jecs';
+
+export const isFeatureAvailable = (feature: PlatformFeature | undefined) =>
+  Boolean(feature && feature.enabled && feature.status === 'implemented');
+
+export const isRootTenant = (tenant: PlatformContext['tenant'] | undefined) =>
+  !tenant || tenant.id.toLowerCase() === ROOT_TENANT_ID;
+
 export const usePlatformContext = () => useQuery<PlatformContext>({
   queryKey: ['platform-context'],
   queryFn: () => api.get<PlatformContext>('/context'),

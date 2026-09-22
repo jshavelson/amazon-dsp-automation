@@ -15,6 +15,7 @@ import {
 import { User as UserType } from '@/types/auth';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import { isRootTenant, usePlatformContext } from '@/hooks/usePlatformContext';
 
 interface ConnectionHealth {
   summary: { total: number; connectionTotal?: number; active?: number; connected: number; health?: 'green' | 'yellow' | 'red' };
@@ -50,6 +51,7 @@ const Header: React.FC<HeaderProps> = ({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { data: platform } = usePlatformContext();
   const { data: connectionHealth } = useQuery<ConnectionHealth>({
     queryKey: ['connection-health'],
     queryFn: () => api.get<ConnectionHealth>('/connections'),
@@ -339,6 +341,15 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Breadcrumb */}
           <Breadcrumb />
+          {!isRootTenant(platform?.tenant) && (
+            <div
+              className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
+              aria-label={`Active tenant: ${platform?.tenant.name}`}
+              title={`Active tenant: ${platform?.tenant.name} (${platform?.tenant.id})`}
+            >
+              <span className="hidden sm:inline">Active tenant:&nbsp;</span>{platform?.tenant.name}
+            </div>
+          )}
         </div>
 
         {/* Right side */}

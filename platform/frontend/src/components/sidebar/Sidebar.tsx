@@ -26,7 +26,7 @@ import {
   Bot,
   Building2,
 } from 'lucide-react';
-import { usePlatformContext } from '@/hooks/usePlatformContext';
+import { isFeatureAvailable, usePlatformContext } from '@/hooks/usePlatformContext';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -97,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const visibleIds = new Map((platform?.features || []).map((feature) => [feature.id, feature]));
   const filterItems = (items: NavItem[]) => items.flatMap((item) => {
     const feature = visibleIds.get(item.featureId);
-    return feature ? [{ ...item, planned: feature.status !== 'implemented' }] : [];
+    return isFeatureAvailable(feature) ? [{ ...item, planned: false }] : [];
   });
   const visibleNavGroups = navGroups
     .map((group) => ({ ...group, items: filterItems(group.items) }))

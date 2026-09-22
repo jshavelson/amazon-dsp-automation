@@ -35,7 +35,7 @@ import SystemPage from './pages/system/SystemPage';
 import { UsersRolesPage, FeatureAdminPage } from './pages/admin/AccessAdminPage';
 import AIAssistantAdminPage from './pages/admin/AIAssistantAdminPage';
 import SuperAdminPage from './pages/admin/SuperAdminPage';
-import { usePlatformContext } from './hooks/usePlatformContext';
+import { isFeatureAvailable, usePlatformContext } from './hooks/usePlatformContext';
 
 // Shared Components
 import LoadingSpinner from './components/shared/LoadingSpinner';
@@ -86,7 +86,7 @@ const FeatureGate: React.FC = () => {
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
   if (location.pathname === '/') return <Outlet />;
   const feature = data?.features.find((item) => location.pathname === item.route || location.pathname.startsWith(`${item.route}/`));
-  if (!feature) return <div className="m-8 rounded-xl border border-red-200 bg-red-50 p-6 text-red-800"><strong>Feature unavailable.</strong><p className="mt-1 text-sm">This feature is not implemented, enabled, entitled, or permitted for your role.</p></div>;
+  if (!isFeatureAvailable(feature)) return <div className="m-8 rounded-xl border border-red-200 bg-red-50 p-6 text-red-800"><strong>Feature unavailable.</strong><p className="mt-1 text-sm">This feature is not implemented, enabled, entitled, or permitted for your role.</p></div>;
   return <Outlet />;
 };
 
