@@ -32,6 +32,18 @@ import { Table, Column } from '@/components/shared/Table';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { Badge } from '@/components/shared/Badge';
 
+export const formatPerformanceMetric = (value: unknown, suffix = ''): string => {
+  const numeric = Number(value);
+  return value !== null && value !== undefined && Number.isFinite(numeric)
+    ? `${numeric.toFixed(1)}${suffix}`
+    : 'N/A';
+};
+
+const metricWidth = (value: unknown): string => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${Math.max(0, Math.min(100, numeric))}%` : '0%';
+};
+
 const PerformancePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -547,13 +559,13 @@ const PerformancePage: React.FC = () => {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Overall Score</p>
               <div className="flex items-center justify-center space-x-2">
-                <span className="text-2xl font-bold text-gray-900">{dspPerformance.overallScore.toFixed(1)}</span>
+                <span className="text-2xl font-bold text-gray-900">{formatPerformanceMetric(dspPerformance.overallScore)}</span>
                 <span className="text-sm">/100</span>
               </div>
               <div className="mt-2 h-1 bg-gray-200 rounded-full">
                 <div
                   className="h-1 bg-primary-600 rounded-full"
-                  style={{ width: `${dspPerformance.overallScore}%` }}
+                  style={{ width: metricWidth(dspPerformance.overallScore) }}
                 />
               </div>
             </div>
@@ -561,13 +573,13 @@ const PerformancePage: React.FC = () => {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Delivery</p>
               <div className="flex items-center justify-center space-x-2">
-                <span className="text-2xl font-bold text-primary-600">{dspPerformance.deliveryScore.toFixed(1)}</span>
+                <span className="text-2xl font-bold text-primary-600">{formatPerformanceMetric(dspPerformance.deliveryScore)}</span>
                 <span className="text-sm">/100</span>
               </div>
               <div className="mt-2 h-1 bg-gray-200 rounded-full">
                 <div
                   className="h-1 bg-primary-600 rounded-full"
-                  style={{ width: `${dspPerformance.deliveryScore}%` }}
+                  style={{ width: metricWidth(dspPerformance.deliveryScore) }}
                 />
               </div>
             </div>
@@ -575,13 +587,13 @@ const PerformancePage: React.FC = () => {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Safety</p>
               <div className="flex items-center justify-center space-x-2">
-                <span className="text-2xl font-bold text-success-600">{dspPerformance.safetyScore.toFixed(1)}</span>
+                <span className="text-2xl font-bold text-success-600">{formatPerformanceMetric(dspPerformance.safetyScore)}</span>
                 <span className="text-sm">/100</span>
               </div>
               <div className="mt-2 h-1 bg-gray-200 rounded-full">
                 <div
                   className="h-1 bg-success-600 rounded-full"
-                  style={{ width: `${dspPerformance.safetyScore}%` }}
+                  style={{ width: metricWidth(dspPerformance.safetyScore) }}
                 />
               </div>
             </div>
@@ -589,13 +601,13 @@ const PerformancePage: React.FC = () => {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Efficiency</p>
               <div className="flex items-center justify-center space-x-2">
-                <span className="text-2xl font-bold text-warning-600">{dspPerformance.efficiencyScore.toFixed(1)}</span>
+                <span className="text-2xl font-bold text-warning-600">{formatPerformanceMetric(dspPerformance.efficiencyScore)}</span>
                 <span className="text-sm">/100</span>
               </div>
               <div className="mt-2 h-1 bg-gray-200 rounded-full">
                 <div
                   className="h-1 bg-warning-600 rounded-full"
-                  style={{ width: `${dspPerformance.efficiencyScore}%` }}
+                  style={{ width: metricWidth(dspPerformance.efficiencyScore) }}
                 />
               </div>
             </div>
@@ -603,13 +615,13 @@ const PerformancePage: React.FC = () => {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Quality</p>
               <div className="flex items-center justify-center space-x-2">
-                <span className="text-2xl font-bold text-info-600">{dspPerformance.qualityScore.toFixed(1)}</span>
+                <span className="text-2xl font-bold text-info-600">{formatPerformanceMetric(dspPerformance.qualityScore)}</span>
                 <span className="text-sm">/100</span>
               </div>
               <div className="mt-2 h-1 bg-gray-200 rounded-full">
                 <div
                   className="h-1 bg-info-600 rounded-full"
-                  style={{ width: `${dspPerformance.qualityScore}%` }}
+                  style={{ width: metricWidth(dspPerformance.qualityScore) }}
                 />
               </div>
             </div>
@@ -617,13 +629,13 @@ const PerformancePage: React.FC = () => {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">Compliance</p>
               <div className="flex items-center justify-center space-x-2">
-                <span className="text-2xl font-bold text-gray-900">{dspPerformance.complianceScore.toFixed(1)}</span>
+                <span className="text-2xl font-bold text-gray-900">{formatPerformanceMetric(dspPerformance.complianceScore)}</span>
                 <span className="text-sm">/100</span>
               </div>
               <div className="mt-2 h-1 bg-gray-200 rounded-full">
                 <div
                   className="h-1 bg-gray-600 rounded-full"
-                  style={{ width: `${dspPerformance.complianceScore}%` }}
+                  style={{ width: metricWidth(dspPerformance.complianceScore) }}
                 />
               </div>
             </div>
@@ -645,7 +657,7 @@ const PerformancePage: React.FC = () => {
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-500">On-Time %</p>
-            <p className="text-xl font-bold text-gray-900">{Number(dspPerformance?.onTimeDeliveryRate ?? 0).toFixed(1)}%</p>
+            <p className="text-xl font-bold text-gray-900">{formatPerformanceMetric(dspPerformance?.onTimeDeliveryRate, '%')}</p>
           </div>
         </div>
       </motion.div>
@@ -693,15 +705,15 @@ const PerformancePage: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Overall</span>
-                  <span className="font-medium text-gray-900">{team.averageOverallScore.toFixed(1)}</span>
+                  <span className="font-medium text-gray-900">{formatPerformanceMetric(team.averageOverallScore)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Delivery</span>
-                  <span className="font-medium text-gray-900">{team.averageDeliveryScore.toFixed(1)}</span>
+                  <span className="font-medium text-gray-900">{formatPerformanceMetric(team.averageDeliveryScore)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Safety</span>
-                  <span className="font-medium text-gray-900">{team.averageSafetyScore.toFixed(1)}</span>
+                  <span className="font-medium text-gray-900">{formatPerformanceMetric(team.averageSafetyScore)}</span>
                 </div>
               </div>
 
@@ -866,9 +878,9 @@ const PerformancePage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-500">Avg. Score</p>
               <p className="text-xl font-bold text-gray-900">
-                {drivers.length > 0 
-                  ? (drivers.reduce((sum, d) => sum + d.overallScore, 0) / drivers.length).toFixed(1)
-                  : '0'}
+                {formatPerformanceMetric(drivers.length > 0
+                  ? drivers.reduce((sum, d) => sum + Number(d.overallScore || 0), 0) / drivers.length
+                  : null)}
               </p>
             </div>
           </div>
@@ -882,9 +894,10 @@ const PerformancePage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-500">Safety Score</p>
               <p className="text-xl font-bold text-gray-900">
-                {drivers.length > 0 
-                  ? (drivers.reduce((sum, d) => sum + d.safetyScore, 0) / drivers.length).toFixed(1)
-                  : '0'}
+                {formatPerformanceMetric((() => {
+                  const values = drivers.map((driver) => Number(driver.safetyScore)).filter(Number.isFinite);
+                  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+                })())}
               </p>
             </div>
           </div>

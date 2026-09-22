@@ -1143,8 +1143,11 @@ def build_performance_dashboard_payload():
     if not history:
         payload = {'period': None, 'generatedAt': datetime.now(timezone.utc).isoformat(),
                    'source': None, 'drivers': [], 'history': [],
-                   'dspPerformance': {'overallScore': 0, 'deliveryScore': 0, 'safetyScore': 0,
-                                      'qualityScore': 0, 'driverCount': 0, 'totalDeliveries': 0}}
+                   'dspPerformance': {'overallScore': 0, 'deliveryScore': 0, 'safetyScore': None,
+                                      'efficiencyScore': None, 'qualityScore': 0, 'costScore': None,
+                                      'complianceScore': None, 'driverCount': 0, 'vanCount': 0,
+                                      'routeCount': 0, 'totalDeliveries': 0,
+                                      'onTimeDeliveryRate': None}}
         _PERFORMANCE_DASHBOARD_CACHE.update(fingerprint=fingerprint, payload=payload)
         return payload
     current = history[-1]
@@ -1164,10 +1167,19 @@ def build_performance_dashboard_payload():
         'dspPerformance': {
             'overallScore': current['overallScore'],
             'deliveryScore': current['dcr'],
-            'safetyScore': 0,
+            # These categories are not present in the scorecard source used by
+            # this view. Preserve them as unavailable rather than presenting a
+            # fabricated zero or omitting the key and crashing the React page.
+            'safetyScore': None,
+            'efficiencyScore': None,
             'qualityScore': current['pod'],
+            'costScore': None,
+            'complianceScore': None,
             'driverCount': current['activeDrivers'],
+            'vanCount': 0,
+            'routeCount': 0,
             'totalDeliveries': current['packages'],
+            'onTimeDeliveryRate': None,
         },
     }
     _PERFORMANCE_DASHBOARD_CACHE.update(fingerprint=fingerprint, payload=payload)
