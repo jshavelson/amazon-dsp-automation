@@ -1,75 +1,87 @@
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Clock3, RefreshCw, Search, Truck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, Search, Send, Truck } from 'lucide-react';
 import { api } from '@/services/api';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
 import { MetricCard } from '@/components/shared/OperationalSourceBanner';
 
 type Risk = 'on_track' | 'late_departure' | 'behind' | 'stalled';
-type DispatchAssignment = { driverId?: string; driverName?: string; vanId?: string; vanLabel?: string; vin?: string; phoneId?: string; phoneLabel?: string; updatedAt?: string };
+type DispatchAssignment = { driverId?: string; driverName?: string; vanId?: string; vanLabel?: string; vin?: string; phoneId?: string; phoneLabel?: string; pad?: string; stagingArea?: string };
 type DispatchOption = { id: string; label: string; status?: string; source?: string; vin?: string };
-type LiveRoute = {
-  routeId: string; routeCode: string; deliveryDate: string; transporterId: string; driverName: string; vin: string;
-  status: string; risk: Risk; completedStops: number; totalStops: number; completionPct: number;
-  deliveredPackages: number; totalPackages: number; stopsLastHour: number; projectedCompletionAt: string | null;
-  projectedLateMinutes: number; inactiveMinutes: number; onBreak: boolean; routePaused: boolean; rescueCount: number;
-  associatedRoutes: { routeCode: string }[]; isMultiRoute: boolean; dispatchAssignment?: DispatchAssignment;
-};
+type LiveRoute = { routeId: string; routeCode: string; deliveryDate: string; transporterId: string; driverName: string; status: string; risk: Risk; completedStops: number; totalStops: number; stopsLastHour: number; transporterCount?: number; dispatchAssignment?: DispatchAssignment };
 type Payload = {
-  period: string | null; capturedAt: string | null; source: string; live: boolean; stale: boolean; needsData: boolean;
-  needsReauth: boolean; message?: string; routeCount: number;
+  period: string | null; capturedAt: string | null; source: string; live: boolean; stale: boolean; needsData: boolean; needsReauth: boolean; message?: string; routeCount: number;
   summary: { assigned: number; inProgress: number; completed: number; behind: number; stalled: number; lateDepartures: number; multiRoute: number };
+  dispatchPlan?: { expectedRoutes: number; sweepers: number };
   routes: LiveRoute[]; assignmentOptions?: { drivers: DispatchOption[]; vans: DispatchOption[]; phones: DispatchOption[] };
 };
 
+const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 const riskStyle: Record<Risk, string> = { on_track: 'bg-emerald-100 text-emerald-800', late_departure: 'bg-amber-100 text-amber-800', behind: 'bg-orange-100 text-orange-800', stalled: 'bg-red-100 text-red-800' };
-const time = (value: string | null) => value ? new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—';
-const routeKey = (route: LiveRoute) => `${route.routeId}|${route.transporterId}`;
 
-const AssignmentSelect = ({ label, value, options, onChange, disabled }: { label: string; value: string; options: DispatchOption[]; onChange: (value: string) => void; disabled: boolean }) => <label className="block">
-  <span className="sr-only">{label}</span>
-  <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} className="w-full min-w-36 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950">
-    <option value="">Unassigned</option>
-    {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-  </select>
-</label>;
+const AssignmentSelect = ({ label, value, options, onChange, disabled }: { label: string; value: string; options: DispatchOption[]; onChange: (value: string) => void; disabled: boolean }) => <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} className="w-full min-w-28 rounded border border-gray-300 bg-white px-1.5 py-1 text-xs disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select>;
+
+const AutoSaveText = ({ label, value, onSave, disabled }: { label: string; value: string; onSave: (value: string) => void; disabled: boolean }) => {
+  const [draft, setDraft] = useState(value);
+  const onSaveRef = useRef(onSave);
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => {
+    if (draft.trim() === value) return;
+    const timer = window.setTimeout(() => onSaveRef.current(draft.trim()), 500);
+    return () => window.clearTimeout(timer);
+  }, [draft, value]);
+  return <input aria-label={label} value={draft} onChange={(event) => setDraft(event.target.value)} disabled={disabled} className="w-20 rounded border border-gray-300 px-1.5 py-1 text-xs dark:border-slate-700 dark:bg-slate-950" placeholder="—"/>;
+};
 
 const RoutesPage: React.FC = () => {
+  const [selectedDate, setSelectedDate] = useState(today);
   const [search, setSearch] = useState('');
   const [risk, setRisk] = useState<'all' | Risk>('all');
-  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [expectedRoutes, setExpectedRoutes] = useState(0);
+  const [sweepers, setSweepers] = useState(0);
+  const [saveMessage, setSaveMessage] = useState('');
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
   const queryClient = useQueryClient();
-  const { data, isLoading, error, refetch } = useQuery<Payload>({ queryKey: ['route-monitor-live'], queryFn: () => api.get<Payload>('/route-monitor'), refetchInterval: 5 * 60 * 1000, staleTime: 4 * 60 * 1000 });
+  const { data, isLoading, error, refetch } = useQuery<Payload>({ queryKey: ['route-monitor-live', selectedDate], queryFn: () => api.get<Payload>('/route-monitor', { date: selectedDate }), refetchInterval: selectedDate === today() ? 5 * 60 * 1000 : false, staleTime: 60 * 1000 });
   const { refresh, isRefreshing, refreshError } = useDataRefresh();
+  useEffect(() => { setExpectedRoutes(data?.dispatchPlan?.expectedRoutes || 0); setSweepers(data?.dispatchPlan?.sweepers || 0); }, [data?.period, data?.dispatchPlan?.expectedRoutes, data?.dispatchPlan?.sweepers]);
+  useEffect(() => {
+    if (!data || data.period !== selectedDate) return;
+    const timer = window.setTimeout(async () => {
+      await api.put('/route-monitor/plan', { deliveryDate: selectedDate, expectedRoutes, sweepers });
+      setSaveMessage(`Saved ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [selectedDate, expectedRoutes, sweepers, data?.period]);
   const saveAssignment = useMutation({
-    mutationFn: ({ route, assignment }: { route: LiveRoute; assignment: DispatchAssignment }) => api.put('/route-monitor/assignments', { deliveryDate: route.deliveryDate, routeId: route.routeId, transporterId: route.transporterId, driverId: assignment.driverId || '', vanId: assignment.vanId || '', phoneId: assignment.phoneId || '' }),
-    onSuccess: async () => { setAssignmentError(null); await queryClient.invalidateQueries({ queryKey: ['route-monitor-live'] }); },
-    onError: (reason) => setAssignmentError(reason instanceof Error ? reason.message : 'Assignment could not be saved.'),
+    mutationFn: ({ route, assignment }: { route: LiveRoute; assignment: DispatchAssignment }) => api.put('/route-monitor/assignments', { deliveryDate: route.deliveryDate, routeId: route.routeId, routeCode: route.routeCode, transporterId: route.transporterId, driverId: assignment.driverId || '', vanId: assignment.vanId || '', phoneId: assignment.phoneId || '', pad: assignment.pad || '', stagingArea: assignment.stagingArea || '' }),
+    onSuccess: async () => { setSaveMessage('Assignment saved'); await queryClient.invalidateQueries({ queryKey: ['route-monitor-live', selectedDate] }); },
+    onError: (reason) => setSaveMessage(reason instanceof Error ? reason.message : 'Assignment could not be saved'),
   });
   const options = data?.assignmentOptions || { drivers: [], vans: [], phones: [] };
-  const searchableRoutes = useMemo(() => (data?.routes || []).map((route) => ({ route, searchText: `${route.driverName} ${route.transporterId} ${route.routeCode} ${route.vin} ${route.dispatchAssignment?.driverName || ''} ${route.dispatchAssignment?.vanLabel || ''} ${route.dispatchAssignment?.phoneLabel || ''}`.toLowerCase() })), [data?.routes]);
-  const rows = useMemo(() => searchableRoutes.filter(({ route, searchText }) => (risk === 'all' || route.risk === risk) && searchText.includes(deferredSearch)).map(({ route }) => route), [searchableRoutes, risk, deferredSearch]);
-  const assignedRoutes = (data?.routes || []).filter((route) => route.dispatchAssignment?.driverId && route.dispatchAssignment?.vanId && route.dispatchAssignment?.phoneId).length;
+  const rows = useMemo(() => (data?.routes || []).filter((route) => (risk === 'all' || route.risk === risk) && `${route.routeCode} ${route.driverName} ${route.dispatchAssignment?.driverName || ''} ${route.dispatchAssignment?.vanLabel || ''}`.toLowerCase().includes(deferredSearch)), [data?.routes, risk, deferredSearch]);
+  const ready = (data?.routes || []).filter((route) => route.dispatchAssignment?.driverId && route.dispatchAssignment?.vanId && route.dispatchAssignment?.phoneId).length;
   const updateAssignment = (route: LiveRoute, patch: DispatchAssignment) => saveAssignment.mutate({ route, assignment: { ...(route.dispatchAssignment || {}), ...patch } });
+  const shareAssignments = async () => {
+    const lines = (data?.routes || []).filter((route) => route.dispatchAssignment?.driverName).map((route) => { const a = route.dispatchAssignment || {}; return `${route.routeCode}: ${a.driverName} · ${a.vanLabel || 'No van'} · ${a.phoneLabel || 'No phone'} · PAD ${a.pad || '—'} · Stage ${a.stagingArea || '—'}`; });
+    const text = [`JECS dispatch assignments · ${selectedDate}`, `Expected routes: ${expectedRoutes} · Sweepers: ${sweepers}`, ...lines].join('\n');
+    try {
+      if (navigator.share) { await navigator.share({ title: `Dispatch assignments ${selectedDate}`, text }); setSaveMessage('Assignment sheet opened for sharing'); }
+      else { await navigator.clipboard.writeText(text); setSaveMessage('Assignments copied—paste into SMS or WhatsApp'); }
+    } catch { setSaveMessage('Sharing cancelled'); }
+  };
 
-  if (isLoading) return <div className="rounded-xl border bg-white p-8">Loading live routes…</div>;
-  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">Live routes could not be loaded. <button className="underline" onClick={() => refetch()}>Retry</button></div>;
-  const age = data?.capturedAt ? Math.max(0, Math.round((Date.now() - Date.parse(data.capturedAt)) / 60000)) : null;
-
-  return <div className="space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold dark:text-white">Live Route Monitor</h1><p className="text-sm text-gray-500">Cortex / Amazon Delivery Execution · {data?.period || 'no operating day loaded'}</p></div><button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"><RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''}/>{isRefreshing ? 'Refreshing Cortex…' : 'Refresh Cortex'}</button></header>
-    <div className={`rounded-xl border p-4 ${data?.live ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : data?.stale && data?.capturedAt ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-800'}`}><div className="flex items-center gap-2 font-semibold">{data?.live ? <><span className="h-2.5 w-2.5 rounded-full bg-emerald-500"/>Live Cortex data</> : <><AlertTriangle size={17}/>{data?.capturedAt ? 'Cortex data is stale' : 'Cortex is not connected'}</>}</div><p className="mt-1 text-sm">{data?.message || `${data?.routeCount || 0} route assignments captured ${age === null ? 'at an unknown time' : `${age} minute${age === 1 ? '' : 's'} ago`}. Auto-refreshes every five minutes.`}</p>{data?.needsReauth && <p className="mt-2 text-sm font-semibold">Reconnect Amazon on the Connections screen to restore live Cortex updates.</p>}{refreshError && <p className="mt-2 text-sm font-semibold text-red-700">{refreshError.message}</p>}</div>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6"><MetricCard label="Routes" value={data?.routeCount || 0}/><MetricCard label="Dispatch ready" value={`${assignedRoutes}/${data?.routeCount || 0}`} detail="driver + van + phone"/><MetricCard label="In progress" value={data?.summary.inProgress || 0}/><MetricCard label="Behind" value={data?.summary.behind || 0}/><MetricCard label="Stalled" value={data?.summary.stalled || 0}/><MetricCard label="Completed" value={data?.summary.completed || 0}/></div>
-    {assignmentError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{assignmentError}</div>}
-    <section className="rounded-xl border bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex flex-wrap gap-3 border-b p-4 dark:border-slate-800"><label className="relative min-w-64 flex-1"><Search className="absolute left-3 top-2.5 text-gray-400" size={16}/><input aria-label="Search live routes" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Driver, route, van, phone, transporter, or VIN" className="w-full rounded-lg border py-2 pl-9 pr-3 dark:border-slate-700 dark:bg-slate-950"/></label><select aria-label="Risk filter" value={risk} onChange={(event) => setRisk(event.target.value as typeof risk)} className="rounded-lg border px-3 dark:border-slate-700 dark:bg-slate-950"><option value="all">All conditions</option><option value="stalled">Stalled</option><option value="behind">Behind</option><option value="late_departure">Late departure</option><option value="on_track">On track</option></select></div>
-      {rows.length === 0 ? <div className="p-10 text-center text-gray-500"><Truck className="mx-auto mb-3"/><p className="font-medium">No live routes to display</p><p className="mt-1 text-sm">Refresh Cortex after routes are published for today.</p></div> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-slate-800"><tr><th className="p-3">Cortex route</th><th className="p-3">Condition</th><th className="p-3">Stops / pace</th><th className="p-3">Driver assignment</th><th className="p-3">Van assignment</th><th className="p-3">Phone assignment</th></tr></thead><tbody className="divide-y dark:divide-slate-800">{rows.map((route) => {
-        const assignment = route.dispatchAssignment || {};
-        const saving = saveAssignment.isPending && saveAssignment.variables?.route && routeKey(saveAssignment.variables.route) === routeKey(route);
-        const ready = assignment.driverId && assignment.vanId && assignment.phoneId;
-        return <tr key={routeKey(route)} className={route.risk === 'stalled' ? 'bg-red-50/60' : ''}><td className="p-3"><div className="flex items-center gap-2"><span className="font-semibold dark:text-white">{route.routeCode}</span>{ready && <CheckCircle2 size={15} className="text-emerald-600"/>}</div><div className="text-xs text-gray-500">{route.driverName || route.transporterId || 'Cortex driver unassigned'}</div>{route.isMultiRoute && <div className="mt-1 text-xs text-blue-700">Multi-route: {route.associatedRoutes.map((item) => item.routeCode).join(', ')}</div>}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${riskStyle[route.risk]}`}>{route.risk.replace('_', ' ')}</span>{route.onBreak && <div className="mt-1 text-xs text-gray-500">On break</div>}{route.routePaused && <div className="mt-1 text-xs text-red-600">Route paused</div>}</td><td className="p-3"><div className="font-semibold">{route.completedStops}/{route.totalStops} stops</div><div>{route.stopsLastHour} stops/hr</div><div className="mt-1 flex items-center gap-1 text-xs text-gray-500"><Clock3 size={13}/>{time(route.projectedCompletionAt)}</div></td><td className="p-3"><AssignmentSelect label={`Driver for ${route.routeCode}`} value={assignment.driverId || ''} options={options.drivers} disabled={Boolean(saving)} onChange={(driverId) => updateAssignment(route, { driverId })}/></td><td className="p-3"><AssignmentSelect label={`Van for ${route.routeCode}`} value={assignment.vanId || ''} options={options.vans} disabled={Boolean(saving)} onChange={(vanId) => updateAssignment(route, { vanId })}/>{assignment.vin && <div className="mt-1 font-mono text-[10px] text-gray-500">{assignment.vin}</div>}</td><td className="p-3"><AssignmentSelect label={`Phone for ${route.routeCode}`} value={assignment.phoneId || ''} options={options.phones} disabled={Boolean(saving)} onChange={(phoneId) => updateAssignment(route, { phoneId })}/>{saving && <div className="mt-1 text-[10px] text-blue-600">Saving…</div>}</td></tr>;
-      })}</tbody></table></div>}
-      <p className="border-t p-3 text-xs text-gray-500 dark:border-slate-800">Showing {rows.length} routes · Dispatch assignments save immediately · Source: {data?.source}</p></section>
+  if (isLoading) return <div className="rounded-xl border bg-white p-8">Loading dispatch plan…</div>;
+  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">Dispatch plan could not be loaded. <button className="underline" onClick={() => refetch()}>Retry</button></div>;
+  return <div className="space-y-4">
+    <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold dark:text-white">Live Route Monitor</h1><p className="text-sm text-gray-500">Morning dispatch plan + Cortex progress</p></div><div className="flex flex-wrap items-center gap-2"><input aria-label="Dispatch date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"/><button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50"><RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''}/>{isRefreshing ? 'Refreshing…' : 'Refresh Cortex'}</button><button type="button" onClick={() => void shareAssignments()} className="flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white"><Send size={15}/>Text / share</button></div></header>
+    <div className={`rounded-lg border p-3 text-sm ${data?.live ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><div className="flex items-center gap-2 font-semibold">{data?.live ? <CheckCircle2 size={16}/> : <AlertTriangle size={16}/>} {data?.live ? 'Live Cortex data' : data?.capturedAt ? 'Cortex data is stale' : 'No Cortex capture for this date'}</div><p className="mt-1">{data?.message}</p>{data?.needsReauth && <p className="mt-1 font-semibold">Reconnect Amazon on Connections to refresh portal data.</p>}{refreshError && <p className="mt-1 text-red-700">{refreshError.message}</p>}</div>
+    <section className="grid gap-3 rounded-xl border bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-6 dark:border-slate-800 dark:bg-slate-900"><label className="text-xs font-semibold text-gray-600">Expected routes<input type="number" min="0" max="250" value={expectedRoutes} onChange={(event) => setExpectedRoutes(Number(event.target.value))} className="mt-1 w-full rounded border px-2 py-1.5 text-base dark:border-slate-700 dark:bg-slate-950"/></label><label className="text-xs font-semibold text-gray-600">Sweepers<input type="number" min="0" max="100" value={sweepers} onChange={(event) => setSweepers(Number(event.target.value))} className="mt-1 w-full rounded border px-2 py-1.5 text-base dark:border-slate-700 dark:bg-slate-950"/></label><MetricCard label="Cortex routes" value={data?.routeCount || 0}/><MetricCard label="Dispatch ready" value={`${ready}/${data?.routeCount || 0}`}/><MetricCard label="Behind / stalled" value={`${data?.summary.behind || 0} / ${data?.summary.stalled || 0}`}/><MetricCard label="Auto save" value={saveMessage || 'Ready'}/></section>
+    {options.drivers.length === 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No named active drivers are available from the selected Amazon portal capture. Reconnect and refresh Cortex; the dropdown no longer mixes in ADP or scorecard drivers.</div>}
+    <section className="rounded-xl border bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex gap-2 border-b p-3 dark:border-slate-800"><label className="relative flex-1"><Search className="absolute left-2.5 top-2 text-gray-400" size={15}/><input aria-label="Search routes" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Route, driver, or van" className="w-full rounded border py-1.5 pl-8 pr-2 text-sm dark:border-slate-700 dark:bg-slate-950"/></label><select aria-label="Risk filter" value={risk} onChange={(event) => setRisk(event.target.value as typeof risk)} className="rounded border px-2 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="all">All</option><option value="stalled">Stalled</option><option value="behind">Behind</option><option value="late_departure">Late</option><option value="on_track">On track</option></select></div>
+      {rows.length === 0 ? <div className="p-8 text-center text-gray-500"><Truck className="mx-auto mb-2"/><strong>No Cortex routes for {selectedDate}</strong><p className="mt-1 text-sm">Expected route and sweeper counts above still save by date.</p></div> : <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-gray-50 text-left uppercase text-gray-500 dark:bg-slate-800"><tr><th className="px-2 py-2">Route</th><th className="px-2 py-2">Driver</th><th className="px-2 py-2">Van</th><th className="px-2 py-2">Stops / pace</th><th className="px-2 py-2">Phone</th><th className="px-2 py-2">PAD</th><th className="px-2 py-2">Staging</th></tr></thead><tbody className="divide-y dark:divide-slate-800">{rows.map((route) => { const assignment = route.dispatchAssignment || {}; const saving = saveAssignment.isPending && saveAssignment.variables?.route.routeCode === route.routeCode; return <tr key={route.routeCode}><td className="px-2 py-1.5"><div className="font-bold text-sm">{route.routeCode}</div><span className={`rounded px-1 py-0.5 text-[9px] font-semibold ${riskStyle[route.risk]}`}>{route.risk.replace('_', ' ')}</span>{(route.transporterCount || 1) > 1 && <div className="mt-1 text-[9px] text-purple-700">{route.transporterCount} transporters</div>}</td><td className="px-2 py-1.5"><AssignmentSelect label={`Driver for ${route.routeCode}`} value={assignment.driverId || ''} options={options.drivers} disabled={saving} onChange={(driverId) => updateAssignment(route, { driverId })}/></td><td className="px-2 py-1.5"><AssignmentSelect label={`Van for ${route.routeCode}`} value={assignment.vanId || ''} options={options.vans} disabled={saving} onChange={(vanId) => updateAssignment(route, { vanId })}/></td><td className="whitespace-nowrap px-2 py-1.5"><strong>{route.completedStops}/{route.totalStops}</strong><br/><span className="text-gray-500">{route.stopsLastHour}/hr</span></td><td className="px-2 py-1.5"><AssignmentSelect label={`Phone for ${route.routeCode}`} value={assignment.phoneId || ''} options={options.phones} disabled={saving} onChange={(phoneId) => updateAssignment(route, { phoneId })}/></td><td className="px-2 py-1.5"><AutoSaveText label={`PAD for ${route.routeCode}`} value={assignment.pad || ''} disabled={saving} onSave={(pad) => updateAssignment(route, { pad })}/></td><td className="px-2 py-1.5"><AutoSaveText label={`Staging area for ${route.routeCode}`} value={assignment.stagingArea || ''} disabled={saving} onSave={(stagingArea) => updateAssignment(route, { stagingArea })}/></td></tr>; })}</tbody></table></div>}
+      <p className="border-t px-3 py-2 text-[11px] text-gray-500 dark:border-slate-800">{rows.length} unique route numbers · rescue transporters are grouped, not duplicated · assignments auto-save by date</p></section>
   </div>;
 };
 

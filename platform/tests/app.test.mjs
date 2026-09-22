@@ -46,7 +46,14 @@ const repository = {
     stopsLastHour: 8, projectedCompletionAt: '2026-09-22T23:00:00Z', projectedLateMinutes: 25,
     inactiveMinutes: 5, onBreak: false, routePaused: false, rescueCount: 0,
     associatedRoutes: [{ routeCode: 'CX101' }], isMultiRoute: false, capturedAt: new Date().toISOString()
-  }], total: 1 }; }
+  }, {
+    routeId: 'route-1', routeCode: 'CX101', deliveryDate: '2026-09-22', transporterId: 'RESCUE1',
+    driverName: 'Rescue Driver', vin: 'VIN999', status: 'in_progress', risk: 'on_track',
+    completedStops: 5, totalStops: 8, completionPct: 62.5, deliveredPackages: 10, totalPackages: 15,
+    stopsLastHour: 3, projectedCompletionAt: null, projectedLateMinutes: 0, inactiveMinutes: 2,
+    onBreak: false, routePaused: false, rescueCount: 1, associatedRoutes: [{ routeCode: 'CX101' }],
+    isMultiRoute: true, capturedAt: new Date().toISOString()
+  }], total: 2 }; }
   ,async listAttendanceExceptions() {
     return {
       startDate: '2026-09-13', endDate: '2026-09-19', capturedAt: '2026-09-20T01:00:00Z',
@@ -211,6 +218,7 @@ test('live route monitor returns only same-day execution data with freshness and
   assert.equal(Array.isArray(payload), false);
   assert.equal(Array.isArray(payload.routes), true);
   assert.equal(payload.routes.length, 1);
+  assert.equal(payload.routes[0].transporterCount, 2);
   assert.equal(payload.routeCount, payload.routes.length);
   assert.equal(payload.source, 'Amazon Delivery Execution');
   assert.equal(payload.summary.behind, 1);
@@ -237,12 +245,36 @@ test('dispatcher can persist a tenant-scoped driver, van, and phone assignment',
   const response = await app.inject({
     method: 'PUT', url: '/api/route-monitor/assignments',
     headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' },
-    payload: { deliveryDate: '2026-09-22', routeId: 'route-1', transporterId: 'A123', driverId: 'driver-1', vanId: 'van-1', phoneId: 'phone-01' },
+    payload: { deliveryDate: '2026-09-22', routeId: 'route-1', routeCode: 'CX101', transporterId: 'A123', driverId: 'A123', vanId: 'van-1', phoneId: 'phone-01', pad: 'PAD 2', stagingArea: 'Lane B' },
   });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().assignment.driverName, 'Example Driver');
   assert.equal(response.json().assignment.vanLabel, 'EDV 1');
   assert.equal(response.json().assignment.phoneLabel, 'Phone 1');
+  assert.equal(response.json().assignment.pad, 'PAD 2');
+  assert.equal(response.json().assignment.stagingArea, 'Lane B');
+});
+
+test('dispatcher can save a dated expected-route and sweeper plan', async (t) => {
+  let saved;
+  const dispatchRepository = {
+    ...repository,
+    async saveDispatchDayPlan(context, plan) {
+      assert.equal(context.principal.tenantId, 'jec-logistics');
+      saved = plan;
+      return plan;
+    },
+  };
+  const app = await createApp({ authenticator, repository: dispatchRepository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'PUT', url: '/api/route-monitor/plan',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' },
+    payload: { deliveryDate: '2026-09-22', expectedRoutes: 42, sweepers: 3 },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(saved, { deliveryDate: '2026-09-22', expectedRoutes: 42, sweepers: 3 });
+  assert.equal(response.json().dispatchPlan.expectedRoutes, 42);
 });
 
 test('weekly route performance remains available on a separately named endpoint', async (t) => {

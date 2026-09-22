@@ -501,9 +501,15 @@ def _load_dispatch_assignments(tenant):
         return {}
     try:
         payload = json.loads(path.read_text())
-        return payload if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict):
+            return {'dates': {}}
+        if 'dates' not in payload:
+            payload = {'dates': {date: {'expectedRoutes': 0, 'sweepers': 0,
+                                         'assignments': assignments}
+                                 for date, assignments in payload.items()}}
+        return payload
     except (OSError, ValueError):
-        return {}
+        return {'dates': {}}
 
 
 def _save_dispatch_assignments(tenant, assignments):
@@ -520,23 +526,40 @@ def _dispatch_catalog(tenant, route_payload=None):
     if tenant == DEFAULT_TENANT:
         conn = get_connection()
         try:
-            drivers = [dict(row) for row in conn.execute(
-                "SELECT id, name, status FROM drivers ORDER BY name")]
             vans = [dict(row) for row in conn.execute(
                 "SELECT id, van_number, vin, status FROM vans ORDER BY van_number")]
         finally:
             conn.close()
-    known_driver_ids = {str(row.get('id')) for row in drivers}
+        # Amazon's route-progress response currently exposes transporter IDs but
+        # not names. Resolve those IDs from the newest Amazon workforce export,
+        # and include only portal rows Amazon marks as actively delivering.
+        workforce_files = list((ROOT / 'data' / 'scorecard_data').glob(
+            '20??-wk??/*tenure_workforce_das_Report.csv'))
+        if workforce_files:
+            def workforce_week(path):
+                match = re.search(r'(\d{4})-wk(\d{2})', str(path))
+                return tuple(map(int, match.groups())) if match else (0, 0)
+            latest_workforce = max(workforce_files, key=workforce_week)
+            with latest_workforce.open(encoding='utf-8-sig', newline='') as stream:
+                for row in csv.DictReader(stream):
+                    driver_id = str(row.get('transporter id') or '').strip()
+                    driver_name = str(row.get('name') or '').strip()
+                    delivery_status = str(row.get('delivery status') or '').strip().lower()
+                    driver_status = str(row.get('driver status') or '').strip().upper()
+                    if driver_id and driver_name and delivery_status == 'actively delivering' and driver_status not in {'INACTIVE', 'OFFBOARDED'}:
+                        drivers.append({'id': driver_id, 'name': driver_name, 'status': 'ACTIVE'})
+    known_driver_ids = {row['id'] for row in drivers}
     for route in (route_payload or {}).get('routes', []):
         driver_id = str(route.get('transporterId') or '')
         driver_name = str(route.get('driverName') or '').strip()
         if driver_id and driver_name and driver_id not in known_driver_ids:
-            drivers.append({'id': driver_id, 'name': driver_name, 'status': 'CORTEX'})
+            drivers.append({'id': driver_id, 'name': driver_name, 'status': 'ACTIVE'})
             known_driver_ids.add(driver_id)
+    drivers.sort(key=lambda row: row['name'].lower())
     return {
         'drivers': [{'id': str(row['id']), 'label': row.get('name') or str(row['id']),
                      'status': row.get('status'),
-                     'source': 'Cortex' if row.get('status') == 'CORTEX' else 'Driver roster'}
+                     'source': 'Amazon portal'}
                     for row in drivers],
         'vans': [{'id': str(row['id']), 'label': row.get('van_number') or row.get('vin') or str(row['id']),
                   'vin': row.get('vin') or '', 'status': row.get('status') or 'UNKNOWN'}
@@ -548,6 +571,52 @@ def _dispatch_catalog(tenant, route_payload=None):
 
 def _route_assignment_key(route_id, transporter_id=''):
     return f'{route_id}|{transporter_id or ""}'
+
+
+def _canonical_live_routes(payload):
+    """Collapse Cortex rescue/multi-transporter rows into one dispatch row per route code."""
+    grouped = {}
+    for row in payload.get('routes', []):
+        code = str(row.get('routeCode') or row.get('routeId') or 'Unknown')
+        grouped.setdefault(code, []).append(row)
+    routes = []
+    for code, rows in grouped.items():
+        selected = max(rows, key=lambda row: (int(row.get('totalStops') or 0),
+                                              int(row.get('completedStops') or 0)))
+        primary = dict(selected)
+        primary['additionalTransporters'] = [
+            {'transporterId': row.get('transporterId', ''),
+             'driverName': row.get('driverName', ''), 'vin': row.get('vin', '')}
+            for row in rows if row is not selected and row.get('transporterId') != primary.get('transporterId')]
+        primary['transporterCount'] = len(rows)
+        routes.append(primary)
+    return sorted(routes, key=lambda row: row.get('routeCode', ''))
+
+
+def _live_route_summary(routes):
+    summary = {'assigned': 0, 'inProgress': 0, 'completed': 0, 'behind': 0,
+               'stalled': 0, 'lateDepartures': 0, 'multiRoute': 0}
+    for row in routes:
+        status = row.get('status')
+        risk = row.get('risk')
+        if status == 'assigned': summary['assigned'] += 1
+        elif status == 'in_progress': summary['inProgress'] += 1
+        elif status == 'completed': summary['completed'] += 1
+        if risk == 'behind': summary['behind'] += 1
+        elif risk == 'stalled': summary['stalled'] += 1
+        elif risk == 'late_departure': summary['lateDepartures'] += 1
+        if row.get('isMultiRoute'): summary['multiRoute'] += 1
+    return summary
+
+
+def _live_route_snapshot_path(tenant, delivery_date=None):
+    root = ROOT / 'data' / 'tenants' / tenant / 'amazon' / 'live-routes'
+    if delivery_date:
+        matches = sorted(root.glob(f'*-{delivery_date}-routes.json'),
+                         key=lambda path: path.stat().st_mtime_ns)
+        return matches[-1] if matches else None
+    latest = root / 'latest.json'
+    return latest if latest.exists() else None
 
 
 
@@ -2061,6 +2130,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 self.handle_put_assistant_config()
             elif path == '/api/route-monitor/assignments':
                 self.handle_put_route_assignment()
+            elif path == '/api/route-monitor/plan':
+                self.handle_put_route_plan()
             elif path.startswith('/api/features/'):
                 self.handle_put_feature(path.split('/')[3])
             elif path.startswith('/api/members/'):
@@ -2630,19 +2701,30 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
     def handle_get_live_route_monitor(self, query):
         """Return only same-day Amazon Delivery Execution data; never substitute weekly scorecards."""
         tenant = _tenant_from_headers(self.headers)
-        snapshot_path = ROOT / 'data' / 'tenants' / tenant / 'amazon' / 'live-routes' / 'latest.json'
-        if not snapshot_path.exists():
+        requested_date = (query.get('date') or [None])[0]
+        if requested_date and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', requested_date):
+            raise ValueError('invalid route date')
+        snapshot_path = _live_route_snapshot_path(tenant, requested_date)
+        board = _load_dispatch_assignments(tenant)
+        plan_date = requested_date or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+        day_plan = board.get('dates', {}).get(plan_date, {})
+        if not snapshot_path:
             self.send_json({
-                'period': None, 'capturedAt': None, 'source': 'Amazon Delivery Execution',
+                'period': plan_date, 'capturedAt': None, 'source': 'Amazon Delivery Execution',
                 'live': False, 'stale': True, 'needsData': True, 'needsReauth': False,
-                'message': 'No same-day route execution snapshot has been captured. Run npm run amazon:live-routes.',
+                'message': f'No Cortex routes captured for {plan_date}. The dispatch plan can still be saved.',
                 'routeCount': 0,
                 'summary': {'assigned': 0, 'inProgress': 0, 'completed': 0, 'behind': 0, 'stalled': 0, 'lateDepartures': 0, 'multiRoute': 0},
-                'routes': [],
+                'routes': [], 'dispatchPlan': {'expectedRoutes': day_plan.get('expectedRoutes', 0),
+                                               'sweepers': day_plan.get('sweepers', 0)},
+                'assignmentOptions': _dispatch_catalog(tenant, {'routes': []}),
             })
             return
         try:
             payload = json.loads(snapshot_path.read_text())
+            payload['routes'] = _canonical_live_routes(payload)
+            payload['routeCount'] = len(payload['routes'])
+            payload['summary'] = _live_route_summary(payload['routes'])
             captured = datetime.fromisoformat(payload['capturedAt'].replace('Z', '+00:00'))
             eastern_today = datetime.now(ZoneInfo('America/New_York')).date().isoformat()
             payload['stale'] = payload.get('period') != eastern_today or datetime.now(timezone.utc) - captured > timedelta(minutes=15)
@@ -2654,10 +2736,17 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 payload['message'] = 'Cortex refresh requires Amazon sign-in or MFA. Saved route data is shown.'
             elif payload['stale']:
                 payload['message'] = 'Saved Cortex route data is stale. Refresh pulls today’s routes and drivers from Amazon Delivery Execution.'
-            period_assignments = _load_dispatch_assignments(tenant).get(payload.get('period'), {})
+            day_plan = board.get('dates', {}).get(payload.get('period'), {})
+            period_assignments = day_plan.get('assignments', {})
             for route in payload.get('routes', []):
-                route['dispatchAssignment'] = period_assignments.get(
-                    _route_assignment_key(route.get('routeId'), route.get('transporterId')), {})
+                assignment = period_assignments.get(route.get('routeCode'))
+                if assignment is None:
+                    legacy_prefix = f"{route.get('routeId')}|"
+                    assignment = next((value for key, value in period_assignments.items()
+                                       if key.startswith(legacy_prefix)), {})
+                route['dispatchAssignment'] = assignment
+            payload['dispatchPlan'] = {'expectedRoutes': day_plan.get('expectedRoutes', 0),
+                                       'sweepers': day_plan.get('sweepers', 0)}
             payload['assignmentOptions'] = _dispatch_catalog(tenant, payload)
             self.send_json(payload)
         except (OSError, ValueError, KeyError) as error:
@@ -2670,15 +2759,16 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         delivery_date = str(body.get('deliveryDate') or '')
         route_id = str(body.get('routeId') or '')
         transporter_id = str(body.get('transporterId') or '')
-        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', delivery_date) or not route_id:
-            raise ValueError('deliveryDate and routeId are required')
-        snapshot_path = ROOT / 'data' / 'tenants' / tenant / 'amazon' / 'live-routes' / 'latest.json'
-        if not snapshot_path.exists():
+        route_code = str(body.get('routeCode') or '')
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', delivery_date) or not route_id or not route_code:
+            raise ValueError('deliveryDate, routeId, and routeCode are required')
+        snapshot_path = _live_route_snapshot_path(tenant, delivery_date)
+        if not snapshot_path:
             raise ValueError('no Cortex route snapshot is available')
         route_payload = json.loads(snapshot_path.read_text())
+        route_payload['routes'] = _canonical_live_routes(route_payload)
         route = next((row for row in route_payload.get('routes', [])
-                      if str(row.get('routeId')) == route_id
-                      and str(row.get('transporterId') or '') == transporter_id
+                      if str(row.get('routeCode')) == route_code
                       and str(row.get('deliveryDate')) == delivery_date), None)
         if not route:
             raise ValueError('route is not present in the selected Cortex operating day')
@@ -2697,13 +2787,17 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             'vanLabel': allowed['vans'].get(selected['vanId'], {}).get('label', ''),
             'vin': allowed['vans'].get(selected['vanId'], {}).get('vin', ''),
             'phoneLabel': allowed['phones'].get(selected['phoneId'], {}).get('label', ''),
+            'pad': str(body.get('pad') or '').strip()[:40],
+            'stagingArea': str(body.get('stagingArea') or '').strip()[:40],
             'updatedAt': datetime.now(timezone.utc).isoformat(timespec='seconds'),
             'updatedBy': 'local-dispatcher',
         }
-        key = _route_assignment_key(route_id, transporter_id)
+        key = route_code
         with _DISPATCH_ASSIGNMENT_LOCK:
             assignments = _load_dispatch_assignments(tenant)
-            operating_day = assignments.setdefault(delivery_date, {})
+            day = assignments.setdefault('dates', {}).setdefault(
+                delivery_date, {'expectedRoutes': 0, 'sweepers': 0, 'assignments': {}})
+            operating_day = day.setdefault('assignments', {})
             for other_key, other in operating_day.items():
                 if other_key == key:
                     continue
@@ -2711,14 +2805,33 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                     raise ValueError(f'{assignment["vanLabel"]} is already assigned to another route')
                 if selected['phoneId'] and other.get('phoneId') == selected['phoneId']:
                     raise ValueError(f'{assignment["phoneLabel"]} is already assigned to another route')
-            if any(selected.values()):
+            if any(selected.values()) or assignment['pad'] or assignment['stagingArea']:
                 operating_day[key] = assignment
             else:
                 operating_day.pop(key, None)
             _save_dispatch_assignments(tenant, assignments)
         self.send_json_status(200, {'deliveryDate': delivery_date, 'routeId': route_id,
-                                    'transporterId': transporter_id,
-                                    'assignment': assignment if any(selected.values()) else {}})
+                                    'routeCode': route_code, 'transporterId': transporter_id,
+                                    'assignment': assignment if operating_day.get(key) else {}})
+
+    def handle_put_route_plan(self):
+        tenant = _tenant_from_headers(self.headers)
+        body = json.loads(self._read_body() or b'{}')
+        delivery_date = str(body.get('deliveryDate') or '')
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', delivery_date):
+            raise ValueError('deliveryDate is required')
+        expected = int(body.get('expectedRoutes') or 0)
+        sweepers = int(body.get('sweepers') or 0)
+        if not 0 <= expected <= 250 or not 0 <= sweepers <= 100:
+            raise ValueError('route and sweeper counts are out of range')
+        with _DISPATCH_ASSIGNMENT_LOCK:
+            board = _load_dispatch_assignments(tenant)
+            day = board.setdefault('dates', {}).setdefault(delivery_date, {'assignments': {}})
+            day.update(expectedRoutes=expected, sweepers=sweepers,
+                       updatedAt=datetime.now(timezone.utc).isoformat(timespec='seconds'))
+            _save_dispatch_assignments(tenant, board)
+        self.send_json_status(200, {'deliveryDate': delivery_date,
+                                    'dispatchPlan': {'expectedRoutes': expected, 'sweepers': sweepers}})
     
     def handle_get_route_monitor(self, query):
         """Return weekly scorecard route performance history."""
