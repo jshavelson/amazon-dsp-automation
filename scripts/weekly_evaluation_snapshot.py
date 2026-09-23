@@ -6,6 +6,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,7 +117,15 @@ def build_weekly_evaluations_payload() -> dict[str, object]:
             "bottomDrivers": bottom,
             "candidates": candidates,
         }
-    return {"weeks": list(evaluations), "evaluations": evaluations}
+    latest = next(iter(evaluations), None)
+    return {
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "source": "Canonical weekly scorecard evaluations",
+        "period": latest,
+        "needsData": not bool(evaluations),
+        "weeks": list(evaluations),
+        "evaluations": evaluations,
+    }
 
 
 if __name__ == "__main__":

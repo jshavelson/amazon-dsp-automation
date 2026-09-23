@@ -20,10 +20,10 @@ export function payrollRoutes(app, { repository, logger }) {
       
       if (timecardData.timecards && timecardData.timecards.length > 0) {
         const timecards = timecardData.timecards.map(tc => ({
-          id: tc.id || `TC-${Math.random().toString(36).substr(2, 9)}`,
+          id: tc.id || [tc.driverId || tc.driver_id, tc.week || week, tc.date].filter(Boolean).join('-'),
           driver_id: tc.driverId || tc.driver_id || '',
           driver_name: tc.driverName || tc.driver_name || '',
-          week: tc.week || week || '2026-wk37',
+          week: tc.week || timecardData.week || week || null,
           hours: (tc.regularHours || tc.regular_hours || 0) + (tc.overtimeHours || tc.overtime_hours || 0),
           regular_hours: tc.regularHours || tc.regular_hours || 0,
           overtime_hours: tc.overtimeHours || tc.overtime_hours || 0,
@@ -36,7 +36,7 @@ export function payrollRoutes(app, { repository, logger }) {
         }));
         
         return reply.send({
-          week: week || '2026-wk37',
+          week: timecardData.week || week || null,
           period: period || 'weekly',
           timecards,
           summary: {
@@ -57,7 +57,7 @@ export function payrollRoutes(app, { repository, logger }) {
           id: tc.id,
           driver_id: tc.driverId,
           driver_name: tc.driverName || '',
-          week: tc.week || week || '2026-wk37',
+          week: tc.week || week || null,
           hours: (tc.regularHours || 0) + (tc.overtimeHours || 0),
           regular_hours: tc.regularHours || 0,
           overtime_hours: tc.overtimeHours || 0,
@@ -70,7 +70,7 @@ export function payrollRoutes(app, { repository, logger }) {
         }));
         
         return reply.send({
-          week: week || '2026-wk37',
+          week: week || timecards[0]?.week || null,
           period: period || 'weekly',
           timecards,
           summary: {
@@ -129,10 +129,10 @@ export function payrollRoutes(app, { repository, logger }) {
           id: `DISC-${index + 1}`,
           driver_id: d.driverId || '',
           driver_name: d.driverName || d.title || '',
-          week: week || '2026-wk37',
-          date: '2026-09-17',
-          adp_hours: d.metric === 'hours_mismatch' ? 45 : 0,
-          route_hours: d.metric === 'hours_mismatch' ? 40 : 0,
+          week: disputeData.week || week || null,
+          date: d.date || null,
+          adp_hours: d.adpHours ?? null,
+          route_hours: d.routeHours ?? null,
           issue: d.reason || d.details?.join(' ') || '',
           severity: d.priority || 'medium',
           type: d.metric || 'other'

@@ -60,12 +60,13 @@ const DriverDetailPage: React.FC = () => {
   // Fetch driver data
   const { data: driver, isLoading, error, refetch } = useDriver(id || '', !!id);
 
-  // Mock data
+  // Values in this view come only from connected driver records. Activity and
+  // document feeds remain empty until their APIs return tenant-scoped data.
   const [metrics, setMetrics] = useState<DriverMetric[]>([]);
   const [activities, setActivities] = useState<DriverActivity[]>([]);
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
 
-  // Load mock data
+  // Build display metrics from the connected driver record.
   useEffect(() => {
     if (driver) {
       // Metrics
@@ -108,76 +109,8 @@ const DriverDetailPage: React.FC = () => {
         },
       ]);
 
-      // Activities
-      setActivities([
-        {
-          id: '1',
-          type: 'route',
-          description: 'Completed Route #156',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          status: 'success',
-        },
-        {
-          id: '2',
-          type: 'dispute',
-          description: 'Submitted Dispute #42',
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          status: 'warning',
-        },
-        {
-          id: '3',
-          type: 'maintenance',
-          description: 'Van Maintenance Scheduled',
-          timestamp: new Date(Date.now() - 10800000).toISOString(),
-          status: 'info',
-        },
-        {
-          id: '4',
-          type: 'training',
-          description: 'Completed Safety Training',
-          timestamp: new Date(Date.now() - 14400000).toISOString(),
-          status: 'success',
-        },
-        {
-          id: '5',
-          type: 'incident',
-          description: 'Minor Safety Incident Reported',
-          timestamp: new Date(Date.now() - 18000000).toISOString(),
-          status: 'error',
-        },
-      ]);
-
-      // Documents
-      setDocuments([
-        {
-          id: '1',
-          name: 'driver_license.pdf',
-          type: 'License',
-          size: '2.4 MB',
-          uploadedAt: new Date(Date.now() - 2592000000).toISOString(),
-        },
-        {
-          id: '2',
-          name: 'background_check.pdf',
-          type: 'Background Check',
-          size: '1.8 MB',
-          uploadedAt: new Date(Date.now() - 2592000000).toISOString(),
-        },
-        {
-          id: '3',
-          name: 'drug_test.pdf',
-          type: 'Drug Test',
-          size: '1.2 MB',
-          uploadedAt: new Date(Date.now() - 2592000000).toISOString(),
-        },
-        {
-          id: '4',
-          name: 'w4_form.pdf',
-          type: 'W-4',
-          size: '0.8 MB',
-          uploadedAt: new Date(Date.now() - 2592000000).toISOString(),
-        },
-      ]);
+      setActivities([]);
+      setDocuments([]);
     }
   }, [driver]);
 

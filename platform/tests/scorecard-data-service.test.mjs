@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   getLatestWeekFolder,
@@ -31,4 +33,28 @@ test('performance dashboard is derived from scorecard rows and history', async (
   assert.ok(Number.isFinite(result.history.at(-1).overallScore));
   assert.equal(result.dspPerformance.overallScore, result.history.at(-1).overallScore);
   assert.ok(result.history.at(-1).averageDaScore > result.history.at(-1).overallScore);
+});
+
+test('operational APIs do not synthesize business facts or pin historical weeks', () => {
+  const root = path.resolve(import.meta.dirname, '..', '..');
+  const files = [
+    'platform/src/api/driver-performance-routes.mjs',
+    'platform/src/api/disputes-routes.mjs',
+    'platform/src/api/payroll-routes.mjs',
+    'platform/src/api/react-compat-routes.mjs',
+    'platform/src/services/pave-service.mjs',
+    'platform/src/services/scorecard-data-service.mjs',
+  ];
+  const source = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
+  assert.doesNotMatch(source, /Math\.random\s*\(/, 'random values cannot represent operational data');
+  assert.doesNotMatch(source, /2026-wk(?:35|36|37|38)/, 'API defaults cannot pin a historical week');
+  assert.doesNotMatch(source, /Fallback to mock|Generate mock|return mock/i, 'mock fallbacks cannot execute in production APIs');
+});
+
+test('packaged operational snapshots expose provenance', () => {
+  const root = path.resolve(import.meta.dirname, '..', '..');
+  for (const name of ['performance', 'fleet-compliance', 'fleet-costs', 'connections', 'weekly-evaluations']) {
+    const payload = JSON.parse(fs.readFileSync(path.join(root, 'platform/operational-snapshots', `${name}.json`), 'utf8'));
+    assert.ok(payload.generatedAt || payload.asOf, `${name} requires a generatedAt or asOf timestamp`);
+  }
 });

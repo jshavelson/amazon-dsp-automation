@@ -25,12 +25,12 @@ const PairedBars: React.FC<{ title: string; subtitle: string; rows: { label: str
   const max = Math.max(...rows.flatMap((r) => [r.a, r.b]), 1);
   return <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
     <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3><p className="text-xs text-gray-500 dark:text-slate-400">{subtitle}</p></div>
-      <div className="flex gap-3 text-xs text-gray-500 dark:text-slate-400"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-red-500" />{aLabel}</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-blue-500" />{bLabel}</span></div></div>
+      <div className="flex gap-3 text-xs text-gray-500 dark:text-slate-400"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-red-500" />{aLabel}</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />{bLabel}</span></div></div>
     <div className="mt-4 space-y-4">{rows.map((r) => { const diff = r.b - r.a; return <div key={r.label}>
       <div className="mb-1 flex items-center justify-between text-xs"><span className="font-medium text-gray-700 dark:text-slate-200">{r.label}</span><span className={'font-semibold tabular-nums ' + tone(diff)}>{masked ? '•••' : signed(diff)}</span></div>
       <div className="space-y-1">
         <div className="flex items-center gap-2"><div className="h-3 flex-1 rounded bg-gray-100 dark:bg-slate-800"><div className="h-3 rounded bg-red-500" style={{ width: (r.a / max * 100) + '%' }} /></div><span className="w-24 text-right text-xs tabular-nums text-gray-600 dark:text-slate-300">{masked ? '•••' : usd(r.a)}</span></div>
-        <div className="flex items-center gap-2"><div className="h-3 flex-1 rounded bg-gray-100 dark:bg-slate-800"><div className="h-3 rounded bg-blue-500" style={{ width: (r.b / max * 100) + '%' }} /></div><span className="w-24 text-right text-xs tabular-nums text-gray-600 dark:text-slate-300">{masked ? '•••' : usd(r.b)}</span></div>
+        <div className="flex items-center gap-2"><div className="h-3 flex-1 rounded bg-gray-100 dark:bg-slate-800"><div className="h-3 rounded bg-emerald-500" style={{ width: (r.b / max * 100) + '%' }} /></div><span className="w-24 text-right text-xs tabular-nums text-gray-600 dark:text-slate-300">{masked ? '•••' : usd(r.b)}</span></div>
       </div></div>; })}</div>
   </article>;
 };

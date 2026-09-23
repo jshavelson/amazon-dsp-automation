@@ -20,6 +20,7 @@ import { isRootTenant, usePlatformContext } from '@/hooks/usePlatformContext';
 
 interface ConnectionHealth {
   summary: { total: number; connectionTotal?: number; active?: number; connected: number; health?: 'green' | 'yellow' | 'red' };
+  connections?: Array<{ id: string; displayName?: string; name?: string; status: string; lastSuccessAt?: string | null }>;
 }
 
 interface HeaderProps {
@@ -68,36 +69,21 @@ const Header: React.FC<HeaderProps> = ({
   const healthColor = connectionHealth?.summary.health
     ?? (totalConnections && activeConnections === totalConnections ? 'green' : activeConnections ? 'yellow' : 'red');
 
-  // Mock notifications (replace with real data)
   useEffect(() => {
-    const mockNotifications: Notification[] = [
-      {
-        id: '1',
-        title: 'New Dispute Submitted',
-        message: 'A new dispute has been submitted for review',
-        type: 'info',
+    const sourceNotifications = (connectionHealth?.connections || [])
+      .filter((connection) => connection.status !== 'connected' && connection.status !== 'current')
+      .map((connection): Notification => ({
+        id: `connection-${connection.id}`,
+        title: `${connection.displayName || connection.name || connection.id} needs attention`,
+        message: connection.lastSuccessAt
+          ? `Status: ${connection.status}. Last successful update: ${connection.lastSuccessAt}.`
+          : `Status: ${connection.status}. No successful update has been recorded.`,
+        type: connection.status === 'needs_reauth' ? 'error' : 'warning',
         read: false,
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        id: '2',
-        title: 'Payroll Processing Complete',
-        message: 'Weekly payroll has been processed successfully',
-        type: 'success',
-        read: false,
-        createdAt: new Date(Date.now() - 7200000).toISOString(),
-      },
-      {
-        id: '3',
-        title: 'High CPU Usage',
-        message: 'Database CPU usage is above 80%',
-        type: 'warning',
-        read: true,
-        createdAt: new Date(Date.now() - 10800000).toISOString(),
-      },
-    ];
-    setNotifications(mockNotifications);
-  }, []);
+        createdAt: connection.lastSuccessAt || new Date(0).toISOString(),
+      }));
+    setNotifications(sourceNotifications);
+  }, [connectionHealth]);
 
   // Toggle notifications
   const toggleNotifications = () => {

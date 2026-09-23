@@ -139,12 +139,7 @@ export async function getFleetData() {
     const vehicles = JSON.parse(content);
     return vehicles;
   } catch {
-    // Fallback to mock data
-    return [
-      { id: 'EDV-01', vin: '7FCEHEB20RN026201', licensePlate: 'EDV001', make: 'Ford', model: 'Transit', year: 2023, type: 'Cargo Van', ownership: 'Amazon Owned', status: 'active', homeStationId: 'DFH7' },
-      { id: 'EDV-02', vin: '7FCEHEB28SN031331', licensePlate: 'EDV002', make: 'Ford', model: 'Transit', year: 2023, type: 'Cargo Van', ownership: 'Amazon LMR', status: 'active', homeStationId: 'DFH7' },
-      { id: 'EDV-03', vin: '1FTEW1E83PKD00001', licensePlate: 'EDV003', make: 'Ford', model: 'Transit', year: 2023, type: 'Cargo Van', ownership: 'Rental', status: 'active', homeStationId: 'DFH7' }
-    ];
+    return [];
   }
 }
 
@@ -170,9 +165,7 @@ export async function getTimecards(week = null) {
       const data = parseCSV(content);
       return { week: targetWeek, timecards: data, summary: { total: data.length } };
     }
-  } catch {
-    // Return mock data
-  }
+  } catch {}
   
   return { week: targetWeek, timecards: [], summary: { total: 0 }, needsData: true };
 }
@@ -193,9 +186,7 @@ export async function getRoutes(date = null) {
     if (dailyReports.length > 0) {
       return { date: date || null, week: targetWeek, routes: [], summary: { total: 0 }, needsData: true, evidenceFiles: dailyReports.length };
     }
-  } catch {
-    // Return mock data
-  }
+  } catch {}
   
   return { date: date || null, routes: [], summary: {} };
 }

@@ -1149,6 +1149,8 @@ def build_connections_payload(tenant):
     active = sum(1 for connection in live_connections if connection["status"] == "healthy")
     health = "green" if live_connections and active == len(live_connections) else "yellow" if active else "red"
     return {
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "source": "Tenant connection registry and verified feed probes",
         "tenant": tenant,
         "servedAt": datetime.now().isoformat(timespec="seconds"),
         "summary": {

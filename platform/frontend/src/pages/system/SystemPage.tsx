@@ -29,11 +29,7 @@ const content = {
     icon: Bell,
     title: 'Notifications',
     subtitle: 'Current operational attention items',
-    items: [
-      ['Fleet readiness', '9 vehicles are grounded; confirm return-to-service dates before peak growth.'],
-      ['ADP freshness', 'The latest timecard snapshot was captured September 16.'],
-      ['Peak coverage', 'Published demand reaches 62 routes in W49 against 41 currently operational vehicles.'],
-    ],
+    items: [['Loading source status', 'Current connection and source timestamps are being checked.']],
   },
   help: {
     icon: CircleHelp,

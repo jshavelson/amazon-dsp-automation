@@ -52,15 +52,9 @@ async function fallbackDrivers(dashboardHtmlPath) {
   }));
 }
 
-const fleetFallback = [
-  { id: 'fleet-1', vin: '1FTBW3XG7RKA10001', licensePlate: 'JECS-101', make: 'Ford', model: 'Transit', year: 2024, status: 'active', mileage: 18420 },
-  { id: 'fleet-2', vin: '1FTBW3XG7RKA10002', licensePlate: 'JECS-102', make: 'Ford', model: 'Transit', year: 2024, status: 'active', mileage: 21985 },
-  { id: 'fleet-3', vin: 'W1Y4KBHY8RT100003', licensePlate: 'JECS-201', make: 'Mercedes-Benz', model: 'Sprinter', year: 2024, status: 'maintenance', mileage: 26740 }
-];
-
 async function fleetRosterFallback() {
   const snapshot = await operationalSnapshot('fleet-compliance');
-  if (!Array.isArray(snapshot.vehicles) || snapshot.vehicles.length === 0) return fleetFallback;
+  if (!Array.isArray(snapshot.vehicles) || snapshot.vehicles.length === 0) return [];
   return snapshot.vehicles.map((vehicle, index) => ({
     id: vehicle.vin || `fleet-${index + 1}`,
     vin: vehicle.vin || '',
@@ -76,19 +70,6 @@ async function fleetRosterFallback() {
     operationalStatus: vehicle.operationalStatus || vehicle.portalOperationalStatus || 'UNKNOWN',
     mileage: Number(vehicle.mileage) || 0,
     currentDriverId: null
-  }));
-}
-
-async function routeFallback(dashboardHtmlPath) {
-  const drivers = await fallbackDrivers(dashboardHtmlPath);
-  return drivers.slice(0, 3).map((driver, index) => ({
-    id: `DFH7-${String(index + 1).padStart(3, '0')}`,
-    date: '2026-09-20',
-    driverId: driver.id,
-    vanId: fleetFallback[index]?.id || '',
-    packagesTotal: [312, 286, 301][index],
-    milesDriven: [74.2, 68.5, 81.1][index],
-    status: index === 2 ? 'assigned' : 'completed'
   }));
 }
 
@@ -188,7 +169,7 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
       items = result.items;
     } catch (error) {
       warnFallback(request, error, 'routes');
-      items = await routeFallback(dashboardHtmlPath);
+      items = [];
     }
     return page(items.map((route) => ({
       ...route,
