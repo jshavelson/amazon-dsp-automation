@@ -31,6 +31,7 @@ import WeeklyEvaluationPage from './pages/evaluation/WeeklyEvaluationPage';
 import TimeAttendancePage from './pages/time-attendance/TimeAttendancePage';
 import ReimbursementReviewPage from './pages/reimbursement/ReimbursementReviewPage';
 import ConnectionsPage from './pages/connections/ConnectionsPage';
+import AmazonConnectorSessionPage from './pages/connections/AmazonConnectorSessionPage';
 import SystemPage from './pages/system/SystemPage';
 import { UsersRolesPage, FeatureAdminPage } from './pages/admin/AccessAdminPage';
 import AIAssistantAdminPage from './pages/admin/AIAssistantAdminPage';
@@ -113,6 +114,7 @@ const App: React.FC = () => {
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/connector-session/:sessionId" element={<AmazonConnectorSessionPage />} />
             <Route element={<FeatureGate />}>
             <Route element={<DashboardLayout />}>
               {/* Dashboard */}

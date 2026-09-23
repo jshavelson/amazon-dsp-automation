@@ -1,12 +1,12 @@
 {
   "generatedAt": "2026-09-19T00:05:10.439761+00:00",
-  "servedAt": "2026-09-22T00:41:16",
+  "servedAt": "2026-09-23T15:35:49",
   "tenant": "JEC Logistics Solutions",
   "summary": {
     "modules": 9,
     "active": 4,
     "readyForImport": 4,
-    "cases": 3,
+    "cases": 4,
     "openCases": 0,
     "recoveredValue": 587.64,
     "submitted": 1
@@ -394,18 +394,18 @@
       "requiredInputs": [],
       "hasSubmissionAdapter": false,
       "schedule": "Daily 11:00 ET review cycle",
-      "caseCount": 1,
+      "caseCount": 2,
       "openCaseCount": 0,
       "recoveredValue": 327.0,
       "latestCase": {
         "moduleId": "weekly_payments",
-        "externalKey": "2026-W37",
+        "externalKey": "2026-W38",
         "status": "closed",
-        "disposition": "recovery_confirmed",
-        "createdAt": "2026-09-19T00:31:43.762694+00:00",
+        "disposition": "no_underpayment_detected",
+        "createdAt": "2026-09-23T15:00:12.906920+00:00",
         "candidateCount": 0,
-        "recoveredRoutes": 1.0,
-        "recoveredValue": 327.0,
+        "recoveredRoutes": 0,
+        "recoveredValue": 0,
         "blockingEvidence": [],
         "externalActionAuthorized": false,
         "approvalStatus": null,
@@ -414,56 +414,17 @@
         "submissionConfirmation": null,
         "findings": [
           {
-            "check": "Reported WST recovery outcome",
-            "status": "recovered",
-            "detail": "Outcome evidence confirms 1 route(s) added through a WST request; $327.00 recovered.",
-            "direction": "recovered_before_review",
-            "dispute_candidate": false,
-            "recovered_routes": 1,
-            "recovered_amount": 327.0
-          },
-          {
             "check": "Our Data: 10-hour route blocks",
             "status": "pass",
-            "detail": "WST 220; Amazon invoice 220.",
+            "detail": "WST 214; Amazon invoice 214.",
             "direction": "matched",
             "dispute_candidate": false,
-            "our_value": 220.0,
-            "amazon_value": 220.0,
+            "our_value": 214.0,
+            "amazon_value": 214.0,
             "difference": 0.0
           },
           {
             "check": "Our Data: 9-hour route blocks",
-            "status": "pass",
-            "detail": "WST 1; Amazon invoice 1.",
-            "direction": "matched",
-            "dispute_candidate": false,
-            "our_value": 1.0,
-            "amazon_value": 1.0,
-            "difference": 0.0
-          },
-          {
-            "check": "Our Data: 8-hour route blocks",
-            "status": "pass",
-            "detail": "WST 1; Amazon invoice 1.",
-            "direction": "matched",
-            "dispute_candidate": false,
-            "our_value": 1.0,
-            "amazon_value": 1.0,
-            "difference": 0.0
-          },
-          {
-            "check": "Our Data: 10-hour ORE blocks",
-            "status": "pass",
-            "detail": "WST 3; Amazon invoice 3.",
-            "direction": "matched",
-            "dispute_candidate": false,
-            "our_value": 3.0,
-            "amazon_value": 3.0,
-            "difference": 0.0
-          },
-          {
-            "check": "Our Data: Training days",
             "status": "pass",
             "detail": "WST 4; Amazon invoice 4.",
             "direction": "matched",
@@ -473,43 +434,73 @@
             "difference": 0.0
           },
           {
+            "check": "Our Data: 8-hour route blocks",
+            "status": "pass",
+            "detail": "WST 7; Amazon invoice 7.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 7.0,
+            "amazon_value": 7.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: 10-hour ORE blocks",
+            "status": "pass",
+            "detail": "WST 1; Amazon invoice 1.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 1.0,
+            "amazon_value": 1.0,
+            "difference": 0.0
+          },
+          {
+            "check": "Our Data: Training days",
+            "status": "pass",
+            "detail": "WST 5; Amazon invoice 5.",
+            "direction": "matched",
+            "dispute_candidate": false,
+            "our_value": 5.0,
+            "amazon_value": 5.0,
+            "difference": 0.0
+          },
+          {
             "check": "Our Data: Eligible delivered packages",
             "status": "review",
-            "detail": "WST 68,177; Amazon invoice 68,195.",
+            "detail": "WST 69,087; Amazon invoice 69,092.",
             "direction": "amazon_above_wst",
             "dispute_candidate": false,
-            "our_value": 68177.0,
-            "amazon_value": 68195.0,
-            "difference": 18.0
+            "our_value": 69087.0,
+            "amazon_value": 69092.0,
+            "difference": 5.0
           },
           {
             "check": "Our Data: Eligible pickup packages",
             "status": "pass",
-            "detail": "WST 3; Amazon invoice 3.",
+            "detail": "WST 1; Amazon invoice 1.",
             "direction": "matched",
             "dispute_candidate": false,
-            "our_value": 3.0,
-            "amazon_value": 3.0,
+            "our_value": 1.0,
+            "amazon_value": 1.0,
             "difference": 0.0
           },
           {
             "check": "Delivered package quantity",
             "status": "pass",
-            "detail": "Variable invoice 68,195; incentive invoice 68,195.",
+            "detail": "Variable invoice 69,092; incentive invoice 69,092.",
             "direction": "none",
             "dispute_candidate": false
           },
           {
             "check": "Pickup incentive quantity at matching rate",
             "status": "pass",
-            "detail": "Variable invoice has 3 pickup package(s) at $0.05; incentive invoice pays 3.",
+            "detail": "Variable invoice has 1 pickup package(s) at $0.05; incentive invoice pays 1.",
             "direction": "none",
             "dispute_candidate": false
           },
           {
             "check": "Incentive invoice arithmetic",
             "status": "pass",
-            "detail": "Line items total $10,229.40; invoice total $10,229.40.",
+            "detail": "Line items total $10,363.85; invoice total $10,363.85.",
             "direction": "none",
             "dispute_candidate": false
           }
@@ -517,35 +508,35 @@
         "evidence": [
           {
             "type": "weekly_reconciliation",
-            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/week37-invoice-reconciliation.json",
-            "sha256": "93142f7aef4038ae22ca7256e576a7823231c0f5298c388a8fd7171f7e2ca2f8"
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/week38-invoice-reconciliation.json",
+            "sha256": "2a635e144676a9f0c1d34230eaa013a9bae4e4cab1f7f802a51a1cb84a078aaa"
           },
           {
             "type": "amazon_variable_invoice",
-            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/INV-VVDX0I-0000000830.pdf",
-            "sha256": "2848a4b22f77720c0e0219724aa8e7983582cebdca9ad3da1b33dbe1866996de",
-            "bytes": 16697
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/INV-VVDX0I-0000000832.pdf",
+            "sha256": "95f14933695d858a05557c810833b2dc5ecf6f25b26178576a65d7016090da32",
+            "bytes": 16848
           },
           {
             "type": "amazon_incentive_invoice",
-            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/INV-VVDX0I-0000000831.pdf",
-            "sha256": "1cedc75c7dca840f3899fdabfb35d26e137cedb12ae83099ba288e157abbe33e",
-            "bytes": 7322
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/INV-VVDX0I-0000000833.pdf",
+            "sha256": "b253f68d9701f504e1908226c726644f1c85229b3dd1e4391f33283590b02e77",
+            "bytes": 7321
           },
           {
             "type": "amazon_wst_summary",
-            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk37/wst/wst-summary.json",
-            "sha256": "1be7917746a171feddd1141c5a6e6c6dff7130e3f85267953a7a4eb84d96d671",
-            "bytes": 1478
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/wst/wst-summary.json",
+            "sha256": "8ff3f0ccd4d7d684230d91f7d839761875009094ded1965fe6dc2a8c8509121b",
+            "bytes": 116887
           },
           {
-            "type": "reconciliation_outcome_email_archive",
-            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/email_inbox/owner/2026-09-17/jason@jeclogs.com.json",
-            "sha256": "f848a82d3812a5e605921f5804801abd1c7772974bfd20284c82e859f0d011fa",
-            "bytes": 123303
+            "type": "amazon_wst_baseline",
+            "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/wst/snapshots/2026-09-23T150006-763Z-wst-summary.json",
+            "sha256": "8ff3f0ccd4d7d684230d91f7d839761875009094ded1965fe6dc2a8c8509121b",
+            "bytes": 116887
           }
         ],
-        "sourcePath": "data/payment_reconciliation/2026-wk37/week37-module-case.json"
+        "sourcePath": "data/payment_reconciliation/2026-wk38/week38-module-case.json"
       },
       "verifiedRoutes": null
     },
@@ -656,6 +647,147 @@
     }
   ],
   "cases": [
+    {
+      "moduleId": "weekly_payments",
+      "externalKey": "2026-W38",
+      "status": "closed",
+      "disposition": "no_underpayment_detected",
+      "createdAt": "2026-09-23T15:00:12.906920+00:00",
+      "candidateCount": 0,
+      "recoveredRoutes": 0,
+      "recoveredValue": 0,
+      "blockingEvidence": [],
+      "externalActionAuthorized": false,
+      "approvalStatus": null,
+      "approvedBy": null,
+      "submissionStatus": null,
+      "submissionConfirmation": null,
+      "findings": [
+        {
+          "check": "Our Data: 10-hour route blocks",
+          "status": "pass",
+          "detail": "WST 214; Amazon invoice 214.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 214.0,
+          "amazon_value": 214.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: 9-hour route blocks",
+          "status": "pass",
+          "detail": "WST 4; Amazon invoice 4.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 4.0,
+          "amazon_value": 4.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: 8-hour route blocks",
+          "status": "pass",
+          "detail": "WST 7; Amazon invoice 7.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 7.0,
+          "amazon_value": 7.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: 10-hour ORE blocks",
+          "status": "pass",
+          "detail": "WST 1; Amazon invoice 1.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 1.0,
+          "amazon_value": 1.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: Training days",
+          "status": "pass",
+          "detail": "WST 5; Amazon invoice 5.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 5.0,
+          "amazon_value": 5.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Our Data: Eligible delivered packages",
+          "status": "review",
+          "detail": "WST 69,087; Amazon invoice 69,092.",
+          "direction": "amazon_above_wst",
+          "dispute_candidate": false,
+          "our_value": 69087.0,
+          "amazon_value": 69092.0,
+          "difference": 5.0
+        },
+        {
+          "check": "Our Data: Eligible pickup packages",
+          "status": "pass",
+          "detail": "WST 1; Amazon invoice 1.",
+          "direction": "matched",
+          "dispute_candidate": false,
+          "our_value": 1.0,
+          "amazon_value": 1.0,
+          "difference": 0.0
+        },
+        {
+          "check": "Delivered package quantity",
+          "status": "pass",
+          "detail": "Variable invoice 69,092; incentive invoice 69,092.",
+          "direction": "none",
+          "dispute_candidate": false
+        },
+        {
+          "check": "Pickup incentive quantity at matching rate",
+          "status": "pass",
+          "detail": "Variable invoice has 1 pickup package(s) at $0.05; incentive invoice pays 1.",
+          "direction": "none",
+          "dispute_candidate": false
+        },
+        {
+          "check": "Incentive invoice arithmetic",
+          "status": "pass",
+          "detail": "Line items total $10,363.85; invoice total $10,363.85.",
+          "direction": "none",
+          "dispute_candidate": false
+        }
+      ],
+      "evidence": [
+        {
+          "type": "weekly_reconciliation",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/week38-invoice-reconciliation.json",
+          "sha256": "2a635e144676a9f0c1d34230eaa013a9bae4e4cab1f7f802a51a1cb84a078aaa"
+        },
+        {
+          "type": "amazon_variable_invoice",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/INV-VVDX0I-0000000832.pdf",
+          "sha256": "95f14933695d858a05557c810833b2dc5ecf6f25b26178576a65d7016090da32",
+          "bytes": 16848
+        },
+        {
+          "type": "amazon_incentive_invoice",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/INV-VVDX0I-0000000833.pdf",
+          "sha256": "b253f68d9701f504e1908226c726644f1c85229b3dd1e4391f33283590b02e77",
+          "bytes": 7321
+        },
+        {
+          "type": "amazon_wst_summary",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/wst/wst-summary.json",
+          "sha256": "8ff3f0ccd4d7d684230d91f7d839761875009094ded1965fe6dc2a8c8509121b",
+          "bytes": 116887
+        },
+        {
+          "type": "amazon_wst_baseline",
+          "path": "/Users/claw/Dev/ai-lab/agent-data/amazon-dsp/data/payment_reconciliation/2026-wk38/wst/snapshots/2026-09-23T150006-763Z-wst-summary.json",
+          "sha256": "8ff3f0ccd4d7d684230d91f7d839761875009094ded1965fe6dc2a8c8509121b",
+          "bytes": 116887
+        }
+      ],
+      "sourcePath": "data/payment_reconciliation/2026-wk38/week38-module-case.json"
+    },
     {
       "moduleId": "weekly_payments",
       "externalKey": "2026-W37",

@@ -11,6 +11,7 @@
     "adp:probe": "node scripts/adp_api_probe.mjs",
     "amazon:login": "node scripts/amazon_logistics_login.mjs",
     "amazon:session-check": "node scripts/amazon_session_check.mjs",
+    "amazon:snapshot-fleet": "node scripts/amazon_session_check.mjs && node scripts/amazon_fleet_dashboard_snapshot.mjs",
     "amazon:live-routes": "node scripts/amazon_session_check.mjs && node scripts/amazon_live_routes.mjs",
     "amazon:live-routes-daemon": "python3 scripts/run_live_route_sync.py --interval 300",
     "amazon:download": "node scripts/amazon_session_check.mjs && node scripts/amazon_logistics_download.mjs",
@@ -48,7 +49,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1137.0",
+    "@aws-sdk/client-s3": "^3.1138.0",
     "@aws-sdk/client-secrets-manager": "^3.1134.0",
+    "@aws-sdk/client-sqs": "^3.1138.0",
     "@fastify/helmet": "^13.1.1",
     "@fastify/static": "^10.1.3",
     "fastify": "^5.12.5",

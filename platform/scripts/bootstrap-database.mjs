@@ -67,6 +67,11 @@ async function configureRuntimeRole() {
   const statement = await client.query("select format('alter role dsp_app_login password %L', $1::text) as sql", [password]);
   await client.query(statement.rows[0].sql);
   await client.query('grant dsp_app_runtime to dsp_app_login');
+  const workerPassword = required('DB_WORKER_PASSWORD');
+  await client.query("do $$ begin if not exists (select 1 from pg_roles where rolname = 'dsp_worker_login') then create role dsp_worker_login login; end if; end $$");
+  const workerStatement = await client.query("select format('alter role dsp_worker_login password %L', $1::text) as sql", [workerPassword]);
+  await client.query(workerStatement.rows[0].sql);
+  await client.query('grant dsp_worker to dsp_worker_login');
 }
 
 async function seedTenant() {

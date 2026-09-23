@@ -64,6 +64,25 @@ def _drivers(folder: Path) -> list[dict[str, str]]:
         return rows
 
 
+def _scorecard_rating(folder: Path) -> tuple[str, str | None]:
+    """Read the DSP overall standing from the official scorecard PDF."""
+    paths = sorted(folder.glob("*DSPScorecard.pdf"))
+    if not paths:
+        return "Unavailable", None
+    try:
+        from pypdf import PdfReader
+        text = "\n".join((page.extract_text() or "") for page in PdfReader(str(paths[0])).pages[:2])
+    except Exception:
+        return "Unavailable", str(paths[0].relative_to(ROOT))
+    match = re.search(
+        r"Overall Standing(?:\s+Key Focus Areas)?\s+(Fantastic Plus|Fantastic|Great|Fair|Poor)",
+        text,
+        re.IGNORECASE,
+    )
+    rating = " ".join(match.group(1).title().split()) if match else "Unavailable"
+    return rating, str(paths[0].relative_to(ROOT))
+
+
 def build_weekly_evaluations_payload() -> dict[str, object]:
     evaluations: dict[str, dict[str, object]] = {}
     folders = sorted(SCORECARD_ROOT.glob("????-wk??"), reverse=True)
@@ -86,6 +105,7 @@ def build_weekly_evaluations_payload() -> dict[str, object]:
             if item.get("status") == "ready_for_review" and not item.get("blockingIssue")
         ]
         drivers = _drivers(folder)
+        scorecard_rating, scorecard_source = _scorecard_rating(folder)
         top = sorted(drivers, key=lambda row: (-float(row["score"]), row["name"]))[:10]
         bottom = sorted(drivers, key=lambda row: (float(row["score"]), row["name"]))[:10]
         dvic = re.search(r"Average DVIC duration was \*\*([\d.]+) seconds\*\*", summary)
@@ -97,7 +117,8 @@ def build_weekly_evaluations_payload() -> dict[str, object]:
             "disputeRead": _section(disputes, "Executive Dispute Read") if disputes else "Dispute report unavailable.",
             "coachingLanes": _section(disputes, "Do Not File / Coaching-First Lanes") if disputes else "Unavailable",
             "metrics": {
-                "rating": "See weekly scorecard",
+                "rating": scorecard_rating,
+                "ratingSource": scorecard_source,
                 "averageScore": _numeric(_metric(summary, "Avg overall score")),
                 "activeDAs": _numeric(_metric(summary, "Active DAs")),
                 "packages": _numeric(_metric(summary, "Packages delivered")),

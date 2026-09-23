@@ -271,7 +271,7 @@ export async function createApp({
   driverPerformanceRoutes(app, { repository, registry, logger, referenceTenantSlug });
 
   // Register Fleet Costs routes
-  fleetCostsRoutes(app, { repository, registry, logger });
+  fleetCostsRoutes(app, { repository, registry, logger, referenceTenantSlug });
 
   // Register Disputes routes
   disputesRoutes(app, { repository, registry, logger, referenceTenantSlug });

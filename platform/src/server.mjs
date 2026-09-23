@@ -7,6 +7,7 @@ import { ConnectionService } from './integrations/connection-service.mjs';
 import { AssistantService } from './assistant-service.mjs';
 import fs from 'node:fs/promises';
 import { CognitoMemberProvisioner } from './auth/cognito-member-provisioner.mjs';
+import { createAwsConnectorQueue } from './integrations/aws-connector-queue.mjs';
 
 const config = loadConfig();
 const repository = new PostgresRepository({ connectionString: config.DATABASE_URL });
@@ -30,7 +31,17 @@ const secretProvider = createAwsSecretsManagerProvider({
 });
 const connectionBaseline = await fs.readFile(new URL('../operational-snapshots/connections.json', import.meta.url), 'utf8')
   .then((value) => JSON.parse(value)).catch(() => null);
-const connectionService = new ConnectionService({ repository, secretProvider, baseline: connectionBaseline });
+const connectorQueue = createAwsConnectorQueue({
+  region: process.env.AWS_REGION || 'us-east-2',
+  queueUrl: config.CONNECTOR_QUEUE_URL
+});
+const connectionService = new ConnectionService({
+  repository,
+  secretProvider,
+  baseline: connectionBaseline,
+  connectorQueue,
+  connectorSessionTtlMinutes: config.CONNECTOR_SESSION_TTL_MINUTES
+});
 const assistantService = new AssistantService({ repository, secretProvider });
 const memberProvisioner = config.USER_POOL_ID ? new CognitoMemberProvisioner({
   userPoolId: config.USER_POOL_ID,

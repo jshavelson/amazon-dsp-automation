@@ -19,6 +19,8 @@ const schema = z.object({
   TENANT_SLUG: z.string().regex(/^[a-z][a-z0-9-]{2,62}$/),
   DASHBOARD_HTML_PATH: z.string().min(1).default('/app/dashboard/amazon-dsp-kpi-dashboard.html'),
   SECRET_PREFIX: z.string().min(1).default('dsp/credentials'),
+  CONNECTOR_QUEUE_URL: z.string().url().optional(),
+  CONNECTOR_SESSION_TTL_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
   USER_POOL_ID: z.string().min(1).optional()
 });
 

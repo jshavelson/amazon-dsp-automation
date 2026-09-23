@@ -12,7 +12,7 @@ export const CONNECTION_CATALOG = Object.freeze([
     authKind: 'api_credentials',
     category: 'Unattended',
     schedule: 'Daily 06:00',
-    description: 'Pulls fleet charges directly from Digits without a monthly export.',
+    description: 'Pulls the tenant’s actual fleet expenses from Digits. These charges are compared with Amazon Payments coverage; they never replace it.',
     feeds: Object.freeze(['Fleet Costs']),
     reauthNote: 'Replace the API client credentials if Digits revokes or rotates them.',
     credentialFields: Object.freeze([
@@ -46,7 +46,7 @@ export const CONNECTION_CATALOG = Object.freeze([
     authKind: 'imap_password',
     category: 'Unattended',
     schedule: 'Every 15 minutes',
-    description: 'Fleet assessments, LSC cases, invoices, and Amazon notices delivered by email.',
+    description: 'Scans Fleet Condition Assessment notices and LSC case correspondence. Email corroborates Cortex Supplemental Reports and PAVE; it is not the sole FCA source.',
     feeds: Object.freeze(['Fleet Compliance', 'Wear & Tear', 'LSC cases']),
     reauthNote: 'Replace the app password if the mailbox owner revokes it.',
     credentialFields: Object.freeze([
@@ -64,9 +64,9 @@ export const CONNECTION_CATALOG = Object.freeze([
     authKind: 'browser_session',
     category: 'Amazon',
     schedule: 'Daily checks + weekly reports',
-    description: 'One Amazon sign-in for Logistics, Payments, Fleet Portal, routes, scorecards, disputes, and reimbursements.',
+    description: 'Tenant-isolated managed browser for scorecards, Cortex Fleet Dashboard readiness, Cortex Payments coverage, Supplemental FCA reports, routes, disputes, and reimbursements.',
     feeds: Object.freeze(['Weekly Evaluation', 'Driver Performance', 'Routes', 'Disputes', 'Fleet Compliance', 'Fleet Costs']),
-    reauthNote: 'Amazon may revoke the shared session. Complete MFA once to restore all Amazon-backed feeds.',
+    reauthNote: 'Amazon may revoke a tenant browser session. The tenant owner completes MFA in a private, expiring reconnect session.',
     reconnectLabel: 'Amazon',
     credentialFields: Object.freeze([]),
     testable: false
@@ -94,7 +94,7 @@ export const CONNECTION_CATALOG = Object.freeze([
     authKind: 'manual_upload',
     category: 'Manual upload',
     schedule: 'On upload',
-    description: 'Fallback import for Digits, QuickBooks, CSV, or spreadsheet exports.',
+    description: 'Fallback source for actual fleet expenses when an accounting API is not connected. Accepts Digits, QuickBooks, CSV, or spreadsheet exports.',
     feeds: Object.freeze(['Fleet Costs']),
     reauthNote: 'No credentials required.',
     credentialFields: Object.freeze([]),

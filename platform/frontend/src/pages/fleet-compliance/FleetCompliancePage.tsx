@@ -49,7 +49,7 @@ interface ComplianceVehicle {
   provider?: string;
   ownershipEndDate?: string;
   ownershipDaysRemaining?: number;
-  operationalStatus: 'OPERATIONAL' | 'GROUNDED';
+  operationalStatus: 'OPERATIONAL' | 'GROUNDED' | 'UNKNOWN';
   portalOperationalStatus?: string;
   complianceStatus: ComplianceStatus;
   priority: number;
@@ -124,11 +124,12 @@ interface CompliancePayload {
   generatedAt: string;
   needsData?: boolean;
   message?: string;
+  readiness?: { sourceSystem?: string | null; verified: boolean; needsData: boolean; message?: string | null };
   summary: {
     registeredFleet: number;
-    operational: number;
-    grounded: number;
-    readinessRate: number;
+    operational: number | null;
+    grounded: number | null;
+    readinessRate: number | null;
     pmDue: number;
     pmDueSoon: number;
     pmSourceIssues: number;
@@ -231,8 +232,8 @@ const FleetCompliancePage: React.FC = () => {
   if (data.needsData) return <div className="space-y-6"><header><h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fleet Compliance</h1><p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Manage readiness, PM, inspection evidence, registrations, and rental or lease deadlines.</p></header><section className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"><Database className="mx-auto mb-3" size={28}/><strong>No fleet compliance data for this tenant.</strong><p className="mt-2 text-sm">{data.message || 'Connect or upload this tenant’s fleet sources to populate this screen.'}</p></section></div>;
 
   const cards = [
-    { label: 'Fleet readiness', value: `${data.summary.operational}/${data.summary.registeredFleet}`, detail: `${data.summary.readinessRate}% operational`, icon: Truck, tone: 'blue' },
-    { label: 'Grounded units', value: data.summary.grounded, detail: 'Dispatch-reported hold', icon: AlertTriangle, tone: 'red' },
+    { label: 'Fleet readiness', value: data.readiness?.verified ? `${data.summary.operational}/${data.summary.registeredFleet}` : '—', detail: data.readiness?.verified ? `${data.summary.readinessRate}% operational · Cortex Fleet Dashboard` : 'Needs Cortex Fleet Dashboard data', icon: Truck, tone: data.readiness?.verified ? 'blue' : 'red' },
+    { label: 'Grounded units', value: data.readiness?.verified ? data.summary.grounded : '—', detail: data.readiness?.verified ? 'Cortex Fleet Dashboard' : 'Unavailable until Cortex sync', icon: AlertTriangle, tone: 'red' },
     { label: 'PM attention', value: data.summary.pmSourceIssues, detail: `${data.summary.pmDue + data.summary.pmDueSoon} roster-matched · ${data.summary.pmUnmatchedVehicles} reconcile`, icon: Wrench, tone: 'amber' },
     { label: 'DVIC evidence', value: `${data.summary.inspectionVehicles}/${data.summary.registeredFleet}`, detail: `${data.summary.inspectionCoverageRate}% in source pull`, icon: ClipboardCheck, tone: 'emerald' },
   ];

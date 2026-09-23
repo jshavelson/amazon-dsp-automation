@@ -312,6 +312,112 @@ export class PostgresRepository {
     });
   }
 
+  async createConnectorSession(context, { integrationType, purpose, expiresAt, idempotencyKey }) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const active = await client.query(
+        `select id, integration_type as "integrationType", purpose, status, launch_url as "launchUrl",
+                created_at as "createdAt", expires_at as "expiresAt", completed_at as "completedAt",
+                error_code as "errorCode", error_message as "errorMessage"
+           from app.connector_sessions
+          where tenant_id = $1 and integration_type = $2
+            and status in ('queued','starting','waiting_for_user','verifying') and expires_at > now()
+          order by created_at desc limit 1`,
+        [context.principal.tenantDbId, integrationType]
+      );
+      if (active.rowCount) return { session: active.rows[0], job: null, reused: true };
+      await client.query(
+        `update app.connector_sessions set status = 'expired'
+          where tenant_id = $1 and integration_type = $2
+            and status in ('queued','starting','waiting_for_user','verifying') and expires_at <= now()`,
+        [context.principal.tenantDbId, integrationType]
+      );
+      const session = await client.query(
+        `insert into app.connector_sessions (tenant_id,integration_type,purpose,created_by,expires_at)
+         values ($1,$2,$3,$4,$5)
+         returning id, integration_type as "integrationType", purpose, status, launch_url as "launchUrl",
+                   created_at as "createdAt", expires_at as "expiresAt", completed_at as "completedAt",
+                   error_code as "errorCode", error_message as "errorMessage"`,
+        [context.principal.tenantDbId, integrationType, purpose, context.principal.userId, expiresAt]
+      );
+      const job = await client.query(
+        `insert into app.connector_jobs
+          (tenant_id,integration_type,session_id,job_type,idempotency_key,requested_by)
+         values ($1,$2,$3,'connect',$4,$5)
+         returning id, integration_type as "integrationType", session_id as "sessionId", job_type as "jobType",
+                   status, requested_at as "requestedAt"`,
+        [context.principal.tenantDbId, integrationType, session.rows[0].id, idempotencyKey, context.principal.userId]
+      );
+      await client.query(
+        `insert into app.audit_events (tenant_id,actor_subject,action,resource_type,resource_id,request_id,metadata)
+         values ($1,$2,'connector.session.create','connector_session',$3,gen_random_uuid(),jsonb_build_object('integration',$4,'purpose',$5))`,
+        [context.principal.tenantDbId, context.principal.userId, session.rows[0].id, integrationType, purpose]
+      );
+      return { session: session.rows[0], job: job.rows[0], reused: false };
+    });
+  }
+
+  async getConnectorSession(context, sessionId) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const result = await client.query(
+        `select id, integration_type as "integrationType", purpose,
+                case when expires_at <= now() and status not in ('completed','failed') then 'expired' else status end as status,
+                launch_url as "launchUrl", created_at as "createdAt", expires_at as "expiresAt",
+                completed_at as "completedAt", error_code as "errorCode", error_message as "errorMessage"
+           from app.connector_sessions where tenant_id = $1 and id = $2`,
+        [context.principal.tenantDbId, sessionId]
+      );
+      return result.rows[0] || null;
+    });
+  }
+
+  async markConnectorJobQueued(context, jobId) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      await client.query(
+        `update app.connector_jobs set result = result || jsonb_build_object('queuedAt',now())
+          where tenant_id = $1 and id = $2`,
+        [context.principal.tenantDbId, jobId]
+      );
+    });
+  }
+
+  async createAmazonBackfillJobs(context, feedGroups) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const connection = await client.query(
+        `select 1 from app.integration_connections
+          where tenant_id=$1 and integration_type='amazon' and status='healthy'
+            and nullif(config->>'profileKey','') is not null`, [context.principal.tenantDbId]
+      );
+      if (!connection.rowCount) throw new Error('Amazon connection requires reauthentication');
+      const plans = await client.query(
+        `select feed_group as "feedGroup", period_start as "periodStart", period_end as "periodEnd"
+           from app.tenant_onboarding_backfills
+          where tenant_id=$1 and feed_group=any($2::text[])
+            and status in ('waiting_for_connection','failed','partial')
+          order by feed_group`, [context.principal.tenantDbId, feedGroups]
+      );
+      const jobs = [];
+      for (const plan of plans.rows) {
+        const idempotencyKey = `backfill:${plan.feedGroup}:${plan.periodStart}:${plan.periodEnd}`;
+        const inserted = await client.query(
+          `insert into app.connector_jobs
+             (tenant_id,integration_type,job_type,idempotency_key,requested_by,result)
+           values ($1,'amazon','sync',$2,$3,$4::jsonb)
+           on conflict (tenant_id,idempotency_key) do update
+             set status='queued', requested_at=now(), started_at=null, finished_at=null,
+                 last_error=null, result=excluded.result
+           returning id, job_type as "jobType", requested_at as "requestedAt", status`,
+          [context.principal.tenantDbId, idempotencyKey, context.principal.userId, JSON.stringify(plan)]
+        );
+        await client.query(
+          `update app.tenant_onboarding_backfills set status='queued', last_error=null, updated_at=now()
+            where tenant_id=$1 and feed_group=$2`, [context.principal.tenantDbId, plan.feedGroup]
+        );
+        jobs.push({ ...inserted.rows[0], ...plan });
+      }
+      return jobs;
+    });
+  }
+
   // Driver methods
   async listDrivers(context, { limit = 100, skip = 0 } = {}) {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
@@ -674,6 +780,20 @@ export class PostgresRepository {
          on conflict (tenant_id, module_id) do nothing`,
         [tenant.id, moduleIds]
       );
+      // Provision a uniform 90-day history plan. Each feed remains blocked
+      // until this tenant configures one of its allowed sources.
+      await client.query(
+        `insert into app.tenant_onboarding_backfills
+          (tenant_id,feed_group,source_options,period_start,period_end,required)
+         values
+          ($1,'amazon_operations','["amazon"]'::jsonb,current_date - 89,current_date,true),
+          ($1,'fleet_readiness','["amazon"]'::jsonb,current_date - 89,current_date,true),
+          ($1,'fleet_payments','["amazon"]'::jsonb,current_date - 89,current_date,true),
+          ($1,'fleet_accounting','["digits_api","financial_charges"]'::jsonb,current_date - 89,current_date,true),
+          ($1,'fleet_condition','["amazon","pave","email_imap"]'::jsonb,current_date - 89,current_date,true),
+          ($1,'workforce','["adp"]'::jsonb,current_date - 89,current_date,true)`,
+        [tenant.id]
+      );
       await client.query(
         `insert into app.platform_audit_events
            (actor_subject, actor_email, action, resource_type, resource_id, metadata)
@@ -688,6 +808,22 @@ export class PostgresRepository {
     } finally {
       client.release();
     }
+  }
+
+  async listTenantOnboardingBackfills(tenantSlug) {
+    const tenant = await this.getTenantBySlug(tenantSlug);
+    if (!tenant) return null;
+    return this.#transaction({ tenantDbId: tenant.id, subject: 'platform-admin' }, async (client) => {
+      const result = await client.query(
+        `select feed_group as "feedGroup", source_options as "sourceOptions",
+                period_start as "periodStart", period_end as "periodEnd", status,
+                required, completed_sources as "completedSources", last_error as "lastError",
+                updated_at as "updatedAt"
+           from app.tenant_onboarding_backfills
+          where tenant_id=$1 order by feed_group`, [tenant.id]
+      );
+      return result.rows;
+    });
   }
 
   /**

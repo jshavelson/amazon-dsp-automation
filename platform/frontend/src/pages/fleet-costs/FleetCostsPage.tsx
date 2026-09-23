@@ -69,7 +69,7 @@ const FleetCostsPage: React.FC = () => {
     <section className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900">
       <FileSpreadsheet className="mx-auto text-gray-400" size={32} />
       <h2 className="mt-3 text-lg font-semibold text-gray-900 dark:text-white">No fleet charges uploaded yet</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-slate-400">Upload your Digits export on the Connections screen to compare what you paid for rentals against what Amazon reimbursed.</p>
+      <p className="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-slate-400">Connect Digits or confirm an accounting upload for actual fleet expenses, then connect Amazon Cortex Payments for reimbursement coverage.</p>
       <a href="/connections" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Go to Connections</a>
     </section>
   </div>;
@@ -80,7 +80,7 @@ const FleetCostsPage: React.FC = () => {
 
   return <div className="space-y-6 pb-10">
     <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div><p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Fleet finance · {data.period}</p><h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Fleet Costs — what Amazon pays vs what I pay</h1><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-slate-400">Rental and LMR invoices I paid (Digits) against the Amazon vehicle coverage posted on the monthly reconciliation invoices. June/July final, August advance.</p></div>
+      <div><p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Fleet finance · {data.period}</p><h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">Fleet Costs — what Amazon pays vs what I pay</h1><p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-slate-400">Actual fleet expenses from the connected accounting source (or confirmed upload) against vehicle coverage from Cortex Payments.</p></div>
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={toggleMask} aria-pressed={masked} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">{masked ? 'Show financial data' : 'Mask financial data'}</button>
         <button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />{isRefreshing ? 'Refreshing…' : 'Refresh'}</button>
@@ -134,7 +134,7 @@ const FleetCostsPage: React.FC = () => {
     </section>
 
     <section className="grid gap-4 xl:grid-cols-2">
-      <article className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Vendors I paid</h2><p className="text-xs text-gray-500 dark:text-slate-400">Digits charges, mapped to the Amazon class that reimburses them</p></div>
+      <article className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Vendors I paid</h2><p className="text-xs text-gray-500 dark:text-slate-400">Accounting charges mapped to the Cortex Payments class that reimburses them</p></div>
         <table className="w-full text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Vendor</th><th className="px-3 py-3 text-right">Jun</th><th className="px-3 py-3 text-right">Jul</th><th className="px-3 py-3 text-right">Aug</th><th className="px-3 py-3 text-right">Total</th><th className="px-4 py-3">Reimbursed by</th></tr></thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{data.vendors.map((v) => <tr key={v.vendor} className="text-gray-700 dark:text-slate-200"><td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{v.vendor}</td>{v.monthly.map((x, i) => <td key={i} className="px-3 py-3 text-right tabular-nums">{m(x)}</td>)}<td className="px-3 py-3 text-right font-semibold tabular-nums">{m(v.total)}</td><td className="px-4 py-3 text-xs text-gray-500 dark:text-slate-400">{v.coverageClass}</td></tr>)}</tbody></table></article>
       <article className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Invoice bridge</h2><p className="text-xs text-gray-500 dark:text-slate-400">Amazon final gross less prior advance = net reconciliation payment</p></div>

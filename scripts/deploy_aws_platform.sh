@@ -7,6 +7,7 @@ AWS_REGION_NAME="${AWS_REGION_NAME:-us-east-2}"
 FOUNDATION_STACK="${FOUNDATION_STACK:-dsp-operations-foundation}"
 APPLICATION_STACK="${APPLICATION_STACK:-dsp-operations-application}"
 IMAGE_TAG="${IMAGE_TAG:-pilot}"
+ENABLE_MANAGED_CONNECTOR="${ENABLE_MANAGED_CONNECTOR:-true}"
 
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 export AWS_PAGER=""
@@ -77,8 +78,10 @@ update_foundation_infrastructure() {
   parameter_keys=(${=raw_keys})
   parameter_args=()
   for key in "${parameter_keys[@]}"; do
+    [[ "$key" == "EnableManagedConnector" ]] && continue
     parameter_args+=("ParameterKey=$key,UsePreviousValue=true")
   done
+  parameter_args+=("ParameterKey=EnableManagedConnector,ParameterValue=$ENABLE_MANAGED_CONNECTOR")
 
   set +e
   update_output="$(aws_cmd cloudformation update-stack \
@@ -118,8 +121,18 @@ update_application_infrastructure() {
   parameter_keys=(${=raw_keys})
   parameter_args=()
   for key in "${parameter_keys[@]}"; do
+    [[ "$key" == "DatabaseWorkerSecretArn" || "$key" == "EnableManagedConnector" || "$key" == Connector* ]] && continue
     parameter_args+=("ParameterKey=$key,UsePreviousValue=true")
   done
+  parameter_args+=("ParameterKey=DatabaseWorkerSecretArn,ParameterValue=$database_worker_secret_arn")
+  parameter_args+=("ParameterKey=EnableManagedConnector,ParameterValue=$ENABLE_MANAGED_CONNECTOR")
+  if [[ "$ENABLE_MANAGED_CONNECTOR" == "true" ]]; then
+    parameter_args+=("ParameterKey=ConnectorSubnetAId,ParameterValue=$connector_subnet_a")
+    parameter_args+=("ParameterKey=ConnectorSubnetBId,ParameterValue=$connector_subnet_b")
+    parameter_args+=("ParameterKey=ConnectorSecurityGroupId,ParameterValue=$connector_security_group")
+    parameter_args+=("ParameterKey=ConnectorFileSystemId,ParameterValue=$connector_file_system")
+    parameter_args+=("ParameterKey=ConnectorAccessPointId,ParameterValue=$connector_access_point")
+  fi
 
   set +e
   update_output="$(aws_cmd cloudformation update-stack \
@@ -160,6 +173,7 @@ python3 scripts/export_platform_snapshots.py
 deployment_bucket="$(stack_output "$FOUNDATION_STACK" DeploymentBucketName)"
 build_project="$(stack_output "$FOUNDATION_STACK" ImageBuildProjectName)"
 repository_uri="$(stack_output "$FOUNDATION_STACK" ContainerRepositoryUri)"
+database_worker_secret_arn="$(stack_output "$FOUNDATION_STACK" DatabaseWorkerSecretArn)"
 cluster_name="$(stack_output "$FOUNDATION_STACK" EcsClusterName)"
 service_name="$(stack_output "$APPLICATION_STACK" ApplicationServiceName)"
 distribution_id="$(stack_output "$APPLICATION_STACK" DistributionId)"
@@ -167,13 +181,28 @@ website_url="$(stack_output "$APPLICATION_STACK" WebsiteUrl)"
 public_subnet_a="$(stack_output "$FOUNDATION_STACK" PublicSubnetAId)"
 public_subnet_b="$(stack_output "$FOUNDATION_STACK" PublicSubnetBId)"
 application_security_group="$(stack_output "$FOUNDATION_STACK" ApplicationSecurityGroupId)"
+if [[ "$ENABLE_MANAGED_CONNECTOR" == "true" ]]; then
+  connector_subnet_a="$(stack_output "$FOUNDATION_STACK" ConnectorSubnetAId)"
+  connector_subnet_b="$(stack_output "$FOUNDATION_STACK" ConnectorSubnetBId)"
+  connector_security_group="$(stack_output "$FOUNDATION_STACK" ConnectorSecurityGroupId)"
+  connector_file_system="$(stack_output "$FOUNDATION_STACK" ConnectorFileSystemId)"
+  connector_access_point="$(stack_output "$FOUNDATION_STACK" ConnectorAccessPointId)"
+fi
 
-for value in "$deployment_bucket" "$build_project" "$repository_uri" "$cluster_name" "$service_name" "$distribution_id" "$website_url" "$public_subnet_a" "$public_subnet_b" "$application_security_group"; do
+for value in "$deployment_bucket" "$build_project" "$repository_uri" "$database_worker_secret_arn" "$cluster_name" "$service_name" "$distribution_id" "$website_url" "$public_subnet_a" "$public_subnet_b" "$application_security_group"; do
   if [[ -z "$value" || "$value" == "None" ]]; then
     print -u2 "Required CloudFormation output is missing."
     exit 1
   fi
 done
+if [[ "$ENABLE_MANAGED_CONNECTOR" == "true" ]]; then
+  for value in "$connector_subnet_a" "$connector_subnet_b" "$connector_security_group" "$connector_file_system" "$connector_access_point"; do
+    if [[ -z "$value" || "$value" == "None" ]]; then
+      print -u2 "Required managed connector output is missing."
+      exit 1
+    fi
+  done
+fi
 
 temp_root="$(mktemp -d /tmp/dsp-platform-deploy.XXXXXX)"
 trap 'rm -rf -- "$temp_root"' EXIT

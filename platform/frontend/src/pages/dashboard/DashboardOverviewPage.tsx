@@ -44,10 +44,17 @@ interface OperationsPayload {
   };
   fleet: {
     asOf?: string;
+    readiness?: { verified?: boolean; needsData?: boolean; message?: string | null };
+    freshness?: {
+      ageDays?: number | null;
+      isStale?: boolean;
+      thresholdDays?: number;
+      status?: string;
+    };
     summary?: {
       registeredFleet?: number;
-      operational?: number;
-      grounded?: number;
+      operational?: number | null;
+      grounded?: number | null;
       ready?: number;
     };
     vehicles?: Array<{ status?: string; ownership?: string }>;
@@ -427,6 +434,9 @@ const DashboardOverviewPage: React.FC = () => {
     ).length;
   const grounded =
     data?.fleet.summary?.grounded ?? Math.max(0, fleetTotal - operational);
+  const fleetAsOf = data?.fleet.asOf || "date unavailable";
+  const readinessVerified = data?.fleet.readiness?.verified === true;
+  const fleetIsStale = data?.fleet.freshness?.isStale ?? true;
   const ownershipCounts = fleetVehicles.reduce<Record<string, number>>(
     (counts, vehicle) => {
       const key =
@@ -445,11 +455,13 @@ const DashboardOverviewPage: React.FC = () => {
     },
     {
       label: "Fleet readiness",
-      value: fleetTotal
+      value: fleetTotal && readinessVerified
         ? `${((operational / fleetTotal) * 100).toFixed(1)}%`
         : "—",
-      detail: `${operational} operational · ${grounded} grounded`,
-      tone: grounded ? "amber" : "green",
+      detail: readinessVerified
+        ? `${operational} operational · ${grounded} grounded · Cortex Fleet Dashboard ${fleetAsOf}${fleetIsStale ? " · STALE" : ""}`
+        : "Needs current Cortex Fleet Dashboard data",
+      tone: !readinessVerified || fleetIsStale ? "red" : grounded ? "amber" : "green",
     },
     {
       label: "Connected sources",

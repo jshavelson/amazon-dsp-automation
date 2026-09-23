@@ -26,7 +26,7 @@ CATALOG = [
     {
         "id": "amazon", "displayName": "Amazon DSP", "authKind": "browser_session",
         "category": "Amazon", "schedule": "Daily checks + weekly reports",
-        "description": "One Amazon sign-in for Logistics, Payments, Fleet Portal, routes, scorecards, disputes and reimbursements.",
+        "description": "One Amazon sign-in for scorecards, Cortex Fleet Dashboard readiness, Cortex Payments coverage, Supplemental FCA reports, routes, disputes and reimbursements.",
         "feeds": ["Weekly Evaluation", "Driver Performance", "Routes", "Disputes", "Fleet Compliance", "Fleet Costs"],
         "reauthNote": "Amazon may revoke the shared session. Complete MFA once to restore all Amazon-backed feeds.",
         "reconnectLabel": "Amazon",
@@ -50,7 +50,7 @@ CATALOG = [
     {
         "id": "email_imap", "displayName": "Report Email (IMAP)", "authKind": "imap_password",
         "category": "Unattended", "schedule": "Every 15 minutes",
-        "description": "Fleet Condition Assessment, LSC cases, and Amazon notices delivered by email.",
+        "description": "Scans FCA notices and LSC case correspondence to corroborate Cortex Supplemental Reports and PAVE.",
         "feeds": ["Fleet Compliance", "Wear & Tear", "LSC cases"],
         "reauthNote": "An app password runs unattended and is the preferred path wherever Amazon emails the report.",
         "credentialFields": [

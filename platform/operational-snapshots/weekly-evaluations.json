@@ -1,4 +1,8 @@
 {
+  "generatedAt": "2026-09-23T19:35:50.868165+00:00",
+  "source": "Canonical weekly scorecard evaluations",
+  "period": "2026-W38",
+  "needsData": false,
   "weeks": [
     "2026-W38",
     "2026-W37",
@@ -29,7 +33,8 @@
       "disputeRead": "This is mostly a validation-review week. The summary suggests some business-closed value, but the RTS detail does not yet support high-confidence filings after the timing screen.",
       "coachingLanes": "\u2022 Aice Theo Davis - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 An Tran - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Darius arone Jacobs jr - do not file Reason: 3 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Eziekil Nathanel Donaldson - do not file Reason: 5 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Henry Lee Pickens - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Jeremiah Alan Lyons - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Maria Jose Diaz Gomez - do not file Reason: 3 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Renford Worren Jr Bookall - do not file Reason: 31 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep James Ryan Gay, Akayda amour Grizzle, Brandon Emmanuelle Pena, Christopher Ely Paul, Dominique Reginald lydell Ragin, Jarvie Zaran Coleman in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk38/US_JECS_DFH7_Week38_2026_en_DSPScorecard.pdf",
         "averageScore": 95.75,
         "activeDAs": 80.0,
         "packages": 69092.0,
@@ -233,11 +238,12 @@
     },
     "2026-W37": {
       "week": "2026-W37",
-      "summary": "Week 37 handled 68,189 delivered packages (-2,661 vs 2026-W36) while DCR landed at 99.70% (+0.17) and POD at 99.52% (+0.01). Capacity, compliance, tenure files were not yet posted; available execution data points to cleanup areas in customer feedback and concentrated DCR process misses, safety exposure, and DVIC discipline.",
+      "summary": "Week 37 handled 68,189 delivered packages (-2,661 vs 2026-W36) while DCR landed at 99.70% (+0.17) and POD at 99.52% (+0.01). Reliability and compliance stayed controlled, but the cleanup areas were customer feedback and concentrated DCR process misses, safety exposure, and DVIC discipline.",
       "disputeRead": "No high-confidence dispute lane stands out in the available week data. Treat the week as coaching-first unless additional proof changes the attribution picture.",
       "coachingLanes": "\u2022 Aice Theo Davis - do not file Reason: 6 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 1:42 PM after the scheduled delivery time of 1:41 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Dylon Joseph Ansel - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 6:03 PM after the scheduled delivery time of 11:05 AM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Eziekil Nathanel Donaldson - do not file Reason: 2 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 5:58 PM after the scheduled delivery time of 12:08 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Ruddien Kobe Burton - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 12:37 PM after the scheduled delivery time of 12:32 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Andrew Jimenez - do not file Reason: 1 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Dante Quiles, Schlay Nicholas, Dakota Kane Arnold, Jaylen DeShawn Smith, Jermaine Livon King, Melvin Rosas in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk37/US_JECS_DFH7_Week37_2026_en_DSPScorecard.pdf",
         "averageScore": 96.32,
         "activeDAs": 81.0,
         "packages": 68189.0,
@@ -249,9 +255,9 @@
         "safety": 3.0,
         "dvicAverage": 60.7,
         "sentiment": 89.7,
-        "capacityReliability": "Unavailable",
-        "casCompliance": "Unavailable",
-        "tenuredWorkforce": "Unavailable"
+        "capacityReliability": "101.76%",
+        "casCompliance": "100.0% / YES",
+        "tenuredWorkforce": "81.48% (66/81)"
       },
       "topDrivers": [
         {
@@ -445,7 +451,8 @@
       "disputeRead": "This is a selective dispute week: file only the business-closed DCR subset that also passes the scheduled-delivery timing check, then use validation review on any summary-vs-detail mismatches instead of broad submissions.",
       "coachingLanes": "\u2022 RALPH Millien - do not file Reason: 1 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Jakai Maleek BoweCarey, Cole Anthony Barrett, Jean Louis Familia, Stephen Ayala, Aice Theo Davis, Amber Jean VomBaur in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk36/US_JECS_DFH7_Week36_2026_en_DSPScorecard.pdf",
         "averageScore": 95.15,
         "activeDAs": 85.0,
         "packages": 70850.0,
@@ -678,7 +685,8 @@
       "disputeRead": "No high-confidence dispute lane stands out in the available week data. Treat the week as coaching-first unless additional proof changes the attribution picture.",
       "coachingLanes": "\u2022 Darley Louis - do not file Reason: 4 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Jacob Ellis Grimes, Jordan Jacquel Williams, Antonio Carlos Matos, Cole Anthony Barrett, Henry Lee Pickens, Joseph Raymond Montag in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk35/US_JECS_DFH7_Week35_2026_en_DSPScorecard.pdf",
         "averageScore": 94.88,
         "activeDAs": 81.0,
         "packages": 70289.0,
@@ -886,7 +894,8 @@
       "disputeRead": "No high-confidence dispute lane stands out in the available week data. Treat the week as coaching-first unless additional proof changes the attribution picture.",
       "coachingLanes": "\u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Diego Alfaro, David Edward Keeny, Christopher Ely Paul, Christopher Platas, Cole Anthony Barrett, Dylon Joseph Ansel in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk34/US_JECS_DFH7_Week34_2026_en_DSPScorecard.pdf",
         "averageScore": 97.25,
         "activeDAs": 81.0,
         "packages": 73141.0,
@@ -1094,7 +1103,8 @@
       "disputeRead": "No high-confidence dispute lane stands out in the available week data. Treat the week as coaching-first unless additional proof changes the attribution picture.",
       "coachingLanes": "\u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Aice Theo Davis, Isaiah Jacob Gonzalez, David Edward Keeny, Nicholas George Wainwright, Henry Lee Pickens, Jakai Maleek BoweCarey in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk33/US_JECS_DFH7_Week33_2026_en_DSPScorecard.pdf",
         "averageScore": 97.59,
         "activeDAs": 83.0,
         "packages": 69571.0,
@@ -1302,7 +1312,8 @@
       "disputeRead": "No high-confidence dispute lane stands out in the available week data. Treat the week as coaching-first unless additional proof changes the attribution picture.",
       "coachingLanes": "\u2022 Cole Anthony Barrett - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 12:45 PM after the scheduled delivery time of 12:36 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Jordan Jacquel Williams - do not file Reason: 10 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 2:18 PM after the scheduled delivery time of 11:26 AM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Maria Jose Diaz Gomez - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 7:31 PM after the scheduled delivery time of 4:47 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Schlay Nicholas - do not file Reason: 67 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Diego Alfaro, Kelly Bradford Debbaudt, Aice Theo Davis, Dante Quiles, Demaury Juvar Brown, Jayden Julius Tavera in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk32/US_JECS_DFH7_Week32_2026_en_DSPScorecard.pdf",
         "averageScore": 94.3,
         "activeDAs": 82.0,
         "packages": 70380.0,
@@ -1510,7 +1521,8 @@
       "disputeRead": "This week needs a split read: keep the DCR lane selective, and move pickup issues into dispute prep only after stop-level PSB evidence is gathered.",
       "coachingLanes": "\u2022 Antonio Carlos Matos - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 4:35 PM after the scheduled delivery time of 12:10 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Darley Louis - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 5:16 PM after the scheduled delivery time of 1:04 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Melvin Rosas - do not file Reason: 2 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Jada Rae Williams, Tyreik Carson Williams, Christopher Ely Paul, Ethan Alexander Keeny, Eziekil Nathanel Donaldson, Kelly Bradford Debbaudt in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk30/US_JECS_DFH7_Week30_2026_en_DSPScorecard.pdf",
         "averageScore": 95.89,
         "activeDAs": 82.0,
         "packages": 68217.0,
@@ -1718,7 +1730,8 @@
       "disputeRead": "This week needs a split read: keep the DCR lane selective, and move pickup issues into dispute prep only after stop-level PSB evidence is gathered.",
       "coachingLanes": "\u2022 Jashun Christopher Jones - do not file Reason: 1 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Tyreik Carson Williams, Jada Rae Williams, Aice Theo Davis, Christopher Ely Paul, Christopher Platas, Ethan Alexander Keeny in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk29/US_JECS_DFH7_Week29_2026_en_DSPScorecard.pdf",
         "averageScore": 96.39,
         "activeDAs": 81.0,
         "packages": 67755.0,
@@ -1926,7 +1939,8 @@
       "disputeRead": "This week needs a split read: keep the DCR lane selective, and move pickup issues into dispute prep only after stop-level PSB evidence is gathered.",
       "coachingLanes": "\u2022 Eziekil Nathanel Donaldson - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 5:58 PM after the scheduled delivery time of 11:35 AM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Jeff Hyppolyte - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows have incomplete portal timing evidence. Read: TBA332606441951: no matching route detail with planned and actual timing on 2026-07-07 after checking multi-route/sweeper assignment CX156, AV18, AV41, AV43 Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Jeff Hyppolyte - do not file Reason: 8 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Mercedes Lashe Cooper, Omar Vaquero Hernandez, Aice Theo Davis, Ruddien Kobe Burton, Schlay Nicholas, Darien Terrell Silva in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk28/US_JECS_DFH7_Week28_2026_en_DSPScorecard.pdf",
         "averageScore": 96.2,
         "activeDAs": 82.0,
         "packages": 70977.0,
@@ -2134,7 +2148,8 @@
       "disputeRead": "This week needs a split read: keep the DCR lane selective, and move pickup issues into dispute prep only after stop-level PSB evidence is gathered.",
       "coachingLanes": "\u2022 Timotheus Tyron Jenkins - do not file Reason: 11 DCR-impacting rows are OUT OF DRIVING TIME. Read: Route-planning / dispatch / execution issue, not a clean dispute lane. \u2022 Elijah Harper Benn - do not file Reason: 11 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Schlay Nicholas, Ethan Alexander Keeny, James Ryan Gay, Jarvie Zaran Coleman, Joseph Raymond Montag, Andy Junior Maden Almeida in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic",
+        "ratingSource": "data/scorecard_data/2026-wk27/US_JECS_DFH7_Week27_2026_en_DSPScorecard.pdf",
         "averageScore": 95.33,
         "activeDAs": 82.0,
         "packages": 68982.0,
@@ -2342,7 +2357,8 @@
       "disputeRead": "This is mostly a validation-review week. The summary suggests some business-closed value, but the RTS detail does not yet support high-confidence filings after the timing screen.",
       "coachingLanes": "\u2022 Mercedes Lashe Cooper - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Diego Alfaro - do not file Reason: 31 DCR-impacting rows are OUT OF DRIVING TIME. Read: Route-planning / dispatch / execution issue, not a clean dispute lane. \u2022 Renford Worren Jr Bookall - do not file Reason: 46 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Christopher Ely Paul, Ruddien Kobe Burton, Darien Terrell Silva, Ethan Alexander Keeny, Jacob Ellis Grimes, Jada Rae Williams in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk26/US_JECS_DFH7_Week26_2026_en_DSPScorecard.pdf",
         "averageScore": 95.87,
         "activeDAs": 84.0,
         "packages": 78818.0,
@@ -2550,7 +2566,8 @@
       "disputeRead": "This is mostly a validation-review week. The summary suggests some business-closed value, but the RTS detail does not yet support high-confidence filings after the timing screen.",
       "coachingLanes": "\u2022 Darius arone Jacobs jr - do not file Reason: 7 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Timing evidence missing for scheduled delivery time versus Business Closed scan. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 William Avila - do not file Reason: 1 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Jamesken Belony, Marctavious Bryant, Darien Terrell Silva, Joseph Raymond Montag, William Avila, Andy Junior Maden Almeida in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk25/US_JECS_DFH7_Week25_2026_en_DSPScorecard.pdf",
         "averageScore": 95.82,
         "activeDAs": 80.0,
         "packages": 66710.0,
@@ -2758,7 +2775,8 @@
       "disputeRead": "After a full live recheck of all 19 true Week 24 Never Received Delivery rows, the posture changed materially. The live route-detail and GeoStudio evidence supports a real NDR submission batch: 7 submit-first TBAs, 11 submit-with-photo-caveat TBAs, and 1 weakest / hold case. The strongest evidence pattern is consistent across the NDR batch: the route completed in full, the exact TBA shows DELIVERED / COMPLETE on the stop, the delivery address matches the live GeoStudio lookup, and the live delivery point sits within a tight range of the execution geocode. The remaining caveat is the same one seen on Hillary's stop: the browser photo viewer still would not render reliably end-to-end, so weekly POD rejects still matter as a confidence drag even when the exact stop looks clean live.",
       "coachingLanes": "Jamesken Belony \u2014 do not file. The DCR-impacting row is OUT OF DRIVING TIME, which reads as route-planning / dispatch / execution, not a clean dispute lane. Cole Anthony Barrett \u2014 do not file. The DCR-impacting row is NO RTS CODE SELECTED, which reads as process-control / coding-discipline, not a strong dispute case.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk24/US_JECS_DFH7_Week24_2026_en_DSPScorecard.pdf",
         "averageScore": 96.11,
         "activeDAs": 71.0,
         "packages": 67377.0,
@@ -3089,7 +3107,8 @@
       "disputeRead": "This is a selective dispute week: file only the business-closed DCR subset that also passes the scheduled-delivery timing check, then use validation review on any summary-vs-detail mismatches instead of broad submissions.",
       "coachingLanes": "\u2022 aidan nathaniel landron - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 2:44 PM after the scheduled delivery time of 2:09 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Ceniel Saint val - do not file Reason: 2 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 1:05 PM after the scheduled delivery time of 12:59 PM. Business Closed was marked at 12:56 PM after the scheduled delivery time of 12:41 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Jordan Jacquel Williams - do not file Reason: 6 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 3:10 PM after the scheduled delivery time of 12:35 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Kelly Bradford Debbaudt - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 5:41 PM after the scheduled delivery time of 3:53 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Kyle Jean - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 4:13 PM after the scheduled delivery time of 2:58 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 William Avila - do not file Reason: 1 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 4:36 PM after the scheduled delivery time of 3:37 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Hasan Lorenzo isiah Walters Fournier - do not file Reason: 1 DCR-impacting rows are OUT OF DRIVING TIME. Read: Route-planning / dispatch / execution issue, not a clean dispute lane. \u2022 Dante Quiles - do not file Reason: 39 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Anthony Thomas Navarra, Dante Quiles, aidan nathaniel landron, Jacob Ellis Grimes, Kyle Jean, Kynesha Linequa Hughes in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk23/US_JECS_DFH7_Week23_2026_en_DSPScorecard.pdf",
         "averageScore": 96.04,
         "activeDAs": 72.0,
         "packages": 71145.0,
@@ -3373,7 +3392,8 @@
       "disputeRead": "No high-confidence dispute lane stands out in the available week data. Treat the week as coaching-first unless additional proof changes the attribution picture.",
       "coachingLanes": "\u2022 Tiana Monet Robinson - do not file Reason: 2 DCR-impacting BUSINESS CLOSED rows failed the scheduled-delivery timing check. Read: Business Closed was marked at 6:21 PM after the scheduled delivery time of 1:31 PM. Hold these TBAs out of the dispute portal unless timing evidence changes. \u2022 Joseph Raymond Montag - do not file Reason: 1 DCR-impacting rows are OUT OF DRIVING TIME. Read: Route-planning / dispatch / execution issue, not a clean dispute lane. \u2022 Jashun Christopher Jones - do not file Reason: 97 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Darley Louis, Hasan Lorenzo isiah Walters Fournier, naysha Denise lynch, Jalen Christopher john Douglas, Marctavious Bryant, Ruddien Kobe Burton in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk22/US_JECS_DFH7_Week22_2026_en_DSPScorecard.pdf",
         "averageScore": 95.73,
         "activeDAs": 75.0,
         "packages": 69616.0,
@@ -3581,7 +3601,8 @@
       "disputeRead": "Week 21 remains a business-closed-only dispute week, but the post-submission online validation changed which cases are strongest for follow-up. Submission correction: the saved submission log shows the initial week 21 filings were submitted under Process or data error not on this list rather than the explicit Business Closed DCR support subtype. Any replacement filing should use the business-closed subtype, not the generic process/data-error lane. Best online-supported follow-up lanes now: 1. Darius arone Jacobs jr 2. Jean Vilson Prenelus - TBA331098498180 only Weaker after online validation: Tiana Monet Robinson - the business website shows the location closed on Monday. Jean Vilson Prenelus - TBA331085862907 - the business website shows the location closed on Sunday. Contact-compliance note: Amazon's Contact Compliance metric is not the governing metric for BUSINESS CLOSED packages. Portal definitions tie it to Rabbit call/text attempts for UTA / UTL / NSL issues. Available call/text data did not show recorded contact rows for the reviewed DA/date combinations.",
       "coachingLanes": "\u2022 NO RTS CODE SELECTED cluster - do not file Reason: 53 DCR-impacting rows were coded NO RTS CODE SELECTED. Read: Exclude this bucket from driver evaluation, but treat it as a station coding/process defect rather than a dispute packet. \u2022 Diego Alfaro - coaching, not dispute Reason: 11 impact rows tied to address-not-found / missed-contact behavior. Read: This is a route-execution and contact-compliance issue, not a strong dispute lane. \u2022 Object-missing / OODT / DSB lanes - coach first Reason: Week 21 also carries 46 object-missing impact rows, 3 OODT rows, and 7 DSB-impact concessions. Read: These are better handled through coaching, routing, stop review, and scan discipline rather than the dispute portal.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk21/US_JECS_DFH7_Week21_2026_en_DSPScorecard.pdf",
         "averageScore": null,
         "activeDAs": null,
         "packages": 71781.0,
@@ -3607,7 +3628,8 @@
       "disputeRead": "This is a selective dispute week: file the cleanest business-closed DCR subset first, then use validation review on any summary-vs-detail mismatches instead of broad submissions.",
       "coachingLanes": "\u2022 Tiana Monet Robinson - do not file Reason: 1 DCR-impacting rows are OUT OF DRIVING TIME. Read: Route-planning / dispatch / execution issue, not a clean dispute lane. \u2022 Darley Louis - do not file Reason: 15 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Isaiah Jacob Gonzalez, Michael Espino, Kelly Bradford Debbaudt, Kevlar Albert Ambrose Simmonds, Schlay Nicholas, Cole Anthony Barrett in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Unavailable",
+        "ratingSource": null,
         "averageScore": 96.23,
         "activeDAs": 78.0,
         "packages": 70385.0,
@@ -3815,7 +3837,8 @@
       "disputeRead": "This is a selective dispute week: file the cleanest business-closed DCR subset first, then use validation review on any summary-vs-detail mismatches instead of broad submissions.",
       "coachingLanes": "\u2022 Hillary Shepardrogers - do not file Reason: 15 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Darius arone Jacobs jr, aidan nathaniel landron, Andy Junior Maden Almeida, Darien Terrell Silva, Diego Alfaro, Isaiah Jacob Gonzalez in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Unavailable",
+        "ratingSource": null,
         "averageScore": 95.76,
         "activeDAs": 78.0,
         "packages": 68699.0,
@@ -4023,7 +4046,8 @@
       "disputeRead": "This is a selective dispute week: file the cleanest business-closed DCR subset first, then use validation review on any summary-vs-detail mismatches instead of broad submissions.",
       "coachingLanes": "\u2022 Kinley Jivens Louis - do not file Reason: 33 DCR-impacting rows are OUT OF DRIVING TIME. Read: Route-planning / dispatch / execution issue, not a clean dispute lane. \u2022 Hillary Shepardrogers - do not file Reason: 25 DCR-impacting rows are NO RTS CODE SELECTED. Read: Process-control / coding-discipline issue, not a strong dispute case. \u2022 CDF / DSB cluster - coach first Reason: The biggest leakage is still customer quality and small scan-quality defects, not a broad high-confidence exemption batch. Read: Keep Jalen Christopher john Douglas, Jarvie Zaran Coleman, Anthony Thomas Navarra, George Andrew Davis, Jashun Christopher Jones, Savion Jasiah Baker in coaching / validation lanes rather than broad dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk18/US_JECS_DFH7_Week18_2026_en_DSPScorecard.pdf",
         "averageScore": 95.86,
         "activeDAs": 80.0,
         "packages": 61607.0,
@@ -4231,7 +4255,8 @@
       "disputeRead": "Week 17 is not a broad dispute week. The best approach is a small ranked submission set focused on business-closed DCR review, with clear separation between true dispute value and internal coaching items.",
       "coachingLanes": "\u2022 Kelly Bradford Debbaudt - do not file Reason: All four DCR-impacting RTS packages were INACCESSIBLE DELIVERY LOCATION with No after-hours contact to Driver Support. Read: Process failure, not strong dispute value. \u2022 DSB cases - coach, do not file Jorge Guadalupe Cantu: TBA330223744117, TBA330254544195 Juan Luis Aquino Reyes: TBA330294740571 Tyrell James: TBA330091524878 Darien Terrell Silva: TBA329878157283 Read: Exact package IDs are useful for coaching, but week 17 DSB is not the best use of dispute effort. \u2022 CDF package complaints - validate and coach first Top review names: Norbert Kohari Hasan Lorenzo isiah Walters Fournier Joseph Raymond Montag Marctavious Bryant Venson Bernard Jones Jr Erik Blaine Paddock These are valuable package-level reviews, but week 17 evidence supports coaching/validation first, not aggressive dispute filing.",
       "metrics": {
-        "rating": "See weekly scorecard",
+        "rating": "Fantastic Plus",
+        "ratingSource": "data/scorecard_data/2026-wk17/US_JECS_DFH7_Week17_2026_en_DSPScorecard.pdf",
         "averageScore": 95.6,
         "activeDAs": 80.0,
         "packages": 51857.0,

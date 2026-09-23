@@ -5,6 +5,7 @@ import { api } from '@/services/api';
 
 interface EvaluationMetrics {
   rating: string;
+  ratingSource?: string | null;
   averageScore: number | null;
   activeDAs: number | null;
   packages: number | null;
@@ -67,7 +68,7 @@ const format = (value: number | null, digits = 0) => value == null
   : value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 const metricCards = (metrics: EvaluationMetrics) => [
-  ['Paid rating', metrics.rating],
+  ['Scorecard Rating', metrics.rating],
   ['Average DA score', format(metrics.averageScore, 2)],
   ['Active DAs', format(metrics.activeDAs)],
   ['Packages delivered', format(metrics.packages)],

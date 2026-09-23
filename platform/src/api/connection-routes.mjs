@@ -58,4 +58,24 @@ export function connectionRoutes(app, { connectionService }) {
       throw error;
     }
   });
+
+  app.get('/api/connections/sessions/:sessionId', async (request, reply) => {
+    requirePermission(request.tenantContext.principal, 'integration.manage');
+    try {
+      return await connectionService.reconnectStatus(request.tenantContext, request.params.sessionId);
+    } catch (error) {
+      if (/not found/.test(error.message)) return reply.code(404).send({ error: error.message });
+      throw error;
+    }
+  });
+
+  app.post('/api/connections/:connectionId/backfill', async (request, reply) => {
+    requirePermission(request.tenantContext.principal, 'integration.manage');
+    try {
+      return await connectionService.startBackfill(request.tenantContext, request.params.connectionId);
+    } catch (error) {
+      if (/unavailable|reauthentication/.test(error.message)) return reply.code(409).send({ error: error.message });
+      throw error;
+    }
+  });
 }

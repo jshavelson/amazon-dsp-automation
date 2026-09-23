@@ -14,6 +14,13 @@ Parameters:
     Default: 'https://dpgr55hwybqff.cloudfront.net/'
     AllowedPattern: '^https://.*$'
     Description: HTTPS application URL included in tenant member invitation emails
+  EnableManagedConnector:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+Conditions:
+  ManagedConnectorEnabled: !Equals [!Ref EnableManagedConnector, 'true']
 
 Resources:
   Vpc:
@@ -60,6 +67,24 @@ Resources:
       CidrBlock: 10.42.11.0/24
       MapPublicIpOnLaunch: false
       Tags: [{Key: Name, Value: !Sub '${ProjectName}-database-b'}]
+  ConnectorSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: ManagedConnectorEnabled
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.42.20.0/24
+      MapPublicIpOnLaunch: false
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-connector-a'}]
+  ConnectorSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: ManagedConnectorEnabled
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.42.21.0/24
+      MapPublicIpOnLaunch: false
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-connector-b'}]
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -78,6 +103,38 @@ Resources:
   PublicSubnetBRouteAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties: {SubnetId: !Ref PublicSubnetB, RouteTableId: !Ref PublicRouteTable}
+  ConnectorNatEip:
+    Type: AWS::EC2::EIP
+    Condition: ManagedConnectorEnabled
+    DependsOn: InternetGatewayAttachment
+    Properties: {Domain: vpc}
+  ConnectorNatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: ManagedConnectorEnabled
+    Properties:
+      AllocationId: !GetAtt ConnectorNatEip.AllocationId
+      SubnetId: !Ref PublicSubnetA
+  ConnectorRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: ManagedConnectorEnabled
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-connector-private'}]
+  ConnectorDefaultRoute:
+    Type: AWS::EC2::Route
+    Condition: ManagedConnectorEnabled
+    Properties:
+      RouteTableId: !Ref ConnectorRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref ConnectorNatGateway
+  ConnectorSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ManagedConnectorEnabled
+    Properties: {SubnetId: !Ref ConnectorSubnetA, RouteTableId: !Ref ConnectorRouteTable}
+  ConnectorSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ManagedConnectorEnabled
+    Properties: {SubnetId: !Ref ConnectorSubnetB, RouteTableId: !Ref ConnectorRouteTable}
 
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -95,6 +152,15 @@ Resources:
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - {IpProtocol: tcp, FromPort: 8787, ToPort: 8787, SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup}
+        - {IpProtocol: tcp, FromPort: 8790, ToPort: 8790, SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup}
+      SecurityGroupEgress:
+        - {IpProtocol: -1, CidrIp: 0.0.0.0/0}
+  ConnectorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: ManagedConnectorEnabled
+    Properties:
+      GroupDescription: Managed connector workers use fixed NAT egress and accept no public ingress.
+      VpcId: !Ref Vpc
       SecurityGroupEgress:
         - {IpProtocol: -1, CidrIp: 0.0.0.0/0}
   DatabaseSecurityGroup:
@@ -104,6 +170,46 @@ Resources:
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - {IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref ApplicationSecurityGroup}
+        - !If
+          - ManagedConnectorEnabled
+          - {IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref ConnectorSecurityGroup}
+          - !Ref AWS::NoValue
+
+  ConnectorFileSystemSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: ManagedConnectorEnabled
+    Properties:
+      GroupDescription: NFS access from managed connector workers only.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 2049, ToPort: 2049, SourceSecurityGroupId: !Ref ConnectorSecurityGroup}
+  ConnectorFileSystem:
+    Type: AWS::EFS::FileSystem
+    Condition: ManagedConnectorEnabled
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Encrypted: true
+      BackupPolicy: {Status: ENABLED}
+      LifecyclePolicies: [{TransitionToIA: AFTER_30_DAYS}]
+      FileSystemTags: [{Key: Name, Value: !Sub '${ProjectName}-connector-profiles'}]
+  ConnectorMountTargetA:
+    Type: AWS::EFS::MountTarget
+    Condition: ManagedConnectorEnabled
+    Properties: {FileSystemId: !Ref ConnectorFileSystem, SubnetId: !Ref ConnectorSubnetA, SecurityGroups: [!Ref ConnectorFileSystemSecurityGroup]}
+  ConnectorMountTargetB:
+    Type: AWS::EFS::MountTarget
+    Condition: ManagedConnectorEnabled
+    Properties: {FileSystemId: !Ref ConnectorFileSystem, SubnetId: !Ref ConnectorSubnetB, SecurityGroups: [!Ref ConnectorFileSystemSecurityGroup]}
+  ConnectorAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Condition: ManagedConnectorEnabled
+    Properties:
+      FileSystemId: !Ref ConnectorFileSystem
+      PosixUser: {Uid: '1000', Gid: '1000'}
+      RootDirectory:
+        Path: /tenants
+        CreationInfo: {OwnerUid: '1000', OwnerGid: '1000', Permissions: '0700'}
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -129,6 +235,17 @@ Resources:
       Name: !Sub '${ProjectName}/production/database-runtime'
       GenerateSecretString:
         SecretStringTemplate: '{"username":"dsp_app_login"}'
+        GenerateStringKey: password
+        PasswordLength: 40
+        ExcludePunctuation: true
+  DatabaseWorkerSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub '${ProjectName}/production/database-worker'
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"dsp_worker_login"}'
         GenerateStringKey: password
         PasswordLength: 40
         ExcludePunctuation: true
@@ -274,7 +391,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: ['secretsmanager:GetSecretValue']
-                Resource: [!Ref DatabaseAdminSecret, !Ref DatabaseRuntimeSecret]
+                Resource: [!Ref DatabaseAdminSecret, !Ref DatabaseRuntimeSecret, !Ref DatabaseWorkerSecret]
   ApplicationTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -340,12 +457,31 @@ Outputs:
   VpcId: {Value: !Ref Vpc}
   PublicSubnetAId: {Value: !Ref PublicSubnetA}
   PublicSubnetBId: {Value: !Ref PublicSubnetB}
+  ConnectorSubnetAId:
+    Condition: ManagedConnectorEnabled
+    Value: !Ref ConnectorSubnetA
+  ConnectorSubnetBId:
+    Condition: ManagedConnectorEnabled
+    Value: !Ref ConnectorSubnetB
+  ConnectorSecurityGroupId:
+    Condition: ManagedConnectorEnabled
+    Value: !Ref ConnectorSecurityGroup
+  ConnectorEgressIp:
+    Condition: ManagedConnectorEnabled
+    Value: !Ref ConnectorNatEip
+  ConnectorFileSystemId:
+    Condition: ManagedConnectorEnabled
+    Value: !Ref ConnectorFileSystem
+  ConnectorAccessPointId:
+    Condition: ManagedConnectorEnabled
+    Value: !Ref ConnectorAccessPoint
   ApplicationSecurityGroupId: {Value: !Ref ApplicationSecurityGroup}
   LoadBalancerSecurityGroupId: {Value: !Ref LoadBalancerSecurityGroup}
   DatabaseEndpoint: {Value: !GetAtt Database.Endpoint.Address}
   DatabasePort: {Value: !GetAtt Database.Endpoint.Port}
   DatabaseAdminSecretArn: {Value: !Ref DatabaseAdminSecret}
   DatabaseRuntimeSecretArn: {Value: !Ref DatabaseRuntimeSecret}
+  DatabaseWorkerSecretArn: {Value: !Ref DatabaseWorkerSecret}
   ContainerRepositoryUri: {Value: !GetAtt ContainerRepository.RepositoryUri}
   DeploymentBucketName: {Value: !Ref DeploymentBucket}
   ImageBuildProjectName: {Value: !Ref ImageBuildProject}

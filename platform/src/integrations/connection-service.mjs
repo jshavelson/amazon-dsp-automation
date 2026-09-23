@@ -1,20 +1,21 @@
+import crypto from 'node:crypto';
 import { connectionDefinition, CONNECTION_CATALOG } from './connection-catalog.mjs';
 import { parseSecretReference } from '../secrets/secret-reference.mjs';
 
 const ALLOWED_ENVIRONMENTS = new Set(['development', 'production']);
 
-function publicConnection(definition, stored) {
+function publicConnection(definition, stored, managedBrowserAvailable = false) {
   const configuredFields = stored?.config?.configuredFields || [];
   const fullyConfigured = definition.credentialFields.every(({ name }) => configuredFields.includes(name));
   return {
     ...definition,
-    reconnectAvailable: definition.authKind === 'browser_session'
-      ? ['amazon', 'pave'].includes(definition.id)
-      : false,
+    reconnectAvailable: definition.id === 'amazon' && managedBrowserAvailable,
     credentialFields: definition.credentialFields.map(({ name, label, secret, placeholder }) => ({
       name, label, secret, placeholder, configured: configuredFields.includes(name)
     })),
-    configured: definition.id === 'pave' ? Boolean(stored?.secret_reference) && fullyConfigured : Boolean(stored?.secret_reference),
+    configured: definition.id === 'amazon'
+      ? Boolean(stored?.config?.profileKey)
+      : definition.id === 'pave' ? Boolean(stored?.secret_reference) && fullyConfigured : Boolean(stored?.secret_reference),
     status: stored?.status || 'not_connected',
     setupStatus: stored?.setup_status || stored?.status || 'not_connected',
     dataAvailable: stored?.status === 'healthy',
@@ -51,14 +52,18 @@ function validateCredentialPayload(definition, body) {
 export class ConnectionService {
   #repository;
   #secretProvider;
+  #connectorQueue;
+  #connectorSessionTtlMinutes;
 
-  constructor({ repository, secretProvider, baseline = null }) {
+  constructor({ repository, secretProvider, baseline = null, connectorQueue = null, connectorSessionTtlMinutes = 15 }) {
     if (!repository?.listIntegrationConnections || !repository?.upsertIntegrationConnection) {
       throw new Error('connection repository is required');
     }
     if (!secretProvider?.write || !secretProvider?.read) throw new Error('managed secret provider is required');
     this.#repository = repository;
     this.#secretProvider = secretProvider;
+    this.#connectorQueue = connectorQueue;
+    this.#connectorSessionTtlMinutes = connectorSessionTtlMinutes;
     this.baseline = baseline;
   }
 
@@ -87,7 +92,7 @@ export class ConnectionService {
         last_checked_at: persisted?.last_checked_at || baseline?.lastCheckedAt || null,
         source_mode: baselineHealthy && !persisted?.last_success_at ? 'deployment_snapshot' : (persisted?.secret_reference ? 'aws_managed' : null)
       };
-      return publicConnection(definition, effective);
+      return publicConnection(definition, effective, Boolean(this.#connectorQueue));
     });
     const persistentConnections = connections.filter((item) => item.authKind !== 'manual_upload');
     const active = persistentConnections.filter((item) => item.status === 'healthy').length;
@@ -157,7 +162,7 @@ export class ConnectionService {
       secret_reference: reference,
       status: 'pending',
       config: { environment, configuredFields: definition.credentialFields.map((item) => item.name) }
-    });
+    }, Boolean(this.#connectorQueue));
   }
 
   async test(context, connectionId) {
@@ -189,12 +194,18 @@ export class ConnectionService {
   async beginReconnect(context, connectionId) {
     const definition = connectionDefinition(connectionId);
     if (definition.authKind !== 'browser_session') throw new Error('connection does not use browser reconnect');
-    const authorizationUrls = {
-      amazon: 'https://logistics.amazon.com/dspconsolev2',
-      pave: 'https://dashboard.paveapi.com/login'
-    };
-    const authorizationUrl = authorizationUrls[connectionId];
-    if (!authorizationUrl) throw new Error('reconnect adapter is unavailable');
+    if (connectionId !== 'amazon') throw new Error('reconnect adapter is unavailable');
+    if (!this.#connectorQueue || !this.#repository.createConnectorSession) {
+      throw new Error('managed connector worker is unavailable');
+    }
+    const existing = await this.#repository.getIntegrationConnection(context, connectionId);
+    const expiresAt = new Date(Date.now() + this.#connectorSessionTtlMinutes * 60_000).toISOString();
+    const created = await this.#repository.createConnectorSession(context, {
+      integrationType: connectionId,
+      purpose: existing ? 'reauthenticate' : 'connect',
+      expiresAt,
+      idempotencyKey: `connect:${connectionId}:${crypto.randomUUID()}`
+    });
     await this.#repository.upsertIntegrationConnection(context, {
       integrationType: definition.id,
       displayName: definition.displayName,
@@ -202,16 +213,56 @@ export class ConnectionService {
       authKind: definition.authKind,
       schedule: definition.schedule,
       status: 'needs_reauth',
-      config: { authorizationMode: 'short_lived_browser' }
+      config: { authorizationMode: 'managed_tenant_browser', activeSessionId: created.session.id }
     });
+    if (created.job) {
+      await this.#connectorQueue.enqueue({
+        jobId: created.job.id,
+        sessionId: created.session.id,
+        tenantId: context.principal.tenantId,
+        integrationType: connectionId,
+        jobType: 'connect',
+        requestedAt: created.job.requestedAt || new Date().toISOString()
+      });
+      await this.#repository.markConnectorJobQueued?.(context, created.job.id);
+    }
     return {
       connection: connectionId,
-      status: 'needs_reauth',
-      authorizationUrl,
-      message: connectionId === 'amazon'
-        ? 'Complete Amazon sign-in and MFA once. This shared session authorizes all Amazon-backed features; no Amazon password is stored.'
-        : 'Complete PAVE sign-in. This session is separate from Amazon and feeds fleet compliance data.'
+      status: created.session.status,
+      sessionId: created.session.id,
+      sessionStatusUrl: `/api/connections/sessions/${created.session.id}`,
+      expiresAt: created.session.expiresAt,
+      launchMode: 'managed_tenant_browser',
+      launchUrl: created.session.launchUrl || null,
+      message: created.reused
+        ? 'Your existing secure Amazon reconnect session is still starting.'
+        : 'A private tenant-isolated Amazon browser is starting. Continue when the secure session link becomes available.'
     };
+  }
+
+  async reconnectStatus(context, sessionId) {
+    const session = await this.#repository.getConnectorSession?.(context, sessionId);
+    if (!session) throw new Error('connector session not found');
+    return {
+      ...session,
+      launchUrl: session.status === 'waiting_for_user' ? session.launchUrl : null
+    };
+  }
+
+  async startBackfill(context, connectionId) {
+    if (connectionId !== 'amazon') throw new Error('backfill adapter is unavailable');
+    if (!this.#connectorQueue || !this.#repository.createAmazonBackfillJobs) throw new Error('managed connector worker is unavailable');
+    const feedGroups = ['fleet_readiness'];
+    const jobs = await this.#repository.createAmazonBackfillJobs(context, feedGroups);
+    for (const job of jobs) {
+      await this.#connectorQueue.enqueue({
+        jobId: job.id, tenantId: context.principal.tenantId, integrationType: 'amazon', jobType: 'sync',
+        feedGroup: job.feedGroup, periodStart: String(job.periodStart).slice(0, 10), periodEnd: String(job.periodEnd).slice(0, 10),
+        requestedAt: job.requestedAt || new Date().toISOString()
+      });
+      await this.#repository.markConnectorJobQueued?.(context, job.id);
+    }
+    return { connection: 'amazon', queued: jobs.length, feedGroups: jobs.map((job) => job.feedGroup) };
   }
 }
 

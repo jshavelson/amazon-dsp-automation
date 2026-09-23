@@ -14,6 +14,7 @@ Parameters:
   DatabasePort: {Type: Number, Default: 5432}
   DatabaseAdminSecretArn: {Type: String}
   DatabaseRuntimeSecretArn: {Type: String}
+  DatabaseWorkerSecretArn: {Type: String}
   OpenAiApiKeySecretArn:
     Type: String
     Default: ''
@@ -32,11 +33,75 @@ Parameters:
     NoEcho: true
     MinLength: 32
   ImageTag: {Type: String, Default: pilot}
+  EnableManagedConnector:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  ConnectorSubnetAId: {Type: String, Default: ''}
+  ConnectorSubnetBId: {Type: String, Default: ''}
+  ConnectorSecurityGroupId: {Type: String, Default: ''}
+  ConnectorFileSystemId: {Type: String, Default: ''}
+  ConnectorAccessPointId: {Type: String, Default: ''}
 
 Conditions:
   HasOpenAiApiKeySecret: !Not [!Equals [!Ref OpenAiApiKeySecretArn, '']]
+  HasManagedConnector: !Equals [!Ref EnableManagedConnector, 'true']
 
 Resources:
+  ConnectorDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-connector-dlq.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+  ConnectorQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-connector.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      SqsManagedSseEnabled: true
+      VisibilityTimeout: 900
+      MessageRetentionPeriod: 345600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConnectorDeadLetterQueue.Arn
+        maxReceiveCount: 5
+  ConnectorArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: aws:kms}
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload: {DaysAfterInitiation: 7}
+  ConnectorArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ConnectorArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt ConnectorArtifactBucket.Arn, !Sub '${ConnectorArtifactBucket.Arn}/*']
+            Condition: {Bool: {'aws:SecureTransport': false}}
+
   ApplicationLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Retain
@@ -71,6 +136,20 @@ Resources:
       Matcher: {HttpCode: '200'}
       TargetGroupAttributes:
         - {Key: deregistration_delay.timeout_seconds, Value: '30'}
+  ConnectorTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: HasManagedConnector
+    Properties:
+      Name: !Sub '${ProjectName}-connector'
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 8790
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      Matcher: {HttpCode: '200'}
+      TargetGroupAttributes:
+        - {Key: deregistration_delay.timeout_seconds, Value: '30'}
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -78,8 +157,8 @@ Resources:
       Port: 80
       Protocol: HTTP
       DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref TargetGroup
+        - Type: fixed-response
+          FixedResponseConfig: {StatusCode: '403', ContentType: text/plain, MessageBody: forbidden}
   OriginHeaderRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -92,6 +171,21 @@ Resources:
             Values: [!Ref OriginVerify]
       Actions:
         - {Type: forward, TargetGroupArn: !Ref TargetGroup}
+  ConnectorPathRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: HasManagedConnector
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 5
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig: {Values: ['/connector/*']}
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: X-Origin-Verify
+            Values: [!Ref OriginVerify]
+      Actions:
+        - {Type: forward, TargetGroupArn: !Ref ConnectorTargetGroup}
 
   ApplicationTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -130,6 +224,11 @@ Resources:
             - {Name: AWS_REGION, Value: !Ref 'AWS::Region'}
             - {Name: USER_POOL_ID, Value: !Ref UserPoolId}
             - {Name: SECRET_PREFIX, Value: dsp/credentials}
+            - !If
+              - HasManagedConnector
+              - {Name: CONNECTOR_QUEUE_URL, Value: !Ref ConnectorQueue}
+              - !Ref AWS::NoValue
+            - {Name: CONNECTOR_ARTIFACT_BUCKET, Value: !Ref ConnectorArtifactBucket}
           Secrets:
             - {Name: DB_PASSWORD, ValueFrom: !Sub '${DatabaseRuntimeSecretArn}:password::'}
             - !If
@@ -148,7 +247,6 @@ Resources:
             Timeout: 5
             Retries: 3
             StartPeriod: 20
-
   ApplicationTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -181,6 +279,105 @@ Resources:
                   Action: [secretsmanager:GetSecretValue]
                   Resource: !Ref OpenAiApiKeySecretArn
                 - !Ref AWS::NoValue
+              - Effect: Allow
+                Action: [sqs:SendMessage, sqs:GetQueueAttributes]
+                Resource: !GetAtt ConnectorQueue.Arn
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:AbortMultipartUpload, s3:ListBucket]
+                Resource: [!GetAtt ConnectorArtifactBucket.Arn, !Sub '${ConnectorArtifactBucket.Arn}/tenants/*']
+
+  ConnectorTaskRole:
+    Type: AWS::IAM::Role
+    Condition: HasManagedConnector
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ManagedConnectorAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [sqs:GetQueueAttributes, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt ConnectorQueue.Arn
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:AbortMultipartUpload, s3:ListBucket]
+                Resource: [!GetAtt ConnectorArtifactBucket.Arn, !Sub '${ConnectorArtifactBucket.Arn}/tenants/*']
+              - Effect: Allow
+                Action: [elasticfilesystem:ClientMount, elasticfilesystem:ClientWrite]
+                Resource: !Sub 'arn:${AWS::Partition}:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/${ConnectorFileSystemId}'
+                Condition:
+                  StringEquals:
+                    elasticfilesystem:AccessPointArn: !Sub 'arn:${AWS::Partition}:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:access-point/${ConnectorAccessPointId}'
+
+  ConnectorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Condition: HasManagedConnector
+    Properties:
+      Family: !Sub '${ProjectName}-connector'
+      Cpu: '2048'
+      Memory: '4096'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref ConnectorTaskRole
+      RuntimePlatform: {CpuArchitecture: X86_64, OperatingSystemFamily: LINUX}
+      Volumes:
+        - Name: connector-profiles
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref ConnectorFileSystemId
+            TransitEncryption: ENABLED
+            AuthorizationConfig: {AccessPointId: !Ref ConnectorAccessPointId, IAM: ENABLED}
+      ContainerDefinitions:
+        - Name: connector
+          Image: !Sub '${ContainerRepositoryUri}:${ImageTag}'
+          Essential: true
+          Command: [node, platform/src/connectors/amazon-browser-broker.mjs]
+          ReadonlyRootFilesystem: true
+          PortMappings:
+            - {ContainerPort: 8790, Protocol: tcp, AppProtocol: http}
+          Environment:
+            - {Name: NODE_ENV, Value: production}
+            - {Name: HOME, Value: /tmp}
+            - {Name: XDG_CACHE_HOME, Value: /tmp/cache}
+            - {Name: CONNECTOR_PORT, Value: '8790'}
+            - {Name: CONNECTOR_PROFILE_ROOT, Value: /profiles}
+            - {Name: CONNECTOR_QUEUE_URL, Value: !Ref ConnectorQueue}
+            - {Name: CONNECTOR_ARTIFACT_BUCKET, Value: !Ref ConnectorArtifactBucket}
+            - {Name: AWS_REGION, Value: !Ref 'AWS::Region'}
+            - {Name: DB_HOST, Value: !Ref DatabaseEndpoint}
+            - {Name: DB_PORT, Value: !Ref DatabasePort}
+            - {Name: DB_NAME, Value: dsp_platform}
+            - {Name: DB_USER, Value: dsp_worker_login}
+            - {Name: OIDC_ISSUER, Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}'}
+            - {Name: OIDC_AUDIENCE, Value: !Ref UserPoolClientId}
+            - {Name: OIDC_JWKS_URL, Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}/.well-known/jwks.json'}
+          Secrets:
+            - {Name: DB_PASSWORD, ValueFrom: !Sub '${DatabaseWorkerSecretArn}:password::'}
+          MountPoints:
+            - {SourceVolume: connector-profiles, ContainerPath: /profiles, ReadOnly: false}
+          LinuxParameters:
+            InitProcessEnabled: true
+            Tmpfs:
+              - ContainerPath: /tmp
+                Size: 1024
+                MountOptions: [rw, noexec, nosuid, nodev]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApplicationLogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: connector
+          HealthCheck:
+            Command: [CMD-SHELL, 'node -e "fetch(\"http://127.0.0.1:8790/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 30
 
   BootstrapTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -210,6 +407,7 @@ Resources:
           Secrets:
             - {Name: DB_ADMIN_PASSWORD, ValueFrom: !Sub '${DatabaseAdminSecretArn}:password::'}
             - {Name: DB_RUNTIME_PASSWORD, ValueFrom: !Sub '${DatabaseRuntimeSecretArn}:password::'}
+            - {Name: DB_WORKER_PASSWORD, ValueFrom: !Sub '${DatabaseWorkerSecretArn}:password::'}
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -243,13 +441,41 @@ Resources:
           TargetGroupArn: !Ref TargetGroup
       HealthCheckGracePeriodSeconds: 60
 
+  ConnectorService:
+    Type: AWS::ECS::Service
+    Condition: HasManagedConnector
+    DependsOn: ConnectorPathRule
+    Properties:
+      ServiceName: !Sub '${ProjectName}-connector'
+      Cluster: !Ref EcsClusterName
+      TaskDefinition: !Ref ConnectorTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 200
+        DeploymentCircuitBreaker: {Enable: true, Rollback: true}
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: [!Ref ApplicationSecurityGroupId, !Ref ConnectorSecurityGroupId]
+          Subnets: [!Ref ConnectorSubnetAId, !Ref ConnectorSubnetBId]
+      LoadBalancers:
+        - ContainerName: connector
+          ContainerPort: 8790
+          TargetGroupArn: !Ref ConnectorTargetGroup
+      HealthCheckGracePeriodSeconds: 90
+
   SecurityHeadersPolicy:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
         Name: !Sub '${ProjectName}-security-headers'
         SecurityHeadersConfig:
-          ContentSecurityPolicy: {ContentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.amazoncognito.com; frame-src blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'", Override: true}
+          ContentSecurityPolicy: {ContentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.amazoncognito.com; frame-src blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'", Override: true}
           ContentTypeOptions: {Override: true}
           FrameOptions: {FrameOption: DENY, Override: true}
           ReferrerPolicy: {ReferrerPolicy: same-origin, Override: true}
@@ -267,6 +493,8 @@ Resources:
         Origins:
           - Id: application-origin
             DomainName: !GetAtt LoadBalancer.DNSName
+            OriginCustomHeaders:
+              - {HeaderName: X-Origin-Verify, HeaderValue: !Ref OriginVerify}
             CustomOriginConfig:
               HTTPPort: 80
               OriginProtocolPolicy: http-only
@@ -287,6 +515,12 @@ Outputs:
   CloudFrontDomain: {Value: !GetAtt Distribution.DomainName}
   DistributionId: {Value: !Ref Distribution}
   ApplicationServiceName: {Value: !GetAtt ApplicationService.Name}
+  ConnectorServiceName:
+    Condition: HasManagedConnector
+    Value: !GetAtt ConnectorService.Name
   ApplicationTaskDefinitionArn: {Value: !Ref ApplicationTaskDefinition}
   BootstrapTaskDefinitionArn: {Value: !Ref BootstrapTaskDefinition}
   LoadBalancerDnsName: {Value: !GetAtt LoadBalancer.DNSName}
+  ConnectorQueueUrl: {Value: !Ref ConnectorQueue}
+  ConnectorQueueArn: {Value: !GetAtt ConnectorQueue.Arn}
+  ConnectorArtifactBucketName: {Value: !Ref ConnectorArtifactBucket}

@@ -90,7 +90,11 @@ export function superAdminRoutes(app, { repository, memberProvisioner, impersona
   app.get('/api/super-admin/tenants/:tenantSlug', async (request, reply) => {
     requirePlatformAdmin(request, 'tenant.manage');
     const tenant = await repository.getTenantDetails(assertTenantSlug(request.params.tenantSlug));
-    return tenant ? { tenant } : reply.code(404).send({ error: 'tenant not found' });
+    if (!tenant) return reply.code(404).send({ error: 'tenant not found' });
+    const onboardingBackfills = repository.listTenantOnboardingBackfills
+      ? await repository.listTenantOnboardingBackfills(request.params.tenantSlug)
+      : [];
+    return { tenant, onboardingBackfills };
   });
 
   app.put('/api/super-admin/tenants/:tenantSlug/status', async (request, reply) => {

@@ -12,12 +12,16 @@ RUN npx vite build
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
   && mkdir -p /app/certs \
   && curl --fail --silent --show-error https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /app/certs/aws-rds-global-bundle.pem \
   && apt-get purge -y curl \
   && apt-get autoremove -y \
+  && rm -rf /var/lib/apt/lists/*
+RUN npx playwright install --with-deps chromium \
+  && chown -R node:node /ms-playwright \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_EXTRA_CA_CERTS=/app/certs/aws-rds-global-bundle.pem
 COPY --from=dependencies /app/node_modules ./node_modules

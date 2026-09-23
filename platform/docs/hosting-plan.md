@@ -4,6 +4,7 @@
 
 - **Web/API:** containerized Node service behind an AWS Application Load Balancer and WAF.
 - **Workers:** separate ECS/Fargate service for Playwright, Amazon, ADP, email, and report jobs. Browser automation never runs in the public web container.
+- **Amazon browser plane:** tenant-isolated persistent profiles on encrypted EFS, private worker subnets, fixed NAT egress, tenant-grouped FIFO jobs, and short-lived Cognito-bound browser sessions. See `managed-amazon-connector.md`.
 - **Database:** private Amazon RDS PostgreSQL with row-level security, automated backups, point-in-time recovery, and separate migration/application roles.
 - **Secrets:** AWS Secrets Manager encrypted with KMS. Workers use IAM task roles; no static AWS credentials.
 - **Artifacts:** private S3 bucket with tenant prefixes, KMS encryption, lifecycle rules, malware scanning, and short-lived signed downloads.

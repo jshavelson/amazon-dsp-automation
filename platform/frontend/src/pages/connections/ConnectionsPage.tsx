@@ -22,6 +22,7 @@ interface Connection {
   credentialFields?: { name: string; label: string; secret: boolean; placeholder?: string; configured: boolean }[];
   environments?: string[]; environment?: string | null; testable?: boolean;
   reconnectLabel?: string; reconnectAvailable?: boolean;
+  connectorSession?: { id: string; status: string; expiresAt: string } | null;
   lastAutomatedSyncAt?: string | null; nextRunAt?: string | null; lastSyncSummary?: Record<string, unknown> | null;
 }
 interface VendorRow { vendor: string; count: number; total: number; coverageClass: string }
@@ -206,10 +207,17 @@ const ConnectionsPage: React.FC = () => {
   const reconnectMutation = useMutation({
     mutationFn: async ({ connection, popup }: { connection: Connection; popup: Window | null }) => {
       try {
-        const result = await api.post<{ authorizationUrl: string; message: string; launchMode?: string }>(`/connections/${connection.id}/reconnect`, {});
-        if (result.launchMode === 'local_managed_browser') popup?.close();
-        else if (popup) popup.location.replace(result.authorizationUrl);
-        else window.location.assign(result.authorizationUrl);
+        const result = await api.post<{ sessionId: string; sessionStatusUrl: string; launchUrl: string | null; message: string; launchMode: string }>(`/connections/${connection.id}/reconnect`, {});
+        let launchUrl = result.launchUrl;
+        for (let attempt = 0; !launchUrl && attempt < 30; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          const status = await api.get<{ status: string; launchUrl: string | null; errorMessage?: string }>(result.sessionStatusUrl.replace(/^\/api/, ''));
+          if (status.status === 'failed' || status.status === 'expired') throw new Error(status.errorMessage || `Connector session ${status.status}`);
+          launchUrl = status.launchUrl;
+        }
+        if (!launchUrl) throw new Error('The secure browser did not become ready in time');
+        if (popup) popup.location.replace(launchUrl);
+        else window.location.assign(launchUrl);
         return result;
       } catch (error) {
         popup?.close();

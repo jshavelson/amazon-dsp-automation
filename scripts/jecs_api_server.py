@@ -174,10 +174,16 @@ def build_fleet_compliance_payload(tenant="jecs"):
                 'vinSetsMatch': None, 'note': 'Tenant fleet data has not been ingested',
             },
         }
-    roster_path = FLEET_REVIEW_DIR / "2026-09-07/vehicles-1.json"
-    inspection_path = FLEET_REVIEW_DIR / "2026-09-07/inspection-stats-1.json"
-    pm_path = FLEET_REVIEW_DIR / "2026-09-07/pm-stats-1.json"
-    maintenance_path = FLEET_REVIEW_DIR / "2026-09-07/maintenance-issues-1.json"
+    def latest_source(filename):
+        matches = sorted(FLEET_REVIEW_DIR.glob(f"*/{filename}"))
+        if not matches:
+            raise FileNotFoundError(f"Missing fleet source: {filename}")
+        return matches[-1]
+
+    roster_path = latest_source("vehicles-1.json")
+    inspection_path = latest_source("inspection-stats-1.json")
+    pm_path = latest_source("pm-stats-1.json")
+    maintenance_path = latest_source("maintenance-issues-1.json")
     snapshots = sorted(FLEET_REVIEW_DIR.glob("*/dashboard-fleet-snapshot.json"))
     snapshot_path = snapshots[-1]
 
@@ -186,18 +192,32 @@ def build_fleet_compliance_payload(tenant="jecs"):
     pm_data = _read_json(pm_path).get('pmIssueStatusCount', [])
     maintenance_data = _read_json(maintenance_path)
     snapshot = _read_json(snapshot_path)
+    readiness_source_system = snapshot.get('readinessSourceSystem')
+    readiness_verified = readiness_source_system == 'cortex_fleet_dashboard'
     wear_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-compliance.json"))
     wear_data = _read_json(wear_files[-1]) if wear_files else None
     lsc_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-lsc-cases.json"))
     lsc_data = _read_json(lsc_files[-1]) if lsc_files else {'cases': []}
     pave_upload, pave_preview = _latest_pave_upload_preview(tenant)
     today = datetime.now().date()
+    try:
+        readiness_age_days = (today - datetime.fromisoformat(snapshot.get('asOf')).date()).days
+    except (TypeError, ValueError):
+        readiness_age_days = None
+    readiness_is_stale = readiness_age_days is None or readiness_age_days > 2
 
     note = snapshot.get('reconciliation', {}).get('note', '')
-    grounded_match = re.search(r'marked grounded:\s*(.*?)\.', note, re.IGNORECASE)
-    grounded_units = []
-    if grounded_match:
-        grounded_units = [re.sub(r'^and\s+', '', item.strip(), flags=re.IGNORECASE) for item in re.split(r',\s*|\s+and\s+', grounded_match.group(1)) if item.strip()]
+    grounded_units = (snapshot.get('groundedUnits') or []) if readiness_verified else []
+    if not grounded_units:
+        grounded_match = re.search(r'marked grounded:\s*(.*?)\.', note, re.IGNORECASE)
+        if grounded_match:
+            grounded_units = [re.sub(r'^and\s+', '', item.strip(), flags=re.IGNORECASE) for item in re.split(r',\s*|\s+and\s+', grounded_match.group(1)) if item.strip()]
+    reported_grounded = snapshot.get('grounded') if readiness_verified else None
+    if reported_grounded is not None and len(grounded_units) != int(reported_grounded):
+        raise ValueError(
+            f"Fleet snapshot mismatch: {len(grounded_units)} grounded units listed, "
+            f"but aggregate reports {reported_grounded}"
+        )
     grounded_keys = {_normalized_unit(item) for item in grounded_units}
 
     inspections_by_vin = {}
@@ -234,7 +254,7 @@ def build_fleet_compliance_payload(tenant="jecs"):
         unit = vehicle.get('dspVehicleId') or vin
         override = overrides.get(vin)
         ownership = (override or {}).get('currentClassification') or vehicle.get('vehicleOwnershipType') or 'UNKNOWN'
-        grounded = _normalized_unit(unit) in grounded_keys
+        grounded = _normalized_unit(unit) in grounded_keys if readiness_verified else None
         inspection = inspections_by_vin.get(vin, {'count': 0, 'types': []})
         pm_issues = pm_by_vin.get(vin, [])
         pm_statuses = {item.get('status') for item in pm_issues}
@@ -245,7 +265,7 @@ def build_fleet_compliance_payload(tenant="jecs"):
 
         issues = []
         severity = 0
-        if grounded:
+        if grounded is True:
             issues.append({'category': 'Readiness', 'severity': 'critical', 'label': 'Grounded by dispatch'})
             severity = max(severity, 100)
         if 'DUE' in pm_statuses:
@@ -273,7 +293,7 @@ def build_fleet_compliance_payload(tenant="jecs"):
             issues.append({'category': 'Inspection evidence', 'severity': 'info', 'label': 'No DVIC record in the September 7 evidence pull'})
             severity = max(severity, 20)
 
-        if grounded:
+        if grounded is True:
             compliance_status = 'grounded'
             next_action = 'Keep out of service; confirm repair disposition and dispatch release.'
         elif any(item['severity'] == 'critical' for item in issues):
@@ -303,7 +323,7 @@ def build_fleet_compliance_payload(tenant="jecs"):
             'provider': vehicle.get('vehicleProvider'),
             'ownershipEndDate': vehicle.get('ownershipEndDate'),
             'ownershipDaysRemaining': ownership_days,
-            'operationalStatus': 'GROUNDED' if grounded else 'OPERATIONAL',
+            'operationalStatus': ('GROUNDED' if grounded else 'OPERATIONAL') if readiness_verified else 'UNKNOWN',
             'portalOperationalStatus': vehicle.get('operationalStatus'),
             'complianceStatus': compliance_status,
             'priority': severity,
@@ -440,11 +460,23 @@ def build_fleet_compliance_payload(tenant="jecs"):
     return {
         'asOf': snapshot.get('asOf'),
         'generatedAt': datetime.now().isoformat(timespec='seconds'),
+        'freshness': {
+            'ageDays': readiness_age_days,
+            'isStale': readiness_is_stale,
+            'thresholdDays': 2,
+            'status': 'stale' if readiness_is_stale else 'current',
+        },
+        'readiness': {
+            'sourceSystem': readiness_source_system,
+            'verified': readiness_verified,
+            'needsData': not readiness_verified,
+            'message': None if readiness_verified else 'A current Cortex Fleet Dashboard artifact is required; dispatch messages and Fleet Portal rosters are not valid readiness sources.',
+        },
         'summary': {
             'registeredFleet': len(rows),
-            'operational': sum(1 for row in rows if row['operationalStatus'] == 'OPERATIONAL'),
-            'grounded': sum(1 for row in rows if row['operationalStatus'] == 'GROUNDED'),
-            'readinessRate': round(sum(1 for row in rows if row['operationalStatus'] == 'OPERATIONAL') / len(rows) * 100, 1) if rows else 0,
+            'operational': sum(1 for row in rows if row['operationalStatus'] == 'OPERATIONAL') if readiness_verified else None,
+            'grounded': sum(1 for row in rows if row['operationalStatus'] == 'GROUNDED') if readiness_verified else None,
+            'readinessRate': round(sum(1 for row in rows if row['operationalStatus'] == 'OPERATIONAL') / len(rows) * 100, 1) if rows and readiness_verified else None,
             'pmDue': sum(1 for row in rows if any(item.get('status') == 'DUE' for item in row['pmIssues'])),
             'pmDueSoon': sum(1 for row in rows if any(item.get('status') == 'DUE_SOON' for item in row['pmIssues'])),
             'pmSourceIssues': sum(len(entries) for entries in pm_by_vin.values()),
@@ -466,11 +498,11 @@ def build_fleet_compliance_payload(tenant="jecs"):
             'unmatchedVins': sorted(set(pave_by_vin) - set(rows_by_vin)),
         } if pave_preview else None),
         'sources': [
-            {'label': 'Dispatch readiness', 'asOf': snapshot.get('asOf'), 'path': snapshot.get('readinessSource')},
+            {'label': 'Cortex Fleet Dashboard readiness', 'asOf': snapshot.get('asOf') if readiness_verified else None, 'path': snapshot.get('readinessSource') if readiness_verified else None, 'status': 'current' if readiness_verified else 'needs_data'},
             {'label': 'Fleet roster and ownership', 'asOf': snapshot.get('ownershipAsOf'), 'path': snapshot.get('ownershipClassificationSource')},
-            {'label': 'DVIC inspection evidence', 'asOf': '2026-09-07', 'path': str(inspection_path.relative_to(ROOT))},
-            {'label': 'Preventive maintenance', 'asOf': '2026-09-07', 'path': str(pm_path.relative_to(ROOT))},
-            *([{'label': 'Quarterly Wear & Tear report', 'asOf': wear_data.get('reportedAt', '')[:10], 'path': str(wear_files[-1].relative_to(ROOT))}] if wear_data else []),
+            {'label': 'DVIC inspection evidence', 'asOf': inspection_path.parent.name, 'path': str(inspection_path.relative_to(ROOT))},
+            {'label': 'Preventive maintenance', 'asOf': pm_path.parent.name, 'path': str(pm_path.relative_to(ROOT))},
+            *([{'label': 'Cortex Supplemental Reports · Fleet Condition Assessment (FCA) · Wear & Tear', 'asOf': wear_data.get('reportedAt', '')[:10], 'path': str(wear_files[-1].relative_to(ROOT))}] if wear_data else []),
             *([{'label': 'Wear & Tear LSC case register', 'asOf': lsc_data.get('asOf'), 'path': str(lsc_files[-1].relative_to(ROOT))}] if lsc_files else []),
             *([{'label': 'PAVE Fleet Dashboard CSV', 'asOf': pave_preview['summary'].get('latestAt', '')[:10], 'path': pave_upload['storageKey']}] if pave_preview else []),
         ],
@@ -831,9 +863,9 @@ def build_fleet_cost_reconciliation(tenant=None):
         'currentPeriod': current_amazon,
         'dataSources': [
             *charge_sources,
-            {'side': 'What Amazon paid', 'label': 'Amazon reconciliation invoices', 'kind': 'workbook',
+            {'side': 'What Amazon paid', 'label': 'Cortex Payments · Amazon reconciliation invoices', 'kind': 'workbook',
              'reference': str(RENTAL_RECON_PATH.relative_to(ROOT)), 'asOf': '2026-09-07'},
-            *([{'side': 'Latest Amazon payment', 'label': f"Amazon invoice {current_amazon['invoiceNumber']}",
+            *([{'side': 'Latest Amazon payment', 'label': f"Cortex Payments · Amazon invoice {current_amazon['invoiceNumber']}",
                 'kind': 'connector_artifact', 'reference': current_amazon['source'],
                 'asOf': current_amazon['asOf']}] if current_amazon else []),
         ],
@@ -1396,9 +1428,11 @@ def build_dashboard_operations_payload(tenant='jecs'):
     }
     dashboard_fleet = {
         'asOf': fleet.get('asOf') or fleet.get('generatedAt'),
+        'readiness': fleet.get('readiness') or {},
+        'freshness': fleet.get('freshness') or {},
         'summary': fleet.get('summary') or {},
         'vehicles': [
-            {'status': item.get('status'), 'ownership': item.get('ownership')}
+            {'status': item.get('operationalStatus') or item.get('status'), 'ownership': item.get('ownership')}
             for item in (fleet.get('vehicles') or fleet.get('rows') or [])
         ],
     }
@@ -2184,7 +2218,7 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_json(drivers)
     
     def handle_get_vans(self):
-        """Return list of all vans."""
+        """Return the Cortex Fleet Dashboard roster and readiness statuses."""
         tenant = _tenant_from_headers(self.headers)
         if tenant != DEFAULT_TENANT:
             self.send_json({
@@ -2192,11 +2226,13 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
                 'message': 'No tenant-scoped vehicle roster has been ingested',
             })
             return
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, van_number, vin, make, model, year, status, ownership FROM vans ORDER BY van_number")
-        vans = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        fleet = build_fleet_compliance_payload(tenant)
+        vans = [{
+            'id': row.get('vin'), 'van_number': row.get('unit'), 'unit': row.get('unit'),
+            'vin': row.get('vin'), 'make': row.get('make'), 'model': row.get('model'),
+            'year': row.get('year'), 'status': row.get('operationalStatus'),
+            'operationalStatus': row.get('operationalStatus'), 'ownership': row.get('ownership'),
+        } for row in fleet.get('vehicles', [])]
         self.send_json(vans)
     
     def handle_get_daily_entries(self, query):

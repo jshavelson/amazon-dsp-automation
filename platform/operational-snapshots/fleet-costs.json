@@ -1924,14 +1924,14 @@
     },
     {
       "side": "What Amazon paid",
-      "label": "Amazon reconciliation invoices",
+      "label": "Cortex Payments \u00b7 Amazon reconciliation invoices",
       "kind": "workbook",
       "reference": "data/fleet_reviews/2026-09-07/three-month-reconciliation/JEC-June-August-Rental-Reconciliation.xlsx",
       "asOf": "2026-09-07"
     },
     {
       "side": "Latest Amazon payment",
-      "label": "Amazon invoice INV-USVVDX0I-0000000823",
+      "label": "Cortex Payments \u00b7 Amazon invoice INV-USVVDX0I-0000000823",
       "kind": "connector_artifact",
       "reference": "data/fleet_reviews/2026-09-07/payments/September-prepayment-0823.csv",
       "asOf": "2026-09-30"

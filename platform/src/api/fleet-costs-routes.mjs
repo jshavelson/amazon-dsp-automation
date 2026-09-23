@@ -14,13 +14,20 @@ async function reviewedFleetCosts() {
   return JSON.parse(await fs.readFile(FLEET_COST_SNAPSHOT, 'utf8'));
 }
 
-export function fleetCostsRoutes(app, { repository, logger }) {
+export function fleetCostsRoutes(app, { repository, logger, referenceTenantSlug = 'jec-logistics' }) {
 
   /**
    * GET /api/fleet-costs
    * Get fleet costs data
    */
   app.get('/api/fleet-costs', async (request, reply) => {
+    if (request.tenantContext.principal.tenantId !== referenceTenantSlug) {
+      return reply.send({
+        asOf: null, period: null, needsData: true,
+        message: 'Connect Digits or confirm an accounting upload for expenses, and connect Amazon Cortex Payments for reimbursement coverage.',
+        accountingSource: null, paymentsSource: null, months: [], charges: [], summary: {}, dataSources: []
+      });
+    }
     try {
       return reply.send(await reviewedFleetCosts());
     } catch (error) {
