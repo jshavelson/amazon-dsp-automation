@@ -1,10 +1,10 @@
-# Managed Amazon connector
+# Managed browser connectors
 
 ## Production contract
 
-Amazon does not use a password form or a shared application cookie. Each tenant
-owns one isolated managed-browser profile and completes Amazon MFA directly in a
-short-lived interactive session.
+Amazon and PAVE do not use application password forms or shared application
+cookies. Each tenant owns an isolated profile for each provider and completes
+authentication directly in a short-lived interactive session.
 
 The web application is the control plane only:
 
@@ -23,10 +23,16 @@ The web application is the control plane only:
 7. Raw artifacts use
    `tenants/{tenant}/amazon/{sha12}-{filename}` in the private connector artifact
    bucket. Normalized records are written under tenant RLS.
+8. EventBridge queues an authentication sweep every 30 minutes. The worker
+   verifies real provider pages rather than cookie expiry or process liveness.
+9. A healthy PAVE profile exports the Fleet Dashboard CSV when its data is more
+   than 20 hours old, fingerprints the source in S3, and ingests assessments by
+   VIN under tenant RLS.
 
 ## Isolation requirements
 
-- One validated EFS profile directory per tenant: `/profiles/{tenant}/amazon`.
+- One validated EFS profile directory per tenant and provider:
+  `/profiles/{tenant}/{amazon|pave}`.
 - FIFO `MessageGroupId` equals the tenant slug.
 - Every database row contains `tenant_id` and is protected by RLS.
 - Every browser launch URL is single-use, Cognito-bound, and expires in at most
@@ -46,7 +52,8 @@ security and browser gates pass. An emergency deployment may set
 ## Implementation boundary
 
 The control plane, tenant-isolated interactive authentication broker, persistent
-profile store, health checks, queue, and artifact store are implemented. The
+profile store, scheduled authentication checks, queue, Amazon Fleet adapter,
+and PAVE export ingestion are implemented. The
 existing Amazon report parsers still need to be moved behind `sync` jobs before
 AWS becomes the system that refreshes every normalized feed. Until that port is
 complete, a healthy managed browser proves authentication only; it does not

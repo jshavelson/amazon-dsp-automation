@@ -18,6 +18,7 @@ interface Connection {
   id: string; displayName: string; authKind: AuthKind; category: string; schedule: string;
   description: string; feeds: string[]; reauthNote: string; status: Status; configured: boolean;
   acceptedProviders?: string[]; secretReference: string | null; lastSuccessAt: string | null;
+  lastAuthSuccessAt?: string | null; lastDataAt?: string | null;
   lastCheckedAt: string | null; lastError: string | null; latestUpload: UploadRecord | null;
   credentialFields?: { name: string; label: string; secret: boolean; placeholder?: string; configured: boolean }[];
   environments?: string[]; environment?: string | null; testable?: boolean;
@@ -304,7 +305,7 @@ const ConnectionsPage: React.FC = () => {
               <p className="mt-3 text-sm text-gray-600 dark:text-slate-300">{c.description}</p>
               {c.acceptedProviders && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Supports: {c.acceptedProviders.join(' · ')}</p>}
               <div className="mt-3 flex flex-wrap gap-1">{c.feeds.map((f) => <span key={f} className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-slate-800 dark:text-slate-300">{f}</span>)}</div>
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-gray-500 dark:text-slate-400">Last success</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.lastSuccessAt)}</dd></div><div><dt className="text-gray-500 dark:text-slate-400">Last checked</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.lastCheckedAt)}</dd></div></dl>
+              <dl className="mt-4 grid grid-cols-3 gap-3 text-xs"><div><dt className="text-gray-500 dark:text-slate-400">Authentication</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.lastAuthSuccessAt)}</dd></div><div><dt className="text-gray-500 dark:text-slate-400">Latest data</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.lastDataAt || c.lastSuccessAt)}</dd></div><div><dt className="text-gray-500 dark:text-slate-400">Last checked</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.lastCheckedAt)}</dd></div></dl>
               {(c.lastAutomatedSyncAt || c.nextRunAt) && <dl className="mt-2 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-gray-500 dark:text-slate-400">Last data sync</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.lastAutomatedSyncAt)}</dd></div><div><dt className="text-gray-500 dark:text-slate-400">Next scheduled pull</dt><dd className="font-medium text-gray-900 dark:text-white">{when(c.nextRunAt)}</dd></div></dl>}
               {c.lastError && <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{c.lastError}</p>}
               {c.status === 'needs_reauth' && <p className="mt-2 rounded bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950/40 dark:text-red-200">{c.reauthNote}</p>}
@@ -328,7 +329,7 @@ const ConnectionsPage: React.FC = () => {
                 {c.authKind === 'browser_session'
                     && <button
                         onClick={() => startProviderSignIn(c)}
-                        disabled={reconnectMutation.isPending || !c.reconnectAvailable || (c.id === 'pave' && !c.configured)}
+                        disabled={reconnectMutation.isPending || !c.reconnectAvailable}
                         title={!c.reconnectAvailable ? `${c.reconnectLabel || c.displayName} login has not been configured yet.` : undefined}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                       ><KeyRound size={13} />{c.reconnectAvailable

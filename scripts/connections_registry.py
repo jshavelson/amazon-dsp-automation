@@ -38,12 +38,7 @@ CATALOG = [
         "feeds": ["Vans", "Fleet Compliance", "Wear & Tear"],
         "reauthNote": "PAVE authentication is separate from Amazon. Reconnect when PAVE revokes the saved browser session.",
         "reconnectLabel": "PAVE",
-        "credentialFields": [
-            {"name": "username", "label": "PAVE username", "secret": False,
-             "placeholder": "PAVE username"},
-            {"name": "password", "label": "PAVE password", "secret": True,
-             "placeholder": "PAVE password"},
-        ],
+        "credentialFields": [],
         "environments": ["production"],
         "testable": False,
     },
@@ -112,7 +107,6 @@ FINANCIAL_SOURCES = ("financial_charges", "digits")
 CREDENTIAL_SOURCES = ("digits_api", "adp", "email_imap")
 
 SECRET_FIELD_NAMES = {
-    "pave": {"username": "production-username", "password": "production-password"},
     "email_imap": {
         "host": "production-host", "port": "production-port",
         "username": "production-username", "appPassword": "production-app-password",
@@ -253,8 +247,8 @@ def list_connections(tenant: str, upload_index=None) -> list:
             for field in entry.get("credentialFields", [])
         ]
         configured = bool(stored.get("secretReference")) or status != "not_connected"
-        if entry["id"] == "pave":
-            configured = all(field["configured"] for field in public_fields)
+        if entry["authKind"] == "browser_session":
+            configured = SESSION_STATE_PATHS.get(entry["id"], Path()).exists() or status != "not_connected"
         result.append({
             **entry,
             "reconnectAvailable": (

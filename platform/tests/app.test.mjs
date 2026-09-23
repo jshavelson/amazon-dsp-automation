@@ -175,7 +175,7 @@ test('a non-reference tenant never receives the reference tenant operational sna
   assert.deepEqual(modules.json().cases, []);
 });
 
-test('operations dashboard is assembled from connected scorecard and operational sources', async (t) => {
+test('operations dashboard fails closed instead of serving packaged scorecard data', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());
   const response = await app.inject({
@@ -184,13 +184,14 @@ test('operations dashboard is assembled from connected scorecard and operational
   });
   assert.equal(response.statusCode, 200);
   const payload = response.json();
-  assert.match(payload.performance.period, /^\d{4}-wk\d{2}$/);
-  assert.ok(payload.performance.drivers.length > 0);
-  assert.ok(payload.performance.history.length > 0);
-  assert.ok(payload.sources.some((source) => source.id === 'amazon'));
+  assert.equal(payload.performance.period, null);
+  assert.equal(payload.performance.needsData, true);
+  assert.deepEqual(payload.performance.drivers, []);
+  assert.deepEqual(payload.performance.history, []);
+  assert.deepEqual(payload.sources, []);
 });
 
-test('weekly evaluations use the independent current scorecard snapshot', async (t) => {
+test('weekly evaluations require a tenant-scoped live artifact', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());
   const response = await app.inject({
@@ -199,9 +200,9 @@ test('weekly evaluations use the independent current scorecard snapshot', async 
   });
   assert.equal(response.statusCode, 200);
   const payload = response.json();
-  assert.match(payload.weeks[0], /^\d{4}-W\d{2}$/);
-  assert.equal(payload.evaluations[payload.weeks[0]].week, payload.weeks[0]);
-  assert.ok(payload.evaluations[payload.weeks[0]].topDrivers.length > 0);
+  assert.equal(payload.needsData, true);
+  assert.deepEqual(payload.weeks, []);
+  assert.deepEqual(payload.evaluations, {});
 });
 
 test('time and attendance returns tenant-scoped ADP exceptions and honest route coverage', async (t) => {
@@ -295,16 +296,16 @@ test('dispatcher can save a dated expected-route and sweeper plan', async (t) =>
   assert.equal(response.json().dispatchPlan.expectedRoutes, 42);
 });
 
-test('weekly route performance remains available on a separately named endpoint', async (t) => {
+test('weekly route performance does not serve a packaged snapshot', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());
   const response = await app.inject({ method: 'GET', url: '/api/route-performance', headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' } });
   assert.equal(response.statusCode, 200);
-  assert.match(response.json().source, /scorecard/i);
-  assert.ok(response.json().routes.length > 0);
+  assert.equal(response.json().needsData, true);
+  assert.deepEqual(response.json().routes, []);
 });
 
-test('vans returns the paginated contract with the packaged fleet roster when the van table is unavailable', async (t) => {
+test('vans returns an empty paginated contract when the live tenant table is unavailable', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());
   const response = await app.inject({
@@ -314,9 +315,8 @@ test('vans returns the paginated contract with the packaged fleet roster when th
   assert.equal(response.statusCode, 200);
   const payload = response.json();
   assert.equal(Array.isArray(payload.data), true);
-  assert.ok(payload.data.length >= 40);
+  assert.deepEqual(payload.data, []);
   assert.equal(payload.meta.totalItems, payload.data.length);
-  assert.ok(payload.data.every((van) => van.vin && van.van_number && van.status && van.ownership));
 });
 
 test('payroll returns a needs-data contract instead of HTTP 500 when its table is unavailable', async (t) => {

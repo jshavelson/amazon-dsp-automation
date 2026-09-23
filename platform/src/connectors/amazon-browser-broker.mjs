@@ -2,13 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { chromium } from 'playwright';
-import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import { ChangeMessageVisibilityCommand, DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { S3Client } from '@aws-sdk/client-s3';
 import { OidcAuthenticator } from '../oidc-authenticator.mjs';
 import { PostgresRepository } from '../postgres-repository.mjs';
 import { ConnectorWorkerStore } from './connector-worker-store.mjs';
 import { isBlockedBrowserHost, isValidConnectorTenant } from './browser-security.mjs';
 import { collectAmazonFeed } from './amazon-sync-adapters.mjs';
+import { collectPaveExport } from './pave-sync-adapter.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -29,23 +30,87 @@ const authenticator = new OidcAuthenticator({
   issuer: required('OIDC_ISSUER'), audience: required('OIDC_AUDIENCE'), jwksUrl: required('OIDC_JWKS_URL')
 });
 const sessions = new Map();
+// Browser profiles alone are insufficient for Amazon's device-bound session.
+// Keep one process/context alive per tenant/provider and serialize every use of
+// it. EFS remains the crash/task-replacement recovery layer; this pool is the
+// normal steady-state authentication layer.
+const retainedBrowsers = new Map();
 let stopping = false;
 
-function safeProfilePath(tenant) {
-  if (!isValidConnectorTenant(tenant)) throw new Error('invalid connector tenant');
-  return path.join(profileRoot, tenant, 'amazon');
+async function attachNetworkGuard(context) {
+  await context.route('**/*', async (route) => {
+    let hostname = '';
+    try { hostname = new URL(route.request().url()).hostname.toLowerCase(); } catch { return route.abort(); }
+    return isBlockedBrowserHost(hostname) ? route.abort() : route.continue();
+  });
 }
 
-async function verifyAmazon(page) {
-  const checks = [
-    ['logistics', 'https://logistics.amazon.com/performance'],
-    ['payments', 'https://logistics.amazon.com/flexpayments/simpson/flexpro/invoices'],
-    ['fleet', 'https://logistics.amazon.com/dspconsolev2']
-  ];
+const providers = Object.freeze({
+  amazon: Object.freeze({
+    startUrl: 'https://logistics.amazon.com/performance',
+    checks: Object.freeze([
+      ['logistics', 'https://logistics.amazon.com/performance'],
+      ['payments', 'https://logistics.amazon.com/flexpayments/simpson/flexpro/invoices'],
+      ['fleet', 'https://logistics.amazon.com/dspconsolev2']
+    ]),
+    needsReauth: (url) => url.includes('/ap/signin') || !url.includes('logistics.amazon.com')
+  }),
+  pave: Object.freeze({
+    startUrl: 'https://dashboard.paveapi.com/dashboard',
+    checks: Object.freeze([['dashboard', 'https://dashboard.paveapi.com/dashboard']]),
+    needsReauth: (url) => url.includes('/login') || !url.includes('paveapi.com')
+  })
+});
+
+function safeProfilePath(tenant, integrationType) {
+  if (!isValidConnectorTenant(tenant)) throw new Error('invalid connector tenant');
+  if (!providers[integrationType]) throw new Error('unsupported browser provider');
+  return path.join(profileRoot, tenant, integrationType);
+}
+
+const retainedKey = (tenantId, integrationType) => `${tenantId}:${integrationType}`;
+
+async function retainedBrowser(tenantId, integrationType) {
+  const key = retainedKey(tenantId, integrationType);
+  const existing = retainedBrowsers.get(key);
+  if (existing) return existing;
+  const profilePath = safeProfilePath(tenantId, integrationType);
+  await fs.mkdir(profilePath, { recursive: true, mode: 0o700 });
+  const context = await chromium.launchPersistentContext(profilePath, {
+    headless: true,
+    viewport: { width: 1440, height: 900 },
+    acceptDownloads: true,
+    args: ['--disable-dev-shm-usage', '--no-first-run', '--host-resolver-rules=MAP metadata.google.internal ~NOTFOUND']
+  });
+  await attachNetworkGuard(context);
+  const entry = { tenantId, integrationType, context, tail: Promise.resolve(), lastUsedAt: Date.now(), interactiveSessionId: null };
+  context.on('close', () => {
+    if (retainedBrowsers.get(key) === entry) retainedBrowsers.delete(key);
+  });
+  retainedBrowsers.set(key, entry);
+  return entry;
+}
+
+async function withRetainedBrowser(tenantId, integrationType, operation) {
+  const entry = await retainedBrowser(tenantId, integrationType);
+  if (entry.interactiveSessionId) throw Object.assign(new Error('Managed browser is completing an interactive reconnect.'), { code: 'browser_busy' });
+  const run = entry.tail.then(async () => {
+    entry.lastUsedAt = Date.now();
+    const pages = entry.context.pages();
+    const page = pages.find((candidate) => !candidate.isClosed()) || await entry.context.newPage();
+    return operation({ context: entry.context, page });
+  });
+  // A rejected job must not poison the tenant's serialization chain.
+  entry.tail = run.catch(() => undefined);
+  return run;
+}
+
+async function verifyProvider(page, integrationType) {
+  const provider = providers[integrationType];
   const results = {};
-  for (const [feed, url] of checks) {
+  for (const [feed, url] of provider.checks) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    results[feed] = page.url().includes('/ap/signin') ? 'needs_reauth' : 'healthy';
+    results[feed] = provider.needsReauth(page.url()) ? 'needs_reauth' : 'healthy';
     if (results[feed] !== 'healthy') break;
   }
   return results;
@@ -54,25 +119,20 @@ async function verifyAmazon(page) {
 async function launchJob(message, receiptHandle) {
   const { tenantId, jobId, sessionId, integrationType, jobType } = message;
   if (!isValidConnectorTenant(tenantId) || !sessionPattern.test(jobId) || !sessionPattern.test(sessionId)
-      || integrationType !== 'amazon' || jobType !== 'connect') throw new Error('invalid connector job');
+      || !providers[integrationType] || jobType !== 'connect') throw new Error('invalid connector job');
   const row = await workerStore.start(tenantId, { jobId, sessionId });
-  const profilePath = safeProfilePath(tenantId);
-  await fs.mkdir(profilePath, { recursive: true, mode: 0o700 });
-  const context = await chromium.launchPersistentContext(profilePath, {
-    headless: true,
-    viewport: { width: 1440, height: 900 },
-    acceptDownloads: true,
-    args: ['--disable-dev-shm-usage', '--no-first-run', '--host-resolver-rules=MAP metadata.google.internal ~NOTFOUND']
-  });
-  await context.route('**/*', async (route) => {
-    let hostname = '';
-    try { hostname = new URL(route.request().url()).hostname.toLowerCase(); } catch { return route.abort(); }
-    return isBlockedBrowserHost(hostname) ? route.abort() : route.continue();
-  });
+  const retained = await retainedBrowser(tenantId, integrationType);
+  await retained.tail;
+  if (retained.interactiveSessionId) throw new Error('connector reconnect session is already active');
+  retained.interactiveSessionId = sessionId;
+  const context = retained.context;
   const pages = context.pages();
-  const page = pages[0] || await context.newPage();
-  await page.goto('https://logistics.amazon.com/performance', { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  sessions.set(sessionId, { tenantId, jobId, sessionId, context, page, receiptHandle, expiresAt: new Date(row.expiresAt).getTime(), busy: false });
+  const page = pages.find((candidate) => !candidate.isClosed()) || await context.newPage();
+  await page.goto(providers[integrationType].startUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await sqs.send(new ChangeMessageVisibilityCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle, VisibilityTimeout: 1200 }));
+  const active = { tenantId, jobId, sessionId, integrationType, context, page, receiptHandle, expiresAt: new Date(row.expiresAt).getTime(), busy: false, expiryTimer: null };
+  active.expiryTimer = setTimeout(() => expireSession(active), Math.max(1000, active.expiresAt - Date.now()));
+  sessions.set(sessionId, active);
   await workerStore.ready(tenantId, sessionId, `/app/connector-session/${sessionId}`);
 }
 
@@ -87,22 +147,22 @@ async function runSyncJob(message, receiptHandle) {
   if (!isValidConnectorTenant(tenantId) || !sessionPattern.test(jobId) || integrationType !== 'amazon'
       || jobType !== 'sync' || !validDateRange(periodStart, periodEnd)) throw new Error('invalid connector sync job');
   await workerStore.startSync(tenantId, { jobId, feedGroup, periodStart, periodEnd });
-  const context = await chromium.launchPersistentContext(safeProfilePath(tenantId), {
-    headless: true, viewport: { width: 1440, height: 900 }, acceptDownloads: true,
-    args: ['--disable-dev-shm-usage', '--no-first-run', '--host-resolver-rules=MAP metadata.google.internal ~NOTFOUND']
-  });
   try {
-    const page = context.pages()[0] || await context.newPage();
-    const artifact = await collectAmazonFeed({ page, tenantId, feedGroup, periodStart, periodEnd, bucket: artifactBucket, s3 });
+    const artifact = await withRetainedBrowser(tenantId, 'amazon', ({ page }) =>
+      collectAmazonFeed({ page, tenantId, feedGroup, periodStart, periodEnd, bucket: artifactBucket, s3 }));
     await workerStore.completeSync(tenantId, { jobId, feedGroup, periodStart, periodEnd, artifact });
     await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle }));
   } catch (error) {
+    if (error?.code === 'browser_busy') {
+      await sqs.send(new ChangeMessageVisibilityCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle, VisibilityTimeout: 60 }));
+      return;
+    }
     await workerStore.failSync(tenantId, {
       jobId, feedGroup, message: error?.code === 'needs_reauth' ? 'Amazon session requires reauthentication.' : 'Amazon feed collection failed.',
       needsReauth: error?.code === 'needs_reauth'
     });
     await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle })).catch(() => {});
-  } finally { await context.close(); }
+  }
 }
 
 async function finish(active) {
@@ -110,24 +170,70 @@ async function finish(active) {
   active.busy = true;
   try {
     if (Date.now() >= active.expiresAt) throw Object.assign(new Error('Secure Amazon session expired'), { code: 'expired' });
+    const provider = providers[active.integrationType];
     const current = active.page.url();
-    if (current.includes('/ap/signin') || !current.includes('logistics.amazon.com')) return;
-    const feeds = await verifyAmazon(active.page);
+    if (provider.needsReauth(current)) return;
+    const feeds = await verifyProvider(active.page, active.integrationType);
     if (Object.values(feeds).some((status) => status !== 'healthy')) return;
     await workerStore.complete(active.tenantId, {
       jobId: active.jobId, sessionId: active.sessionId,
-      profileKey: `profiles/${active.tenantId}/amazon`, feeds
+      integrationType: active.integrationType,
+      profileKey: `profiles/${active.tenantId}/${active.integrationType}`, feeds
     });
     await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: active.receiptHandle }));
-    await active.context.close();
+    clearTimeout(active.expiryTimer);
     sessions.delete(active.sessionId);
+    const retained = retainedBrowsers.get(retainedKey(active.tenantId, active.integrationType));
+    if (retained?.interactiveSessionId === active.sessionId) retained.interactiveSessionId = null;
   } catch (error) {
     if (error?.code !== 'expired') return;
-    await workerStore.fail(active.tenantId, { jobId: active.jobId, sessionId: active.sessionId, code: 'expired', message: error.message });
+    await workerStore.fail(active.tenantId, { jobId: active.jobId, sessionId: active.sessionId, integrationType: active.integrationType, code: 'expired', message: error.message });
     await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: active.receiptHandle }));
-    await active.context.close();
+    clearTimeout(active.expiryTimer);
     sessions.delete(active.sessionId);
+    const retained = retainedBrowsers.get(retainedKey(active.tenantId, active.integrationType));
+    if (retained?.interactiveSessionId === active.sessionId) retained.interactiveSessionId = null;
   } finally { active.busy = false; }
+}
+
+async function expireSession(active) {
+  if (!sessions.has(active.sessionId)) return;
+  await workerStore.fail(active.tenantId, {
+    jobId: active.jobId, sessionId: active.sessionId, integrationType: active.integrationType,
+    code: 'expired', message: `Secure ${active.integrationType} session expired.`
+  }).catch(() => {});
+  await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: active.receiptHandle })).catch(() => {});
+  sessions.delete(active.sessionId);
+  const retained = retainedBrowsers.get(retainedKey(active.tenantId, active.integrationType));
+  if (retained?.interactiveSessionId === active.sessionId) retained.interactiveSessionId = null;
+}
+
+async function runHealthSweep(receiptHandle) {
+  const candidates = await workerStore.listHealthCandidates();
+  for (const candidate of candidates) {
+    if ([...sessions.values()].some((active) => active.tenantId === candidate.tenantId && active.integrationType === candidate.integrationType)) continue;
+    try {
+      const { checks, paveArtifact } = await withRetainedBrowser(candidate.tenantId, candidate.integrationType, async ({ page }) => {
+        const checks = await verifyProvider(page, candidate.integrationType);
+        const needsReauth = Object.values(checks).some((status) => status !== 'healthy');
+        const lastDataAt = candidate.lastDataAt ? Date.parse(candidate.lastDataAt) : 0;
+        const paveArtifact = !needsReauth && candidate.integrationType === 'pave' && Date.now() - lastDataAt >= 20 * 60 * 60 * 1000
+          ? await collectPaveExport({ page, tenantId: candidate.tenantId, bucket: artifactBucket, s3 }) : null;
+        return { checks, paveArtifact };
+      });
+      const needsReauth = Object.values(checks).some((status) => status !== 'healthy');
+      await workerStore.recordHealth(candidate.tenantId, candidate.integrationType, {
+        healthy: !needsReauth, needsReauth,
+        message: needsReauth ? `${candidate.integrationType} session requires reauthentication.` : null
+      });
+      if (paveArtifact) await workerStore.recordPaveSnapshot(candidate.tenantId, paveArtifact);
+    } catch {
+      await workerStore.recordHealth(candidate.tenantId, candidate.integrationType, {
+        healthy: false, needsReauth: false, message: `${candidate.integrationType} authentication canary failed.`
+      }).catch(() => {});
+    }
+  }
+  await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle }));
 }
 
 async function consume() {
@@ -136,13 +242,15 @@ async function consume() {
     for (const item of response.Messages || []) {
       try {
         const body = JSON.parse(item.Body);
-        if (body.jobType === 'sync') await runSyncJob(body, item.ReceiptHandle);
+        if (body.jobType === 'health_sweep') await runHealthSweep(item.ReceiptHandle);
+        else if (body.jobType === 'sync') await runSyncJob(body, item.ReceiptHandle);
         else await launchJob(body, item.ReceiptHandle);
       }
       catch (error) {
         const body = JSON.parse(item.Body || '{}');
         if (body.tenantId && body.jobId && body.sessionId) await workerStore.fail(body.tenantId, {
-          jobId: body.jobId, sessionId: body.sessionId, code: 'launch_failed', message: 'Managed Amazon browser could not start.'
+          jobId: body.jobId, sessionId: body.sessionId, integrationType: body.integrationType,
+          code: 'launch_failed', message: `Managed ${body.integrationType || 'provider'} browser could not start.`
         }).catch(() => {});
         await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: item.ReceiptHandle })).catch(() => {});
       }
@@ -151,7 +259,8 @@ async function consume() {
 }
 
 const app = Fastify({ logger: true, bodyLimit: 64 * 1024 });
-app.get('/health', async () => ({ status: 'ok', sessions: sessions.size }));
+app.get('/health', async () => ({ status: 'ok', worker: 'running', queueConsumer: !stopping,
+  sessions: sessions.size, retainedBrowsers: retainedBrowsers.size }));
 app.addHook('onRequest', async (request, reply) => {
   if (!request.url.startsWith('/connector/api/')) return;
   try {
@@ -201,7 +310,7 @@ app.post('/connector/api/sessions/:sessionId/input', async (request, reply) => {
 
 const shutdown = async () => {
   stopping = true;
-  await Promise.all([...sessions.values()].map((active) => active.context.close().catch(() => {})));
+  await Promise.all([...retainedBrowsers.values()].map((active) => active.context.close().catch(() => {})));
   await app.close(); await workerStore.close(); await authRepository.close();
 };
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

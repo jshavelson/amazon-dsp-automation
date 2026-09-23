@@ -6,21 +6,24 @@ const ALLOWED_ENVIRONMENTS = new Set(['development', 'production']);
 
 function publicConnection(definition, stored, managedBrowserAvailable = false) {
   const configuredFields = stored?.config?.configuredFields || [];
-  const fullyConfigured = definition.credentialFields.every(({ name }) => configuredFields.includes(name));
   return {
     ...definition,
-    reconnectAvailable: definition.id === 'amazon' && managedBrowserAvailable,
+    reconnectAvailable: definition.authKind === 'browser_session' && managedBrowserAvailable,
     credentialFields: definition.credentialFields.map(({ name, label, secret, placeholder }) => ({
       name, label, secret, placeholder, configured: configuredFields.includes(name)
     })),
-    configured: definition.id === 'amazon'
+    configured: definition.authKind === 'browser_session'
       ? Boolean(stored?.config?.profileKey)
-      : definition.id === 'pave' ? Boolean(stored?.secret_reference) && fullyConfigured : Boolean(stored?.secret_reference),
+      : Boolean(stored?.secret_reference),
     status: stored?.status || 'not_connected',
     setupStatus: stored?.setup_status || stored?.status || 'not_connected',
-    dataAvailable: stored?.status === 'healthy',
+    dataAvailable: definition.authKind === 'browser_session'
+      ? Boolean(stored?.last_data_at || stored?.last_success_at)
+      : stored?.status === 'healthy',
     sourceMode: stored?.source_mode || (stored?.secret_reference ? 'aws_managed' : null),
     lastSuccessAt: stored?.last_success_at || null,
+    lastAuthSuccessAt: stored?.last_auth_success_at || null,
+    lastDataAt: stored?.last_data_at || stored?.last_success_at || null,
     lastCheckedAt: stored?.last_checked_at || null,
     lastError: stored?.last_error || null,
     environment: stored?.config?.environment || null,
@@ -136,8 +139,7 @@ export class ConnectionService {
 
   async configure(context, connectionId, body) {
     const definition = connectionDefinition(connectionId);
-    if (!['api_credentials', 'imap_password'].includes(definition.authKind)
-      && !(connectionId === 'pave' && definition.authKind === 'browser_session')) {
+    if (!['api_credentials', 'imap_password'].includes(definition.authKind)) {
       throw new Error('this connection uses a different setup flow');
     }
     const { environment, credentials } = validateCredentialPayload(definition, body);
@@ -194,7 +196,7 @@ export class ConnectionService {
   async beginReconnect(context, connectionId) {
     const definition = connectionDefinition(connectionId);
     if (definition.authKind !== 'browser_session') throw new Error('connection does not use browser reconnect');
-    if (connectionId !== 'amazon') throw new Error('reconnect adapter is unavailable');
+    if (!['amazon', 'pave'].includes(connectionId)) throw new Error('reconnect adapter is unavailable');
     if (!this.#connectorQueue || !this.#repository.createConnectorSession) {
       throw new Error('managed connector worker is unavailable');
     }
@@ -235,8 +237,8 @@ export class ConnectionService {
       launchMode: 'managed_tenant_browser',
       launchUrl: created.session.launchUrl || null,
       message: created.reused
-        ? 'Your existing secure Amazon reconnect session is still starting.'
-        : 'A private tenant-isolated Amazon browser is starting. Continue when the secure session link becomes available.'
+        ? `Your existing secure ${definition.displayName} reconnect session is still starting.`
+        : `A private tenant-isolated ${definition.displayName} browser is starting. Continue when the secure session link becomes available.`
     };
   }
 
@@ -252,7 +254,7 @@ export class ConnectionService {
   async startBackfill(context, connectionId) {
     if (connectionId !== 'amazon') throw new Error('backfill adapter is unavailable');
     if (!this.#connectorQueue || !this.#repository.createAmazonBackfillJobs) throw new Error('managed connector worker is unavailable');
-    const feedGroups = ['fleet_readiness'];
+    const feedGroups = ['fleet_readiness', 'fleet_condition'];
     const jobs = await this.#repository.createAmazonBackfillJobs(context, feedGroups);
     for (const job of jobs) {
       await this.#connectorQueue.enqueue({

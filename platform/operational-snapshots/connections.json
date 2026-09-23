@@ -1,153 +1,21 @@
 {
-  "generatedAt": "2026-09-23T19:39:19.316602+00:00",
+  "generatedAt": "2026-09-23T22:44:31.297660+00:00",
   "source": "Tenant connection registry and verified feed probes",
   "tenant": "jecs",
-  "servedAt": "2026-09-23T15:39:19",
+  "servedAt": "2026-09-23T18:44:31",
   "summary": {
     "total": 6,
     "connectionTotal": 5,
-    "connected": 3,
-    "active": 3,
-    "health": "yellow",
-    "needsAttention": 2,
+    "connected": 5,
+    "active": 5,
+    "health": "green",
+    "needsAttention": 0,
     "notConnected": 0,
     "statusCounts": {
-      "degraded": 2,
-      "healthy": 4
+      "healthy": 6
     }
   },
   "connections": [
-    {
-      "id": "amazon",
-      "displayName": "Amazon DSP",
-      "authKind": "browser_session",
-      "category": "Amazon",
-      "schedule": "Daily checks + weekly reports",
-      "description": "One Amazon sign-in for scorecards, Cortex Fleet Dashboard readiness, Cortex Payments coverage, Supplemental FCA reports, routes, disputes and reimbursements.",
-      "feeds": [
-        "Weekly Evaluation",
-        "Driver Performance",
-        "Routes",
-        "Disputes",
-        "Fleet Compliance",
-        "Fleet Costs"
-      ],
-      "reauthNote": "Amazon may revoke the shared session. Complete MFA once to restore all Amazon-backed feeds.",
-      "reconnectLabel": "Amazon",
-      "reconnectAvailable": true,
-      "credentialFields": [],
-      "status": "degraded",
-      "configured": true,
-      "secretReference": "secret://jecs/aws-secrets/amazon/browser-session",
-      "lastSuccessAt": "2026-09-23T16:10:06.583Z",
-      "lastCheckedAt": "2026-09-23T19:34:34+00:00",
-      "lastError": "Cortex route refresh failed; saved routes remain available.",
-      "lastAutomatedSyncAt": "2026-09-23T16:10:06.583Z",
-      "nextRunAt": null,
-      "lastSyncSummary": {
-        "routes": 39,
-        "deliveryDate": "2026-09-23"
-      },
-      "sessionExpiresAt": null,
-      "reauthRequiredAt": null,
-      "latestUpload": null,
-      "environment": null
-    },
-    {
-      "id": "pave",
-      "displayName": "PAVE",
-      "authKind": "browser_session",
-      "category": "Fleet",
-      "schedule": "Daily 04:00",
-      "description": "Separate PAVE website connection for vehicle assessments, inspection evidence and wear-and-tear results.",
-      "feeds": [
-        "Vans",
-        "Fleet Compliance",
-        "Wear & Tear"
-      ],
-      "reauthNote": "PAVE authentication is separate from Amazon. Reconnect when PAVE revokes the saved browser session.",
-      "reconnectLabel": "PAVE",
-      "credentialFields": [
-        {
-          "name": "username",
-          "label": "PAVE username",
-          "secret": false,
-          "placeholder": "PAVE username",
-          "configured": true
-        },
-        {
-          "name": "password",
-          "label": "PAVE password",
-          "secret": true,
-          "placeholder": "PAVE password",
-          "configured": true
-        }
-      ],
-      "environments": [
-        "production"
-      ],
-      "testable": false,
-      "reconnectAvailable": true,
-      "status": "degraded",
-      "configured": true,
-      "secretReference": "secret://jecs/aws-secrets/pave/credentials",
-      "lastSuccessAt": "2026-09-23T15:37:57+00:00",
-      "lastCheckedAt": "2026-09-23T19:34:34+00:00",
-      "lastError": "Manual PAVE refresh failed; saved data remains available.",
-      "lastAutomatedSyncAt": "2026-09-23T15:23:23+00:00",
-      "nextRunAt": "2026-09-24T15:23:23+00:00",
-      "lastSyncSummary": {
-        "rows": 57,
-        "uniqueVins": 28
-      },
-      "sessionExpiresAt": null,
-      "reauthRequiredAt": null,
-      "latestUpload": {
-        "id": "c4ed15057bd7c951",
-        "tenant": "jecs",
-        "source": "pave",
-        "originalFilename": "vehicles_fleet_2026-09-22T20-18-52.csv",
-        "storageKey": "tenants/jecs/pave/c4ed15057bd7-vehicles_fleet_2026-09-22T20-18-52.csv",
-        "contentSha256": "c4ed15057bd7c951e165c848b3f29a1c0fa1d8ad437b6228c6204dba95eb8b36",
-        "byteSize": 6545,
-        "status": "confirmed",
-        "parseSummary": {
-          "rowsRead": 57,
-          "rowsParsed": 57,
-          "rowsRejected": 0,
-          "completedRows": 54,
-          "incompleteRows": 3,
-          "uniqueVins": 28,
-          "latestAssessments": 28,
-          "currentFairOrBetter": 18,
-          "currentPoor": 10,
-          "currentGroundingRisk": 10,
-          "currentNewDamage": 12,
-          "gradeCounts": {
-            "4-Good": 14,
-            "2-Poor": 32,
-            "3-Fair": 3,
-            "5-Great": 5
-          },
-          "currentGradeCounts": {
-            "2-Poor": 10,
-            "4-Good": 11,
-            "5-Great": 5,
-            "3-Fair": 2
-          },
-          "earliestAt": "2026-06-29T14:55:53",
-          "latestAt": "2026-09-22T14:47:49",
-          "provider": "pave",
-          "providerLabel": "PAVE Fleet Dashboard"
-        },
-        "uploadedBy": "scheduled-pave-sync",
-        "uploadedAt": "2026-09-22T20:18:52+00:00",
-        "confirmedAt": "2026-09-23T15:23:23+00:00",
-        "periodKey": "2026-09",
-        "provider": "pave"
-      },
-      "environment": "production"
-    },
     {
       "id": "adp",
       "displayName": "ADP Workforce",
@@ -297,6 +165,42 @@
       "environment": null
     },
     {
+      "id": "amazon",
+      "displayName": "Amazon DSP",
+      "authKind": "browser_session",
+      "category": "Amazon",
+      "schedule": "Daily checks + weekly reports",
+      "description": "One Amazon sign-in for scorecards, Cortex Fleet Dashboard readiness, Cortex Payments coverage, Supplemental FCA reports, routes, disputes and reimbursements.",
+      "feeds": [
+        "Weekly Evaluation",
+        "Driver Performance",
+        "Routes",
+        "Disputes",
+        "Fleet Compliance",
+        "Fleet Costs"
+      ],
+      "reauthNote": "Amazon may revoke the shared session. Complete MFA once to restore all Amazon-backed feeds.",
+      "reconnectLabel": "Amazon",
+      "reconnectAvailable": true,
+      "credentialFields": [],
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/amazon/browser-session",
+      "lastSuccessAt": "2026-09-23T22:43:57.112Z",
+      "lastCheckedAt": "2026-09-23T22:43:57.112Z",
+      "lastError": null,
+      "lastAutomatedSyncAt": "2026-09-23T22:43:57.112Z",
+      "nextRunAt": null,
+      "lastSyncSummary": {
+        "routes": 51,
+        "deliveryDate": "2026-09-23"
+      },
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": null,
+      "environment": null
+    },
+    {
       "id": "digits_api",
       "displayName": "Digits API",
       "authKind": "api_credentials",
@@ -336,8 +240,8 @@
       "status": "healthy",
       "configured": true,
       "secretReference": "secret://jecs/aws-secrets/digits-api/credentials",
-      "lastSuccessAt": "2026-09-23T19:33:45+00:00",
-      "lastCheckedAt": "2026-09-23T19:33:45+00:00",
+      "lastSuccessAt": "2026-09-23T22:27:44+00:00",
+      "lastCheckedAt": "2026-09-23T22:27:44+00:00",
       "lastError": null,
       "lastAutomatedSyncAt": null,
       "nextRunAt": null,
@@ -346,6 +250,86 @@
       "reauthRequiredAt": null,
       "latestUpload": null,
       "environment": "development"
+    },
+    {
+      "id": "pave",
+      "displayName": "PAVE",
+      "authKind": "browser_session",
+      "category": "Fleet",
+      "schedule": "Daily 04:00",
+      "description": "Separate PAVE website connection for vehicle assessments, inspection evidence and wear-and-tear results.",
+      "feeds": [
+        "Vans",
+        "Fleet Compliance",
+        "Wear & Tear"
+      ],
+      "reauthNote": "PAVE authentication is separate from Amazon. Reconnect when PAVE revokes the saved browser session.",
+      "reconnectLabel": "PAVE",
+      "credentialFields": [],
+      "environments": [
+        "production"
+      ],
+      "testable": false,
+      "reconnectAvailable": true,
+      "status": "healthy",
+      "configured": true,
+      "secretReference": "secret://jecs/aws-secrets/pave/credentials",
+      "lastSuccessAt": "2026-09-23T22:27:42+00:00",
+      "lastCheckedAt": "2026-09-23T22:27:42+00:00",
+      "lastError": null,
+      "lastAutomatedSyncAt": "2026-09-23T22:13:58+00:00",
+      "nextRunAt": "2026-09-24T22:13:58+00:00",
+      "lastSyncSummary": {
+        "rows": 57,
+        "uniqueVins": 28
+      },
+      "sessionExpiresAt": null,
+      "reauthRequiredAt": null,
+      "latestUpload": {
+        "id": "c4ed15057bd7c951",
+        "tenant": "jecs",
+        "source": "pave",
+        "originalFilename": "vehicles_fleet_2026-09-22T20-18-52.csv",
+        "storageKey": "tenants/jecs/pave/c4ed15057bd7-vehicles_fleet_2026-09-22T20-18-52.csv",
+        "contentSha256": "c4ed15057bd7c951e165c848b3f29a1c0fa1d8ad437b6228c6204dba95eb8b36",
+        "byteSize": 6545,
+        "status": "confirmed",
+        "parseSummary": {
+          "rowsRead": 57,
+          "rowsParsed": 57,
+          "rowsRejected": 0,
+          "completedRows": 54,
+          "incompleteRows": 3,
+          "uniqueVins": 28,
+          "latestAssessments": 28,
+          "currentFairOrBetter": 18,
+          "currentPoor": 10,
+          "currentGroundingRisk": 10,
+          "currentNewDamage": 12,
+          "gradeCounts": {
+            "4-Good": 14,
+            "2-Poor": 32,
+            "3-Fair": 3,
+            "5-Great": 5
+          },
+          "currentGradeCounts": {
+            "2-Poor": 10,
+            "4-Good": 11,
+            "5-Great": 5,
+            "3-Fair": 2
+          },
+          "earliestAt": "2026-06-29T14:55:53",
+          "latestAt": "2026-09-22T14:47:49",
+          "provider": "pave",
+          "providerLabel": "PAVE Fleet Dashboard"
+        },
+        "uploadedBy": "scheduled-pave-sync",
+        "uploadedAt": "2026-09-22T20:18:52+00:00",
+        "confirmedAt": "2026-09-23T22:13:58+00:00",
+        "periodKey": "2026-09",
+        "provider": "pave"
+      },
+      "environment": "production"
     },
     {
       "id": "email_imap",
@@ -398,13 +382,13 @@
       "status": "healthy",
       "configured": true,
       "secretReference": "secret://jecs/aws-secrets/email-imap/credentials",
-      "lastSuccessAt": "2026-09-23T19:35:22+00:00",
-      "lastCheckedAt": "2026-09-23T19:35:22+00:00",
+      "lastSuccessAt": "2026-09-23T22:44:14+00:00",
+      "lastCheckedAt": "2026-09-23T22:44:14+00:00",
       "lastError": null,
-      "lastAutomatedSyncAt": "2026-09-23T19:35:22+00:00",
-      "nextRunAt": "2026-09-23T19:50:22+00:00",
+      "lastAutomatedSyncAt": "2026-09-23T22:44:14+00:00",
+      "nextRunAt": "2026-09-23T22:59:14+00:00",
       "lastSyncSummary": {
-        "attachmentsArchived": 15
+        "attachmentsArchived": 16
       },
       "sessionExpiresAt": null,
       "reauthRequiredAt": null,
@@ -413,6 +397,21 @@
     }
   ],
   "uploads": [
+    {
+      "id": "582bfe9d1d2b0116",
+      "tenant": "jecs",
+      "source": "email_reports",
+      "originalFilename": "DSP Tier 1 Heat Index Minute Reductions.xlsx",
+      "storageKey": "tenants/jecs/email_reports/582bfe9d1d2b-DSP_Tier_1_Heat_Index_Minute_Reductions.xlsx",
+      "contentSha256": "582bfe9d1d2b0116949e9a6841f50f37643ddeda049bfc968158965e7c35418b",
+      "byteSize": 18473,
+      "status": "uploaded",
+      "parseSummary": {},
+      "uploadedBy": "scheduled-imap-sync",
+      "uploadedAt": "2026-09-23T20:06:30+00:00",
+      "confirmedAt": null,
+      "periodKey": null
+    },
     {
       "id": "2222e9c3f3223522",
       "tenant": "jecs",
@@ -513,7 +512,7 @@
       },
       "uploadedBy": "scheduled-pave-sync",
       "uploadedAt": "2026-09-22T20:18:52+00:00",
-      "confirmedAt": "2026-09-23T15:23:23+00:00",
+      "confirmedAt": "2026-09-23T22:13:58+00:00",
       "periodKey": "2026-09",
       "provider": "pave"
     },

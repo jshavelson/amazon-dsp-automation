@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { chromium } from 'playwright';
+import { launchAmazonPersistentContext, saveAmazonPortableState } from './amazon_persistent_context.mjs';
 import { normalizeRouteSummaries } from './live_route_normalizer.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -11,11 +11,8 @@ const storageState = path.resolve(ROOT, config.storageStatePath);
 const deliveryDate = process.argv.find((arg) => /^\d{4}-\d{2}-\d{2}$/.test(arg)) || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 const tenant = (process.env.DSP_TENANT || 'jecs').toLowerCase().replace(/[^a-z0-9-]/g, '');
 if (!tenant) throw new Error('DSP_TENANT must contain letters, digits, or hyphens');
-await fs.access(storageState).catch(() => { throw new Error('Saved Amazon session is missing. Run npm run amazon:login once.'); });
-
-const browser = await chromium.launch({ headless: true });
+const { context, storageStatePath } = await launchAmazonPersistentContext({ root: ROOT, config, headless: true });
 try {
-  const context = await browser.newContext({ storageState });
   const page = await context.newPage();
   const url = `https://logistics.amazon.com/operations/execution/dv/routes?provider=ALL_DRIVERS&selectedDay=${deliveryDate}&serviceAreaId=${config.executionServiceAreaId}&historicalDay=${deliveryDate !== new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())}`;
   const responsePromise = page.waitForResponse(
@@ -37,7 +34,8 @@ try {
   const artifact = path.join(outputDir, `${sha12}-${deliveryDate}-routes.json`);
   await fs.writeFile(artifact, bytes, { mode: 0o600 });
   await fs.writeFile(path.join(outputDir, 'latest.json'), bytes, { mode: 0o600 });
+  await saveAmazonPortableState(context, storageStatePath);
   console.log(JSON.stringify({ deliveryDate, capturedAt, routeCount: normalized.routeCount, summary: normalized.summary, artifact: path.relative(ROOT, artifact) }, null, 2));
 } finally {
-  await browser.close();
+  await context.close();
 }

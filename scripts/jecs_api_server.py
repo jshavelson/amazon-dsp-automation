@@ -23,6 +23,7 @@ import email
 import math
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -50,8 +51,18 @@ DB_PATH = ROOT / "data/dsp_operations.db"
 DASHBOARD_DIR = ROOT / "data/dashboards"
 DASHBOARD_PATH = DASHBOARD_DIR / "amazon-dsp-kpi-dashboard.html"
 FLEET_REVIEW_DIR = ROOT / "data/fleet_reviews"
-WEAR_TEAR_TARGET_PERCENT = 80.0
-WEAR_TEAR_STRETCH_PERCENT = 85.0
+
+
+def _resolve_node_binary():
+    configured = os.environ.get("NODE_BINARY")
+    candidates = [configured, shutil.which("node"), "/opt/homebrew/bin/node", "/usr/local/bin/node"]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError("Node.js executable is unavailable; set NODE_BINARY for the API service.")
+
+
+NODE_BINARY = _resolve_node_binary()
 
 
 def _read_json(path):
@@ -192,10 +203,68 @@ def build_fleet_compliance_payload(tenant="jecs"):
     pm_data = _read_json(pm_path).get('pmIssueStatusCount', [])
     maintenance_data = _read_json(maintenance_path)
     snapshot = _read_json(snapshot_path)
+    inspection_as_of = inspection_path.parent.name
     readiness_source_system = snapshot.get('readinessSourceSystem')
     readiness_verified = readiness_source_system == 'cortex_fleet_dashboard'
-    wear_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-compliance.json"))
-    wear_data = _read_json(wear_files[-1]) if wear_files else None
+    # FCA/W&T is intentionally connector-only. Archived email reports remain evidence,
+    # but must never feed the live compliance screen.
+    wear_files = []
+    wear_data = None
+    fleet_condition_path = ROOT / '.openclaw/connector-artifacts/fleet_condition/latest.json'
+    if fleet_condition_path.exists():
+        connector_fleet = _read_json(fleet_condition_path)
+        connector_report = connector_fleet.get('report') or {}
+        connector_vehicles = connector_fleet.get('vehicles') or []
+        if connector_fleet.get('source') != 'amazon_connector':
+            raise ValueError('Fleet Condition artifact is not from the Amazon connector')
+        eligible = int(connector_report.get('eligibleVehicleCount') or 0)
+        passing = int(connector_report.get('wearTearPassingCount') or 0)
+        poor_vehicles = [
+            {
+                'vin': vehicle.get('vin'), 'grade': vehicle.get('wearTearGrade'),
+                'lastPave': vehicle.get('lastPaveAt'), 'reportSection': vehicle.get('fcaStatus'),
+            }
+            for vehicle in connector_vehicles
+            if int(vehicle.get('wearTearGrade') or -1) == 2
+            and not re.search(r'Non-Con|Exclusion|LSC', vehicle.get('fcaStatus') or '', re.IGNORECASE)
+        ]
+        calculated_passing = sum(
+            1 for vehicle in connector_vehicles
+            if int(vehicle.get('wearTearGrade') or -1) >= 3
+            or re.search(r'Non-Con|Exclusion|LSC', vehicle.get('fcaStatus') or '', re.IGNORECASE)
+        )
+        current_percent = float(connector_report.get('currentQuarterWearTearPercent'))
+        if not connector_vehicles or eligible != len(connector_vehicles) or passing != calculated_passing or abs((passing / eligible * 100) - current_percent) > 0.05:
+            raise ValueError('Amazon connector Fleet Condition artifact does not reconcile with its VIN rows')
+        fca_compliant = sum(1 for vehicle in connector_vehicles if re.match(r'^Compliant', vehicle.get('fcaStatus') or '', re.IGNORECASE))
+        wear_data = {
+            'metric': 'Current Quarter Rolling Wear & Tear Compliance',
+            'reportedAt': connector_report.get('capturedAt') or connector_fleet.get('capturedAt'),
+            'dueDate': max((vehicle.get('dueDate') for vehicle in connector_vehicles if vehicle.get('dueDate')), default=None),
+            'currentPercent': current_percent,
+            'previousQuarterPercent': float(connector_report.get('previousQuarterWearTearPercent')),
+            'eligibleVehicleCount': eligible,
+            'wearTearPassingCount': passing,
+            'poorGradeVehicleCount': len(poor_vehicles),
+            'poorGradeVehicles': poor_vehicles,
+            'targetPercent': float(os.getenv('FLEET_WEAR_TEAR_TARGET_PERCENT', '80')),
+            'stretchPercent': float(os.getenv('FLEET_WEAR_TEAR_STRETCH_PERCENT', '85')),
+            'planningBasis': f'Amazon connector VIN reconciliation: {passing} of {eligible} eligible vehicles are grade 3 (Fair) or better, producing {current_percent:.1f}%.',
+            'source': {
+                'authoritativeSystem': 'amazon_connector',
+                'reportLocation': 'Supplemental Reports / Fleet Condition Assessment (FCA) / Wear & Tear (W&T) Dashboard',
+                'artifactKey': connector_fleet.get('artifactKey'),
+                'sha256': connector_fleet.get('sha256'),
+            },
+            'fcaCompliance': {
+                'previousQuarterPercent': float(connector_report.get('previousQuarterFcaPercent')),
+                'currentQuarterRollingPercent': float(connector_report.get('currentQuarterFcaPercent')),
+                'eligibleVehicleCount': eligible,
+                'compliantVehicleCount': fca_compliant,
+                'needsInspectionCount': max(eligible - fca_compliant, 0),
+                'temporaryExclusionCount': sum(1 for vehicle in connector_vehicles if re.search(r'Exclusion', vehicle.get('fcaStatus') or '', re.IGNORECASE)),
+            },
+        }
     lsc_files = sorted(FLEET_REVIEW_DIR.glob("*/wear-and-tear-lsc-cases.json"))
     lsc_data = _read_json(lsc_files[-1]) if lsc_files else {'cases': []}
     pave_upload, pave_preview = _latest_pave_upload_preview(tenant)
@@ -247,6 +316,16 @@ def build_fleet_compliance_payload(tenant="jecs"):
         if vin not in roster_vins:
             unmatched_pm_issues.append({'vin': vin, 'issues': entries})
 
+    maintenance_by_vin = {}
+    for issue in maintenance_data.get('maintenanceIssues', []):
+        vin = issue.get('vin')
+        if vin:
+            maintenance_by_vin.setdefault(vin, []).append(issue)
+    unmatched_maintenance_issues = [
+        issue for issue in maintenance_data.get('maintenanceIssues', [])
+        if issue.get('vin') not in roster_vins
+    ]
+
     overrides = {item.get('vin'): item for item in snapshot.get('ownershipOverrides', [])}
     rows = []
     for vehicle in vehicles:
@@ -257,6 +336,7 @@ def build_fleet_compliance_payload(tenant="jecs"):
         grounded = _normalized_unit(unit) in grounded_keys if readiness_verified else None
         inspection = inspections_by_vin.get(vin, {'count': 0, 'types': []})
         pm_issues = pm_by_vin.get(vin, [])
+        maintenance_issues = maintenance_by_vin.get(vin, [])
         pm_statuses = {item.get('status') for item in pm_issues}
         ownership_days = _days_until(vehicle.get('ownershipEndDate'), today)
         registration_days = _days_until(vehicle.get('registrationExpiryDate'), today)
@@ -289,8 +369,17 @@ def build_fleet_compliance_payload(tenant="jecs"):
         for category in health_exceptions:
             issues.append({'category': 'Portal health', 'severity': 'warning', 'label': f'{category.replace("_", " ").title()} requires attention'})
             severity = max(severity, 60)
+        for maintenance_issue in maintenance_issues:
+            is_grounding = bool(maintenance_issue.get('shouldVehicleBeGrounded') or maintenance_issue.get('isVehicleGroundedBySystem'))
+            issue_severity = 'critical' if is_grounding or maintenance_issue.get('severity') == 'HIGH' else 'warning'
+            issues.append({
+                'category': 'Open maintenance',
+                'severity': issue_severity,
+                'label': (maintenance_issue.get('issueCategory') or maintenance_issue.get('issueType') or 'Open maintenance issue').replace('_', ' ').title(),
+            })
+            severity = max(severity, 95 if issue_severity == 'critical' else 60)
         if inspection['count'] == 0:
-            issues.append({'category': 'Inspection evidence', 'severity': 'info', 'label': 'No DVIC record in the September 7 evidence pull'})
+            issues.append({'category': 'Inspection evidence', 'severity': 'info', 'label': f'No DVIC record in the {inspection_as_of} evidence pull'})
             severity = max(severity, 20)
 
         if grounded is True:
@@ -330,6 +419,7 @@ def build_fleet_compliance_payload(tenant="jecs"):
             'inspectionCount': inspection['count'],
             'inspectionTypes': inspection['types'],
             'pmIssues': pm_issues,
+            'maintenanceIssues': maintenance_issues,
             'healthStatuses': health,
             'issues': issues,
             'nextAction': next_action,
@@ -373,13 +463,17 @@ def build_fleet_compliance_payload(tenant="jecs"):
         ownership_counts[row['ownership']] = ownership_counts.get(row['ownership'], 0) + 1
 
     wear_and_tear = None
+    fca_compliance = None
     if wear_data:
+        try:
+            wear_report_age_days = (today - datetime.fromisoformat(wear_data.get('reportedAt', '').replace('Z', '+00:00')).date()).days
+        except (TypeError, ValueError):
+            wear_report_age_days = None
+        wear_data_status = 'stale' if wear_report_age_days is None or wear_report_age_days > 2 else 'current'
         eligible_denominator = int(wear_data.get('eligibleVehicleCount') or len(rows))
         current_percent = float(wear_data.get('currentPercent') or 0)
-        # Management target is an application policy, not a value inherited
-        # from an older evidence snapshot. Keep it stable across exports.
-        target_percent = WEAR_TEAR_TARGET_PERCENT
-        stretch_percent = WEAR_TEAR_STRETCH_PERCENT
+        target_percent = float(wear_data.get('targetPercent') or 0)
+        stretch_percent = float(wear_data.get('stretchPercent') or target_percent)
         current_count = int(wear_data.get('wearTearPassingCount') or round(current_percent / 100 * eligible_denominator))
         target_count = math.ceil(target_percent / 100 * eligible_denominator)
         stretch_count = math.ceil(stretch_percent / 100 * eligible_denominator)
@@ -421,6 +515,8 @@ def build_fleet_compliance_payload(tenant="jecs"):
         ))
         wear_and_tear = {
             **wear_data,
+            'dataStatus': wear_data_status,
+            'ageDays': wear_report_age_days,
             'targetPercent': target_percent,
             'stretchPercent': stretch_percent,
             'planningDenominator': eligible_denominator,
@@ -456,6 +552,20 @@ def build_fleet_compliance_payload(tenant="jecs"):
                 }
             ]
         }
+        fca_source = wear_data.get('fcaCompliance') or {}
+        if fca_source:
+            fca_eligible = int(fca_source.get('eligibleVehicleCount') or eligible_denominator)
+            fca_compliant = int(fca_source.get('compliantVehicleCount') or 0)
+            fca_compliance = {
+                **fca_source,
+                'eligibleVehicleCount': fca_eligible,
+                'compliantVehicleCount': fca_compliant,
+                'nonCompliantVehicleCount': max(fca_eligible - fca_compliant, 0),
+                'currentQuarterRollingPercent': float(fca_source.get('currentQuarterRollingPercent') or 0),
+                'source': wear_data.get('source'),
+                'reportedAt': wear_data.get('reportedAt'),
+                'dueDate': wear_data.get('dueDate'),
+            }
 
     return {
         'asOf': snapshot.get('asOf'),
@@ -484,12 +594,27 @@ def build_fleet_compliance_payload(tenant="jecs"):
             'inspectionVehicles': sum(1 for row in rows if row['inspectionCount'] > 0),
             'inspectionCoverageRate': round(sum(1 for row in rows if row['inspectionCount'] > 0) / len(rows) * 100, 1) if rows else 0,
             'openMaintenanceIssues': maintenance_data.get('totalIssuesCount', 0),
+            'rosterMatchedMaintenanceIssues': sum(len(items) for vin, items in maintenance_by_vin.items() if vin in roster_vins),
+            'unmatchedMaintenanceIssues': len(unmatched_maintenance_issues),
             'statusCounts': status_counts,
             'ownershipCounts': ownership_counts
         },
         'vehicles': rows,
         'unmatchedPmIssues': unmatched_pm_issues,
+        'unmatchedMaintenanceIssues': unmatched_maintenance_issues,
+        'fcaCompliance': fca_compliance,
         'wearAndTear': wear_and_tear,
+        'fleetCondition': ({
+            'needsData': False,
+            'status': 'current',
+            'source': 'amazon_connector',
+            'capturedAt': wear_and_tear.get('reportedAt'),
+        } if wear_and_tear else {
+            'needsData': True,
+            'status': 'needs_data',
+            'source': 'amazon_connector',
+            'message': 'A VIN-complete Amazon Fleet Condition connector pull is required. Email summaries and archived email vehicle tables are not used.',
+        }),
         'paveAssessments': ({
             **pave_preview['summary'],
             'filename': pave_upload['originalFilename'],
@@ -500,9 +625,10 @@ def build_fleet_compliance_payload(tenant="jecs"):
         'sources': [
             {'label': 'Cortex Fleet Dashboard readiness', 'asOf': snapshot.get('asOf') if readiness_verified else None, 'path': snapshot.get('readinessSource') if readiness_verified else None, 'status': 'current' if readiness_verified else 'needs_data'},
             {'label': 'Fleet roster and ownership', 'asOf': snapshot.get('ownershipAsOf'), 'path': snapshot.get('ownershipClassificationSource')},
-            {'label': 'DVIC inspection evidence', 'asOf': inspection_path.parent.name, 'path': str(inspection_path.relative_to(ROOT))},
+            {'label': 'DVIC inspection evidence', 'asOf': inspection_as_of, 'path': str(inspection_path.relative_to(ROOT))},
             {'label': 'Preventive maintenance', 'asOf': pm_path.parent.name, 'path': str(pm_path.relative_to(ROOT))},
-            *([{'label': 'Cortex Supplemental Reports · Fleet Condition Assessment (FCA) · Wear & Tear', 'asOf': wear_data.get('reportedAt', '')[:10], 'path': str(wear_files[-1].relative_to(ROOT))}] if wear_data else []),
+            {'label': 'Open maintenance issues', 'asOf': maintenance_path.parent.name, 'path': str(maintenance_path.relative_to(ROOT))},
+            *([{'label': 'Amazon connector · Fleet Condition Assessment (FCA) · Wear & Tear', 'asOf': wear_data.get('reportedAt', '')[:10], 'path': str(fleet_condition_path.relative_to(ROOT)), 'status': 'current'}] if wear_data else []),
             *([{'label': 'Wear & Tear LSC case register', 'asOf': lsc_data.get('asOf'), 'path': str(lsc_files[-1].relative_to(ROOT))}] if lsc_files else []),
             *([{'label': 'PAVE Fleet Dashboard CSV', 'asOf': pave_preview['summary'].get('latestAt', '')[:10], 'path': pave_upload['storageKey']}] if pave_preview else []),
         ],
@@ -1534,46 +1660,38 @@ def reconcile_saved_browser_sessions(tenant="jecs"):
     """
     checks = (
         ("amazon", ROOT / ".openclaw/amazon-logistics-storage-state.json",
-         ["node", str(ROOT / "scripts/amazon_payments_session_check.mjs")]),
+         [NODE_BINARY, str(ROOT / "scripts/amazon_session_check.mjs")]),
         ("pave", ROOT / ".openclaw/pave-storage-state.json",
-         ["node", str(ROOT / "scripts/pave_login.mjs"), "--check"]),
+         [NODE_BINARY, str(ROOT / "scripts/pave_login.mjs"), "--check"]),
     )
     for connection_id, state_path, command in checks:
         if not state_path.exists():
-            continue
+            if connection_id != 'amazon' or not (ROOT / '.openclaw/browser-profiles/amazon-logistics').exists():
+                continue
         checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         try:
-            subprocess.run(
-                command, cwd=str(ROOT), stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, timeout=90, check=True)
-            connections_registry.set_connection_state(
-                tenant, connection_id, status="healthy",
-                lastCheckedAt=checked_at, lastSuccessAt=checked_at,
-                lastError=None)
+            completed = subprocess.run(
+                command, cwd=str(ROOT), capture_output=True,
+                text=True, timeout=90, check=False)
+            if completed.returncode == 0:
+                connections_registry.set_connection_state(
+                    tenant, connection_id, status="healthy",
+                    lastCheckedAt=checked_at, lastSuccessAt=checked_at,
+                    lastError=None)
+            else:
+                detail = f'{completed.stdout}\n{completed.stderr}'
+                needs_reauth = 'requires sign-in or MFA' in detail or 'requires reauthentication' in detail
+                connections_registry.set_connection_state(
+                    tenant, connection_id, status='needs_reauth' if needs_reauth else 'degraded',
+                    lastCheckedAt=checked_at,
+                    lastError=(f'{connections_registry.BY_ID[connection_id]["displayName"]} saved session requires sign-in.'
+                               if needs_reauth else
+                               f'{connections_registry.BY_ID[connection_id]["displayName"]} health check could not run; the saved profile was retained.'))
         except (subprocess.SubprocessError, OSError):
-            if connection_id == "pave":
-                try:
-                    environment = os.environ.copy()
-                    environment["PAVE_USERNAME"] = get_secret(
-                        tenant, "pave", "production-username")
-                    environment["PAVE_PASSWORD"] = get_secret(
-                        tenant, "pave", "production-password")
-                    subprocess.run(
-                        ["node", str(ROOT / "scripts/pave_login.mjs"), "--headless"],
-                        cwd=str(ROOT), env=environment, stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL, timeout=90, check=True)
-                    refreshed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-                    connections_registry.set_connection_state(
-                        tenant, connection_id, status="healthy",
-                        lastCheckedAt=refreshed_at, lastSuccessAt=refreshed_at,
-                        lastError=None)
-                    continue
-                except (KeyError, subprocess.SubprocessError, OSError):
-                    pass
             connections_registry.set_connection_state(
-                tenant, connection_id, status="needs_reauth",
+                tenant, connection_id, status="degraded",
                 lastCheckedAt=checked_at,
-                lastError=f'{connections_registry.BY_ID[connection_id]["displayName"]} saved session requires sign-in.')
+                lastError=f'{connections_registry.BY_ID[connection_id]["displayName"]} health check timed out; the saved profile was retained.')
 
     # API-provider checks run after browser sessions so a slow upstream API can
     # never prevent Amazon/PAVE state from being restored after startup.
@@ -1627,7 +1745,7 @@ def _due(value, interval):
 
 def sync_pave_export(tenant="jecs"):
     completed = subprocess.run(
-        ["node", str(ROOT / "scripts/pave_export_download.mjs")],
+        [NODE_BINARY, str(ROOT / "scripts/pave_export_download.mjs")],
         cwd=str(ROOT), capture_output=True, text=True, timeout=180, check=True)
     result = json.loads(completed.stdout.strip().splitlines()[-1])
     path = Path(result["path"])
@@ -1707,7 +1825,7 @@ def sync_amazon_live_routes(tenant="jecs"):
     environment = os.environ.copy()
     environment['DSP_TENANT'] = tenant
     completed = subprocess.run(
-        ["node", str(ROOT / "scripts/amazon_live_routes.mjs")],
+        [NODE_BINARY, str(ROOT / "scripts/amazon_live_routes.mjs")],
         cwd=str(ROOT), env=environment, capture_output=True, text=True,
         timeout=120, check=False)
     if completed.returncode != 0:
@@ -1723,6 +1841,38 @@ def sync_amazon_live_routes(tenant="jecs"):
         lastSyncSummary={'routes': output.get('routeCount', 0),
                          'deliveryDate': output.get('deliveryDate')})
     return output
+
+
+def sync_amazon_fleet_condition(tenant="jecs"):
+    """Pull and reconcile the VIN-complete FCA/W&T report through the shared Amazon profile."""
+    environment = os.environ.copy()
+    environment['DSP_TENANT'] = tenant
+    completed = subprocess.run(
+        [NODE_BINARY, str(ROOT / 'scripts/sync_fleet_condition_local.mjs')],
+        cwd=str(ROOT), env=environment, capture_output=True, text=True,
+        timeout=240, check=False)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or '').strip()
+        if 'requires reauthentication' in detail or 'requires sign-in or MFA' in detail:
+            raise PermissionError('Amazon Fleet Condition report requires sign-in or MFA.')
+        raise RuntimeError('Amazon Fleet Condition refresh failed.')
+    output = json.loads(completed.stdout.strip())
+    stamp = output.get('capturedAt') or datetime.now(timezone.utc).isoformat(timespec='seconds')
+    connections_registry.set_connection_state(
+        tenant, 'amazon', status='healthy', lastSuccessAt=stamp,
+        lastCheckedAt=stamp, lastAutomatedSyncAt=stamp, lastError=None,
+        lastSyncSummary={'fleetConditionVehicles': output.get('vehicles', 0),
+                         'wearTearPercent': output.get('wearTearPercent'),
+                         'wearTearPassing': output.get('passing')})
+    return output
+
+
+def _fleet_condition_sync_due(interval=timedelta(hours=6)):
+    artifact = ROOT / '.openclaw/connector-artifacts/fleet_condition/latest.json'
+    if not artifact.exists():
+        return True
+    return datetime.now(timezone.utc) - datetime.fromtimestamp(
+        artifact.stat().st_mtime, timezone.utc) >= interval
 
 
 def refresh_all_connection_data(tenant="jecs"):
@@ -1746,10 +1896,10 @@ def refresh_all_connection_data(tenant="jecs"):
                 except PermissionError:
                     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
                     connections_registry.set_connection_state(
-                        tenant, "amazon", status="needs_reauth", lastCheckedAt=stamp,
-                        lastError="Amazon Logistics session requires sign-in or MFA.")
-                    results.append({"id": "amazon", "status": "needs_reauth",
-                                    "message": "Reconnect Amazon to refresh Cortex routes"})
+                        tenant, "amazon", status="degraded", lastCheckedAt=stamp,
+                        lastError="Delivery Execution requires attention; the persistent Amazon profile and FCA data were retained.")
+                    results.append({"id": "amazon", "status": "degraded",
+                                    "message": "Route feed challenge; retained Amazon profile and FCA data"})
                 except Exception:
                     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
                     connections_registry.set_connection_state(
@@ -1757,6 +1907,20 @@ def refresh_all_connection_data(tenant="jecs"):
                         lastError="Cortex route refresh failed; saved routes remain available.")
                     results.append({"id": "amazon", "status": "degraded",
                                     "message": "Route refresh failed; retained saved routes"})
+                try:
+                    summary = sync_amazon_fleet_condition(tenant)
+                    results.append({"id": "amazon_fleet_condition", "status": "healthy",
+                                    "message": f'{summary.get("vehicles", 0)} FCA VINs refreshed'})
+                except PermissionError:
+                    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    connections_registry.set_connection_state(
+                        tenant, "amazon", status="needs_reauth", lastCheckedAt=stamp,
+                        lastError="Amazon Fleet Condition report requires sign-in or MFA.")
+                    results.append({"id": "amazon_fleet_condition", "status": "needs_reauth",
+                                    "message": "Amazon FCA authentication challenge"})
+                except Exception:
+                    results.append({"id": "amazon_fleet_condition", "status": "degraded",
+                                    "message": "FCA refresh failed; no email fallback was used"})
 
             pave = current.get("pave", {})
             if pave.get("configured"):
@@ -1819,13 +1983,27 @@ def run_connection_scheduler(tenant="jecs"):
             except PermissionError:
                 now = datetime.now(timezone.utc).isoformat(timespec='seconds')
                 connections_registry.set_connection_state(
-                    tenant, 'amazon', status='needs_reauth', lastCheckedAt=now,
-                    lastError='Amazon Logistics session requires sign-in or MFA.')
+                    tenant, 'amazon', status='degraded', lastCheckedAt=now,
+                    lastError='Delivery Execution requires attention; the persistent Amazon profile and FCA data were retained.')
             except Exception:
                 now = datetime.now(timezone.utc).isoformat(timespec='seconds')
                 connections_registry.set_connection_state(
                     tenant, 'amazon', status='degraded', lastCheckedAt=now,
                     lastError='Scheduled Cortex route refresh failed; saved routes remain available.')
+        if (5 <= eastern_hour < 23 and amazon.get('status') == 'healthy' and _fleet_condition_sync_due()):
+            try:
+                with _CONNECTION_REFRESH_LOCK:
+                    sync_amazon_fleet_condition(tenant)
+            except PermissionError:
+                now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                connections_registry.set_connection_state(
+                    tenant, 'amazon', status='needs_reauth', lastCheckedAt=now,
+                    lastError='Amazon Fleet Condition report requires sign-in or MFA.')
+            except Exception:
+                now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                connections_registry.set_connection_state(
+                    tenant, 'amazon', status='degraded', lastCheckedAt=now,
+                    lastError='Scheduled FCA refresh failed; no email fallback was used.')
         pave = connections.get('pave', {})
         if pave.get('status') == 'healthy' and _due(pave.get('lastAutomatedSyncAt'), timedelta(days=1)):
             try:
@@ -3759,11 +3937,8 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log = open(log_path, 'ab', buffering=0)
             child_environment = os.environ.copy()
-            if connection_id == 'pave':
-                child_environment['PAVE_USERNAME'] = get_secret(tenant, 'pave', 'production-username')
-                child_environment['PAVE_PASSWORD'] = get_secret(tenant, 'pave', 'production-password')
             process = subprocess.Popen(
-                ['node', str(ROOT / 'scripts' / ('amazon_logistics_login.mjs' if connection_id == 'amazon' else 'pave_login.mjs'))],
+                [NODE_BINARY, str(ROOT / 'scripts' / ('amazon_logistics_login.mjs' if connection_id == 'amazon' else 'pave_login.mjs'))],
                 cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT,
                 start_new_session=True, env=child_environment)
             def watch_login():

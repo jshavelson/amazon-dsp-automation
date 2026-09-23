@@ -246,7 +246,8 @@ export class PostgresRepository {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
       const result = await client.query(
         `select id, integration_type, display_name, secret_reference, config, status,
-                auth_kind, schedule, last_checked_at, last_success_at, last_error,
+                auth_kind, schedule, last_checked_at, last_success_at, last_auth_success_at,
+                last_data_at, consecutive_failures, last_error,
                 reauth_required_at, session_expires_at
            from app.integration_connections
           where tenant_id = $1
@@ -261,7 +262,8 @@ export class PostgresRepository {
     return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
       const result = await client.query(
         `select id, integration_type, display_name, secret_reference, config, status,
-                auth_kind, schedule, last_checked_at, last_success_at, last_error
+                auth_kind, schedule, last_checked_at, last_success_at, last_auth_success_at,
+                last_data_at, consecutive_failures, last_error
            from app.integration_connections
           where tenant_id = $1 and integration_type = $2
           limit 1`,
@@ -471,6 +473,70 @@ export class PostgresRepository {
         items: result.rows,
         total: parseInt(countResult.rows[0].total, 10)
       };
+    });
+  }
+
+  async listLatestPaveAssessments(context, { limit = 1000, skip = 0 } = {}) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const result = await client.query(
+        `select * from (
+           select distinct on (vin) id,vin,license_plate as "licensePlate",vehicle_description as "vehicleDescription",
+                  assessment_status as status,grade,grade_label as "gradeLabel",condition_score as "conditionScore",
+                  has_new_damage as "hasNewDamage",grounding_risk as "groundingRisk",station,
+                  external_session_key as "sessionKey",assessed_at as "assessedAt"
+             from app.pave_assessments where tenant_id=$1 and lower(assessment_status)='completed'
+            order by vin,assessed_at desc
+         ) latest order by "licensePlate",vin limit $2 offset $3`,
+        [context.principal.tenantDbId, limit, skip]
+      );
+      const count = await client.query(
+        `select count(distinct vin)::integer as total from app.pave_assessments
+          where tenant_id=$1 and lower(assessment_status)='completed'`, [context.principal.tenantDbId]
+      );
+      return { items: result.rows, total: count.rows[0].total };
+    });
+  }
+
+  async getLatestFleetConditionReport(context) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const reportResult = await client.query(
+        `select id,captured_at as "capturedAt",previous_quarter_fca_percent::float as "previousQuarterFcaPercent",
+                previous_quarter_wear_tear_percent::float as "previousQuarterWearTearPercent",
+                current_quarter_fca_percent::float as "currentQuarterFcaPercent",
+                current_quarter_wear_tear_percent::float as "currentQuarterWearTearPercent",
+                eligible_vehicle_count as "eligibleVehicleCount",compliant_vehicle_count as "compliantVehicleCount",
+                wear_tear_passing_count as "wearTearPassingCount"
+           from app.fleet_condition_reports where tenant_id=$1 order by captured_at desc limit 1`,
+        [context.principal.tenantDbId]
+      );
+      const report = reportResult.rows[0];
+      if (!report) return null;
+      const vehicles = await client.query(
+        `select vin,make,model,year,due_date as "dueDate",last_pave_at as "lastPaveAt",
+                wear_tear_grade as "wearTearGrade",fca_status as "fcaStatus"
+           from app.fleet_condition_vehicles where tenant_id=$1 and report_id=$2 order by vin`,
+        [context.principal.tenantDbId, report.id]
+      );
+      return { ...report, vehicles: vehicles.rows };
+    });
+  }
+
+  async listPaveAssessmentHistory(context, { vin = null, limit = 100, skip = 0 } = {}) {
+    return this.#transaction({ tenantDbId: context.principal.tenantDbId, subject: context.principal.userId }, async (client) => {
+      const result = await client.query(
+        `select id,vin,license_plate as "licensePlate",vehicle_description as "vehicleDescription",
+                assessment_status as status,grade,grade_label as "gradeLabel",condition_score as "conditionScore",
+                has_new_damage as "hasNewDamage",grounding_risk as "groundingRisk",station,
+                external_session_key as "sessionKey",assessed_at as "assessedAt"
+           from app.pave_assessments where tenant_id=$1 and ($2::text is null or vin=$2)
+          order by assessed_at desc limit $3 offset $4`,
+        [context.principal.tenantDbId, vin, limit, skip]
+      );
+      const count = await client.query(
+        `select count(*)::integer as total from app.pave_assessments
+          where tenant_id=$1 and ($2::text is null or vin=$2)`, [context.principal.tenantDbId, vin]
+      );
+      return { items: result.rows, total: count.rows[0].total };
     });
   }
 

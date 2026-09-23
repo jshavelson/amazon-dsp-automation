@@ -1,9 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PERFORMANCE_SNAPSHOT = path.resolve(HERE, '..', '..', 'operational-snapshots', 'route-monitor.json');
 const emptyLivePayload = (message, needsReauth = false) => ({
   period: null, capturedAt: null, source: 'Amazon Delivery Execution', live: false, stale: true,
   needsData: true, needsReauth, message, routeCount: 0,
@@ -145,14 +139,8 @@ export function routeMonitorRoutes(app, { repository, logger, referenceTenantSlu
     return reply.send({ deliveryDate: body.deliveryDate, dispatchPlan });
   });
 
-  app.get('/api/route-performance', async (request, reply) => {
-    if (request.tenantContext.principal.tenantId !== referenceTenantSlug) {
-      return reply.send({ period: null, routes: [], routeCount: 0, source: 'No tenant-scoped route performance source available', needsData: true });
-    }
-    try { return reply.send(JSON.parse(await fs.readFile(PERFORMANCE_SNAPSHOT, 'utf8'))); }
-    catch (error) {
-      logger?.error?.({ err: error }, 'weekly route performance snapshot unavailable');
-      return reply.send({ period: null, routes: [], routeCount: 0, source: 'No weekly scorecard source available', needsData: true });
-    }
-  });
+  app.get('/api/route-performance', async (_request, reply) => reply.send({
+    period: null, routes: [], routeCount: 0, status: 'needs_data', needsData: true,
+    source: 'No tenant-scoped Amazon route-performance connector artifact is available. Packaged snapshots are disabled.'
+  }));
 }

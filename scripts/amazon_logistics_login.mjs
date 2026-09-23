@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { launchAmazonPersistentContext, saveAmazonPortableState } from './amazon_persistent_context.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,16 +27,10 @@ function getLoginUrl(rawConfig) {
 
 await fs.mkdir(path.dirname(storageStatePath), { recursive: true });
 
-const hasSavedSession = await fs.access(storageStatePath).then(() => true).catch(() => false);
-
-const browser = await chromium.launch({ headless: false });
-const context = await browser.newContext({
-  acceptDownloads: true,
-  ...(hasSavedSession ? { storageState: storageStatePath } : {}),
-});
+const { context } = await launchAmazonPersistentContext({ root: repoRoot, config, headless: false, acceptDownloads: true });
 const page = await context.newPage();
 
-console.log(hasSavedSession ? 'Opening Amazon Logistics with the saved session...' : 'Opening Amazon Logistics login...');
+console.log('Opening Amazon Logistics with the persistent managed profile...');
 await page.goto(getLoginUrl(config), { waitUntil: 'domcontentloaded' });
 
 if (page.url().includes('/ap/signin')) {
@@ -54,7 +48,7 @@ if (!page.url().includes('/performance')) {
 const finalUrl = page.url();
 if (!finalUrl.includes('/performance')) {
   console.error(`Login was not completed in the Performance portal (current URL: ${finalUrl}). Session state was not saved.`);
-  await browser.close();
+  await context.close();
   process.exit(1);
 }
 
@@ -71,8 +65,19 @@ await page.waitForURL((url) => url.hostname === 'logistics.amazon.com' && !url.p
   waitUntil: 'domcontentloaded',
 });
 
-await context.storageState({ path: storageStatePath });
-await fs.chmod(storageStatePath, 0o600);
-console.log(`Saved shared Amazon DSP session state to ${storageStatePath}`);
+console.log('Payments access confirmed. Verifying Delivery Execution...');
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+const executionUrl = `https://logistics.amazon.com/operations/execution/dv/routes?provider=ALL_DRIVERS&selectedDay=${today}&serviceAreaId=${config.executionServiceAreaId}&historicalDay=false`;
+await page.goto(executionUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+if (page.url().includes('/ap/signin')) {
+  console.log('Amazon requested a Delivery Execution challenge. Complete it in the same browser window.');
+  await page.waitForURL((url) => url.hostname === 'logistics.amazon.com' && url.pathname.startsWith('/operations/execution/'), {
+    timeout: 300_000,
+    waitUntil: 'domcontentloaded',
+  });
+}
 
-await browser.close();
+await saveAmazonPortableState(context, storageStatePath);
+console.log(`Saved persistent Amazon DSP profile and portable state to ${storageStatePath}`);
+
+await context.close();

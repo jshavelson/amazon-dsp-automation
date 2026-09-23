@@ -12,6 +12,7 @@
     "amazon:login": "node scripts/amazon_logistics_login.mjs",
     "amazon:session-check": "node scripts/amazon_session_check.mjs",
     "amazon:snapshot-fleet": "node scripts/amazon_session_check.mjs && node scripts/amazon_fleet_dashboard_snapshot.mjs",
+    "amazon:sync-fleet-condition": "node scripts/amazon_session_check.mjs && node scripts/sync_fleet_condition_local.mjs",
     "amazon:live-routes": "node scripts/amazon_session_check.mjs && node scripts/amazon_live_routes.mjs",
     "amazon:live-routes-daemon": "python3 scripts/run_live_route_sync.py --interval 300",
     "amazon:download": "node scripts/amazon_session_check.mjs && node scripts/amazon_logistics_download.mjs",

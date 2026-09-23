@@ -61,7 +61,7 @@ const app = await createApp({
   connectionService,
   assistantService,
   memberProvisioner,
-  exposeLegacyDashboard: true
+  exposeLegacyDashboard: false
 });
 
 const shutdown = async () => {

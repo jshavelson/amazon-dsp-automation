@@ -61,13 +61,68 @@ Resources:
     Properties:
       QueueName: !Sub '${ProjectName}-connector.fifo'
       FifoQueue: true
-      ContentBasedDeduplication: false
+      ContentBasedDeduplication: true
       SqsManagedSseEnabled: true
       VisibilityTimeout: 900
       MessageRetentionPeriod: 345600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ConnectorDeadLetterQueue.Arn
         maxReceiveCount: 5
+  ConnectorHealthSchedule:
+    Type: AWS::Events::Rule
+    Condition: HasManagedConnector
+    Properties:
+      Description: Runs authenticated Amazon and PAVE canaries for every configured tenant.
+      ScheduleExpression: rate(30 minutes)
+      State: ENABLED
+      Targets:
+        - Id: connector-health-sweep
+          Arn: !GetAtt ConnectorQueue.Arn
+          Input: '{"version":1,"jobType":"health_sweep","requestedAt":"eventbridge"}'
+          SqsParameters: {MessageGroupId: health-sweep}
+  ConnectorQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Condition: HasManagedConnector
+    Properties:
+      Queues: [!Ref ConnectorQueue]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowScheduledHealthSweep
+            Effect: Allow
+            Principal: {Service: events.amazonaws.com}
+            Action: sqs:SendMessage
+            Resource: !GetAtt ConnectorQueue.Arn
+            Condition:
+              ArnEquals: {aws:SourceArn: !GetAtt ConnectorHealthSchedule.Arn}
+  ConnectorDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasManagedConnector
+    Properties:
+      AlarmDescription: Managed browser jobs reached the connector dead-letter queue.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{Name: QueueName, Value: !GetAtt ConnectorDeadLetterQueue.QueueName}]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  ConnectorScheduleFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasManagedConnector
+    Properties:
+      AlarmDescription: EventBridge could not enqueue the managed browser health sweep.
+      Namespace: AWS/Events
+      MetricName: FailedInvocations
+      Dimensions: [{Name: RuleName, Value: !Ref ConnectorHealthSchedule}]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
   ConnectorArtifactBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain

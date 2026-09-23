@@ -56,6 +56,7 @@ interface ComplianceVehicle {
   inspectionCount: number;
   inspectionTypes: string[];
   pmIssues: PmIssue[];
+  maintenanceIssues: Array<{ issueId: string; issueCategory?: string; issueType?: string; severity?: string; status?: string }>;
   healthStatuses: Record<string, string>;
   issues: ComplianceIssue[];
   nextAction: string;
@@ -117,6 +118,8 @@ interface WearAndTearCompliance {
   openLscCaseCount: number;
   actions: WearTearAction[];
   source: { subject: string; from: string; archive: string };
+  reportedAt?: string;
+  dataStatus?: 'current' | 'stale';
 }
 
 interface CompliancePayload {
@@ -137,12 +140,28 @@ interface CompliancePayload {
     inspectionVehicles: number;
     inspectionCoverageRate: number;
     openMaintenanceIssues: number;
+    rosterMatchedMaintenanceIssues: number;
+    unmatchedMaintenanceIssues: number;
     statusCounts: Record<string, number>;
     ownershipCounts: Record<string, number>;
   };
   vehicles: ComplianceVehicle[];
   unmatchedPmIssues: Array<{ vin: string; issues: PmIssue[] }>;
+  unmatchedMaintenanceIssues: Array<{ issueId: string; vin?: string; vehicleName?: string; issueCategory?: string; status?: string }>;
+  fcaCompliance?: {
+    previousQuarterPercent: number;
+    currentQuarterRollingPercent: number;
+    needsInspectionCount: number;
+    temporaryExclusionCount: number;
+    compliantVehicleCount: number;
+    eligibleVehicleCount: number;
+    nonCompliantVehicleCount: number;
+    reportedAt: string;
+    dueDate: string;
+    source: { subject: string; from: string; archive: string; reportLocation?: string };
+  } | null;
   wearAndTear?: WearAndTearCompliance | null;
+  fleetCondition?: { needsData: boolean; status: 'current' | 'needs_data'; source: 'amazon_connector'; capturedAt?: string; message?: string };
   paveAssessments?: { rowsRead: number; completedRows: number; incompleteRows: number; uniqueVins: number;
     currentFairOrBetter: number; currentPoor: number; currentGroundingRisk: number; currentNewDamage: number;
     latestAt?: string | null; filename: string; confirmedAt: string; unmatchedVins: string[] } | null;
@@ -212,11 +231,11 @@ const FleetCompliancePage: React.FC = () => {
   };
 
   const exportCsv = () => {
-    const header = ['Unit', 'VIN', 'Vehicle', 'Readiness', 'Compliance', 'Ownership', 'Provider', 'Ownership end', 'DVIC records', 'PM status', 'Next action'];
+    const header = ['Unit', 'VIN', 'Vehicle', 'Readiness', 'Compliance', 'Ownership', 'Provider', 'Ownership end', 'DVIC records', 'PM status', 'Open maintenance', 'Next action'];
     const rows = filteredVehicles.map((vehicle) => [
       vehicle.unit, vehicle.vin, `${vehicle.year} ${vehicle.make} ${vehicle.model}`, vehicle.operationalStatus,
       statusMeta[vehicle.complianceStatus].label, vehicle.ownership, vehicle.provider || '', vehicle.ownershipEndDate || '',
-      vehicle.inspectionCount, vehicle.pmIssues.map((item) => item.status).join(' | '), vehicle.nextAction,
+      vehicle.inspectionCount, vehicle.pmIssues.map((item) => item.status).join(' | '), vehicle.maintenanceIssues.length, vehicle.nextAction,
     ]);
     const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -237,6 +256,7 @@ const FleetCompliancePage: React.FC = () => {
     { label: 'PM attention', value: data.summary.pmSourceIssues, detail: `${data.summary.pmDue + data.summary.pmDueSoon} roster-matched · ${data.summary.pmUnmatchedVehicles} reconcile`, icon: Wrench, tone: 'amber' },
     { label: 'DVIC evidence', value: `${data.summary.inspectionVehicles}/${data.summary.registeredFleet}`, detail: `${data.summary.inspectionCoverageRate}% in source pull`, icon: ClipboardCheck, tone: 'emerald' },
   ];
+  const dvicSource = data.sources.find((source) => source.label === 'DVIC inspection evidence');
 
   return (
     <div className="space-y-6">
@@ -266,6 +286,18 @@ const FleetCompliancePage: React.FC = () => {
           </article>
         ))}
       </section>
+
+      {data.fleetCondition?.needsData && <section className="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/25">
+        <div className="flex items-start gap-3"><span className="rounded-lg bg-blue-100 p-2 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><RefreshCw size={20} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Amazon connector data required</p><h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-white">FCA and Wear &amp; Tear unavailable</h2><p className="mt-1 text-sm text-gray-600 dark:text-slate-300">{data.fleetCondition.message}</p><p className="mt-2 text-xs text-gray-500 dark:text-slate-400">No email-derived percentage, denominator, or Grade-2 candidate is displayed.</p></div></div>
+      </section>}
+
+      {data.fcaCompliance && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/25">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3"><span className="rounded-lg bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><ShieldCheck size={20} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Amazon Fleet Condition Assessment</p><h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-white">FCA Compliance</h2><p className="mt-1 text-sm text-gray-600 dark:text-slate-300">{data.fcaCompliance.compliantVehicleCount} of {data.fcaCompliance.eligibleVehicleCount} eligible vehicles are FCA compliant in the authoritative Amazon report.</p></div></div>
+          <div className="grid grid-cols-2 gap-2 text-center sm:min-w-[360px]"><div className="rounded-lg border border-emerald-200 bg-white px-4 py-3 dark:border-emerald-900 dark:bg-slate-950"><p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{data.fcaCompliance.currentQuarterRollingPercent.toFixed(1)}%</p><p className="text-[11px] text-gray-500 dark:text-slate-400">Current quarter rolling</p></div><div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950"><p className="text-2xl font-bold text-gray-800 dark:text-white">{data.fcaCompliance.previousQuarterPercent.toFixed(1)}%</p><p className="text-[11px] text-gray-500 dark:text-slate-400">Previous quarter</p></div></div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-gray-500 dark:text-slate-400">Needs inspection</p><p className="text-xl font-bold text-gray-900 dark:text-white">{data.fcaCompliance.needsInspectionCount}</p></div><div><p className="text-xs text-gray-500 dark:text-slate-400">Temporary exclusions</p><p className="text-xl font-bold text-gray-900 dark:text-white">{data.fcaCompliance.temporaryExclusionCount}</p></div><div><p className="text-xs text-gray-500 dark:text-slate-400">Report date</p><p className="text-sm font-semibold text-gray-900 dark:text-white">{data.fcaCompliance.reportedAt.slice(0, 10)}</p></div></div>
+      </section>}
 
       {data.wearAndTear && <section className="overflow-hidden rounded-xl border border-orange-200 bg-white shadow-sm dark:border-orange-900/70 dark:bg-slate-900">
         <div className="border-b border-orange-200 bg-gradient-to-r from-orange-50 via-amber-50 to-white p-5 dark:border-orange-900/60 dark:from-orange-950/45 dark:via-amber-950/25 dark:to-slate-900">
@@ -323,7 +355,7 @@ const FleetCompliancePage: React.FC = () => {
         </div>
 
         <div className="border-t border-gray-200 dark:border-slate-800">
-          <div className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="font-semibold text-gray-900 dark:text-white">Grade-2 repair candidates</h3><p className="text-xs text-gray-500 dark:text-slate-400">Exact Poor-grade VINs from the report · operational vehicles first · close 3, schedule 4</p></div><span className="text-xs text-gray-500 dark:text-slate-400">{data.wearAndTear.repairCandidates.length} candidates</span></div>
+          <div className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="font-semibold text-gray-900 dark:text-white">Grade-2 repair candidates</h3><p className="text-xs text-gray-500 dark:text-slate-400">Exact Poor-grade VINs from the report · operational vehicles first · {data.wearAndTear.minimumAdditionalCompliant} minimum passes needed, {data.wearAndTear.stretchAdditionalCompliant} for the planning buffer</p></div><span className="text-xs text-gray-500 dark:text-slate-400">{data.wearAndTear.repairCandidates.length} candidates</span></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-5 py-3">Priority vehicle</th><th className="px-4 py-3">Readiness</th><th className="px-4 py-3">Current grade</th><th className="px-4 py-3">Last PAVE</th><th className="px-4 py-3">LSC</th><th className="px-4 py-3">Required action</th></tr></thead>
@@ -338,7 +370,7 @@ const FleetCompliancePage: React.FC = () => {
       <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <article className="rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/70 dark:bg-red-950/30">
           <div className="flex items-center gap-2 text-red-800 dark:text-red-200"><AlertTriangle size={19} /><h2 className="font-semibold">Priority action queue</h2></div>
-          <p className="mt-2 text-sm text-red-700 dark:text-red-300">{(data.summary.statusCounts.grounded || 0) + (data.summary.statusCounts.action_required || 0)} units require release, maintenance, or document action before normal assignment. Grounded status comes from dispatch readiness; PM and document dates come from Fleet Portal evidence.</p>
+          <p className="mt-2 text-sm text-red-700 dark:text-red-300">{(data.summary.statusCounts.grounded || 0) + (data.summary.statusCounts.action_required || 0)} units require release, maintenance, or document action before normal assignment. Grounded status comes from the Cortex Fleet Dashboard; PM and document dates come from the identified source evidence.</p>
         </article>
         <article className="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-2 text-gray-900 dark:text-white"><ShieldCheck size={19} className="text-emerald-600" /><h2 className="font-semibold">Roster reconciliation</h2></div>
@@ -348,8 +380,13 @@ const FleetCompliancePage: React.FC = () => {
 
       {data.unmatchedPmIssues.length > 0 && <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/70 dark:bg-amber-950/30">
         <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200"><Wrench size={18} /><h2 className="font-semibold">PM roster reconciliation required</h2></div>
-        <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">{data.unmatchedPmIssues.length} PM records reference VINs that are not in the current 50-vehicle roster. Confirm whether these are returned assets, replacement vehicles, or stale maintenance records.</p>
+        <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">{data.unmatchedPmIssues.length} PM records reference VINs that are not in the current {data.summary.registeredFleet}-vehicle roster. Confirm whether these are returned assets, replacement vehicles, or stale maintenance records.</p>
         <div className="mt-3 flex flex-wrap gap-2">{data.unmatchedPmIssues.map((item) => <span key={item.vin} className="rounded-lg border border-amber-300 bg-white px-3 py-2 font-mono text-xs text-amber-900 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200">{item.vin} · {item.issues.map((issue) => pretty(issue.status)).join(', ')}</span>)}</div>
+      </section>}
+
+      {data.unmatchedMaintenanceIssues.length > 0 && <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/70 dark:bg-amber-950/30">
+        <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200"><Wrench size={18} /><h2 className="font-semibold">Maintenance roster reconciliation required</h2></div>
+        <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">{data.summary.unmatchedMaintenanceIssues} of {data.summary.openMaintenanceIssues} open maintenance records reference VINs outside the current roster. They remain visible here and are not attached to a different vehicle.</p>
       </section>}
 
       <section className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -364,7 +401,7 @@ const FleetCompliancePage: React.FC = () => {
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-4 py-3">Unit / vehicle</th><th className="px-4 py-3">Readiness</th><th className="px-4 py-3">Ownership</th><th className="px-4 py-3">Inspection</th><th className="px-4 py-3">PM</th><th className="px-4 py-3">Priority / next action</th><th className="px-4 py-3">Review</th></tr></thead>
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-950 dark:text-slate-400"><tr><th className="px-4 py-3">Unit / vehicle</th><th className="px-4 py-3">Readiness</th><th className="px-4 py-3">Ownership</th><th className="px-4 py-3">Inspection</th><th className="px-4 py-3">PM / maintenance</th><th className="px-4 py-3">Priority / next action</th><th className="px-4 py-3">Review</th></tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
               {filteredVehicles.map((vehicle) => {
                 const open = expandedVin === vehicle.vin;
@@ -375,8 +412,8 @@ const FleetCompliancePage: React.FC = () => {
                     <td className="px-4 py-4"><button onClick={() => setExpandedVin(open ? null : vehicle.vin)} className="flex items-start gap-2 text-left"><span className="mt-0.5 text-gray-400">{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span><span><strong className="block text-gray-900 dark:text-white">{vehicle.unit}</strong><span className="block text-xs text-gray-500 dark:text-slate-400">{vehicle.year} {vehicle.make} {vehicle.model}</span><span className="block font-mono text-[11px] text-gray-400">{vehicle.vin}</span></span></button></td>
                     <td className="px-4 py-4"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${vehicle.operationalStatus === 'GROUNDED' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'}`}>{pretty(vehicle.operationalStatus)}</span></td>
                     <td className="px-4 py-4"><strong className="block text-gray-800 dark:text-slate-100">{pretty(vehicle.ownership)}</strong><span className="block text-xs text-gray-500 dark:text-slate-400">{vehicle.provider || 'Provider unavailable'}</span>{vehicle.ownershipEndDate && <span className={`block text-xs ${(vehicle.ownershipDaysRemaining ?? 999) <= 30 ? 'font-medium text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400'}`}>Ends {vehicle.ownershipEndDate}</span>}</td>
-                    <td className="px-4 py-4"><strong className={vehicle.inspectionCount ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'}>{vehicle.inspectionCount ? `${vehicle.inspectionCount} record${vehicle.inspectionCount === 1 ? '' : 's'}` : 'Evidence gap'}</strong><span className="block text-xs text-gray-500 dark:text-slate-400">Sep 7 evidence pull</span></td>
-                    <td className="px-4 py-4">{vehicle.pmIssues.length ? vehicle.pmIssues.map((issue) => <span key={issue.issueId} className={`mr-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${issue.status === 'DUE' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'}`}>{pretty(issue.status)}</span>) : <span className="text-emerald-700 dark:text-emerald-300">No open PM flag</span>}</td>
+                    <td className="px-4 py-4"><strong className={vehicle.inspectionCount ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'}>{vehicle.inspectionCount ? `${vehicle.inspectionCount} record${vehicle.inspectionCount === 1 ? '' : 's'}` : 'Evidence gap'}</strong><span className="block text-xs text-gray-500 dark:text-slate-400">Source as of {dvicSource?.asOf || 'unavailable'}</span></td>
+                    <td className="px-4 py-4">{vehicle.pmIssues.length ? vehicle.pmIssues.map((issue) => <span key={issue.issueId} className={`mr-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${issue.status === 'DUE' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'}`}>{pretty(issue.status)}</span>) : <span className="text-emerald-700 dark:text-emerald-300">No open PM flag</span>}<span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">{vehicle.maintenanceIssues.length} open maintenance issue{vehicle.maintenanceIssues.length === 1 ? '' : 's'}</span></td>
                     <td className="max-w-sm px-4 py-4"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${meta.classes}`}>{meta.label}</span><p className="mt-2 text-xs text-gray-600 dark:text-slate-300">{vehicle.nextAction}</p></td>
                     <td className="px-4 py-4"><button onClick={() => toggleReviewed(vehicle.vin)} className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium ${wasReviewed ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}><CheckCircle2 size={14} />{wasReviewed ? 'Reviewed' : 'Mark reviewed'}</button></td>
                   </tr>
@@ -391,7 +428,7 @@ const FleetCompliancePage: React.FC = () => {
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-2"><Database size={18} className="text-blue-600" /><h2 className="font-semibold text-gray-900 dark:text-white">Evidence and source freshness</h2></div>
-        <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">This view reconciles frozen source snapshots. Refresh rereads local evidence; it does not claim a live Amazon or PAVE sync.</p>
+        <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Each metric below retains its own source and as-of date. Refresh requests connector updates first, then reloads this reconciled payload; a source that did not update remains visibly dated.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{data.sources.map((source) => <article key={source.label} className="rounded-lg bg-gray-50 p-3 dark:bg-slate-950"><strong className="block text-sm text-gray-900 dark:text-white">{source.label}</strong><span className="text-xs text-gray-500 dark:text-slate-400">As of {source.asOf}</span><span className="mt-1 block break-all text-[11px] text-gray-400">{source.path}</span></article>)}</div>
       </section>
     </div>

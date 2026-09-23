@@ -114,6 +114,9 @@ export async function createApp({
         return reply.code(404).send({ error: 'dashboard unavailable' });
       }
     });
+  } else if (frontendAvailable) {
+    app.get('/dashboard', async (_request, reply) => reply.redirect('/app/dashboard'));
+    app.get('/dashboard/', async (_request, reply) => reply.redirect('/app/dashboard'));
   }
   
   app.get('/auth/config', async () => {

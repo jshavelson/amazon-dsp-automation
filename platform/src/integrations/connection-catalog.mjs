@@ -81,10 +81,7 @@ export const CONNECTION_CATALOG = Object.freeze([
     feeds: Object.freeze(['Vans', 'Fleet Compliance', 'Wear & Tear']),
     reauthNote: 'PAVE authentication is separate from Amazon. Reconnect when PAVE revokes the saved browser session.',
     reconnectLabel: 'PAVE',
-    credentialFields: Object.freeze([
-      field('username', 'PAVE username', { secret: false, placeholder: 'PAVE username' }),
-      field('password', 'PAVE password', { placeholder: 'PAVE password' })
-    ]),
+    credentialFields: Object.freeze([]),
     environments: Object.freeze(['production']),
     testable: false
   }),
