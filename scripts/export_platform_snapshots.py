@@ -24,6 +24,7 @@ from scripts.jecs_api_server import (
     build_route_monitor_payload,
     build_reimbursement_review_payload,
 )
+from scripts.weekly_evaluation_snapshot import build_weekly_evaluations_payload
 
 
 OUTPUT = ROOT / "platform/operational-snapshots"
@@ -51,6 +52,7 @@ def main():
         }),
         write("modules.json", build_reimbursement_review_payload()),
         write("route-monitor.json", build_route_monitor_payload()),
+        write("weekly-evaluations.json", build_weekly_evaluations_payload()),
     ]
     for path in files:
         print(path.relative_to(ROOT))

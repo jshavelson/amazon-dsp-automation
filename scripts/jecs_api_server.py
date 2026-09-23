@@ -3213,26 +3213,13 @@ class JecsAPIHandler(BaseHTTPRequestHandler):
         self.send_json(mock_response)
 
     def handle_get_weekly_evaluations(self):
-        """Expose the incumbent dashboard's weekly evaluation payload to React."""
+        """Expose current weekly evaluations independently of the legacy dashboard."""
         if _tenant_from_headers(self.headers) != DEFAULT_TENANT:
             self.send_json({'weeks': [], 'evaluations': {}, 'needsData': True,
                             'message': 'No tenant-scoped weekly evaluations have been generated'})
             return
-        html = DASHBOARD_PATH.read_text(encoding='utf-8')
-        match = re.search(
-            r'window\.__WEEKLY_EVALUATIONS__=(\{.*?\});</script>',
-            html,
-            flags=re.DOTALL,
-        )
-        if not match:
-            self.send_json({'weeks': [], 'evaluations': {}})
-            return
-
-        evaluations = json.loads(match.group(1))
-        self.send_json({
-            'weeks': list(evaluations.keys()),
-            'evaluations': evaluations,
-        })
+        from scripts.weekly_evaluation_snapshot import build_weekly_evaluations_payload
+        self.send_json(build_weekly_evaluations_payload())
 
     def handle_get_time_attendance_exceptions(self):
         """Return real ADP exceptions, reconciled against daily Amazon assignments."""

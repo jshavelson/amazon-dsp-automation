@@ -190,6 +190,20 @@ test('operations dashboard is assembled from connected scorecard and operational
   assert.ok(payload.sources.some((source) => source.id === 'amazon'));
 });
 
+test('weekly evaluations use the independent current scorecard snapshot', async (t) => {
+  const app = await createApp({ authenticator, repository, registry });
+  t.after(() => app.close());
+  const response = await app.inject({
+    method: 'GET', url: '/api/weekly-evaluations',
+    headers: { authorization: 'Bearer test', 'x-tenant-id': 'jec-logistics' }
+  });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json();
+  assert.match(payload.weeks[0], /^\d{4}-W\d{2}$/);
+  assert.equal(payload.evaluations[payload.weeks[0]].week, payload.weeks[0]);
+  assert.ok(payload.evaluations[payload.weeks[0]].topDrivers.length > 0);
+});
+
 test('time and attendance returns tenant-scoped ADP exceptions and honest route coverage', async (t) => {
   const app = await createApp({ authenticator, repository, registry });
   t.after(() => app.close());

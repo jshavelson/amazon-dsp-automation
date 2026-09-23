@@ -306,7 +306,6 @@ export function reactCompatRoutes(app, { repository, dashboardHtmlPath, connecti
 
   app.get('/api/weekly-evaluations', async (request) => {
     if (!hasReferenceData(request)) return { weeks: [], evaluations: {}, needsData: true, message: 'No tenant-scoped weekly evaluations have been generated' };
-    const evaluations = await loadEvaluations(dashboardHtmlPath);
-    return { weeks: Object.keys(evaluations), evaluations };
+    return operationalSnapshot('weekly-evaluations');
   });
 }
